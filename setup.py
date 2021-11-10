@@ -15,10 +15,6 @@ HERE = os.path.abspath(os.path.dirname(__file__))
 # The name of the project
 name="metanno"
 
-# Get our version
-with open(os.path.join(HERE, 'package.json')) as f:
-    version = json.load(f)['version']
-
 lab_path = os.path.join(HERE, name, "labextension")
 
 # Representative files that should exist after a successful build
