@@ -1,0 +1,14 @@
+{
+  "name": "metanno",
+  "description": "Jupyter widgets collection to setup a modular annotation environment",
+  "additionalProperties": false,
+  "properties": {
+    "saveState": {
+      "type": "boolean",
+      "title": "Save metanno display state in notebooks",
+      "description": "Automatically save metanno display state when a notebook is saved.",
+      "default": false
+    }
+  },
+  "type": "object"
+}

@@ -1,0 +1,351 @@
+import "regenerator-runtime/runtime";
+import {applyMiddleware, compose, createStore, Store} from "redux";
+import {eval_code} from "../parse";
+import {applyPatches, enablePatches} from "immer";
+// @ts-ignore
+import {JSONObject, JSONValue} from "@lumino/coreutils";
+// @ts-ignore
+import {DocumentRegistry} from "@jupyterlab/docregistry";
+// @ts-ignore
+import {IComm, IKernelConnection} from "@jupyterlab/services/lib/kernel/kernel";
+// @ts-ignore
+import {IChangedArgs} from "@jupyterlab/coreutils";
+// @ts-ignore
+import {Kernel} from "@jupyterlab/services";
+// @ts-ignore
+import {ISessionContext} from "@jupyterlab/apputils/lib/sessioncontext";
+// @ts-ignore
+import * as KernelMessage from "@jupyterlab/services/lib/kernel/messages";
+
+enablePatches();
+
+export default class metannoManager {
+    public actions: { [name: string]: Function };
+    public app: any;
+    public store: Store;
+
+    private context: DocumentRegistry.IContext<DocumentRegistry.IModel>;
+    private isDisposed: boolean;
+    private readonly comm_target_name: string;
+    private settings: {saveState: boolean};
+
+    //modelsSync: Map<any>;
+    private comm: IComm;
+
+    constructor(context: DocumentRegistry.IContext<DocumentRegistry.IModel>, settings: {saveState: boolean}) {
+        this.store = this.createStore();
+        this.actions = {};
+        this.app = null;
+
+        this.comm_target_name = 'metanno';
+        this.context = context;
+        this.comm = null;
+
+        // this.modelsSync = new Map();
+        // this.onUnhandledIOPubMessage = new Signal(this);
+
+
+        // https://github.com/jupyter-widgets/ipywidgets/commit/5b922f23e54f3906ed9578747474176396203238
+        context.sessionContext.kernelChanged.connect((
+            sender: ISessionContext,
+            args: IChangedArgs<Kernel.IKernelConnection | null, Kernel.IKernelConnection | null, 'kernel'>
+        ) => {
+            this._handleKernelChanged(args);
+        });
+
+        context.sessionContext.statusChanged.connect((
+            sender: ISessionContext,
+            status: Kernel.Status,
+        ) => {
+            this._handleKernelStatusChange(status);
+        });
+
+        if (context.sessionContext.session?.kernel) {
+            this._handleKernelChanged({
+                name: 'kernel',
+                oldValue: null,
+                newValue: context.sessionContext.session?.kernel
+            });
+        }
+
+        this.connectToAnyKernel().then();//() => {});
+
+        this.settings = settings;
+        /*context.saveState.connect((sender, saveState) => {
+            if (saveState === 'started' && settings.saveState) {
+                this.saveState();
+            }
+        });*/
+    }
+
+
+    _handleCommOpen = (comm: IComm, msg?: KernelMessage.ICommOpenMsg) => {
+        // const data = (msg.content.data);
+        // hydrate state ?
+        this.comm = comm;
+
+        this.comm.onMsg = this.onMsg;
+
+        this.comm.send({
+            "method": "sync_request",
+            "data": {}
+        })
+    };
+
+    /**
+     * Create a comm.
+     */
+
+    _create_comm = async (
+        target_name: string,
+        model_id: string,
+        data?: JSONValue,
+        metadata?: JSONObject,
+        buffers?: (ArrayBuffer | ArrayBufferView)[]
+    ): Promise<IComm> => {
+        let kernel = this.context.sessionContext.session?.kernel;
+        if (!kernel) {
+            throw new Error('No current kernel');
+        }
+        let comm = kernel.createComm(target_name, model_id);
+        if (data || metadata) {
+            comm.open(data, metadata, buffers);
+        }
+        return comm;
+    }
+
+    /**
+     * Get the currently-registered comms.
+     */
+    _get_comm_info = async (): Promise<any> => {
+        let kernel = this.context.sessionContext.session?.kernel;
+        if (!kernel) {
+            throw new Error('No current kernel');
+        }
+        const reply = await kernel.requestCommInfo({target_name: this.comm_target_name});
+        if (reply.content.status === 'ok') {
+            return (reply.content).comms;
+        } else {
+            return {};
+        }
+    }
+
+    connectToAnyKernel = async () => {
+        if (!this.context.sessionContext) {
+            return;
+        }
+        await this.context.sessionContext.ready;
+
+        if (this.context.sessionContext.session.kernel.handleComms === false) {
+            return;
+        }
+        const all_comm_ids = await this._get_comm_info();
+        const relevant_comm_ids = Object.keys(all_comm_ids).filter(key => all_comm_ids[key]['target_name'] === this.comm_target_name);
+        console.log("Jupyter annotator comm ids", relevant_comm_ids, "(there should be at most one)");
+        if (relevant_comm_ids.length > 0) {
+            const comm = await this._create_comm(
+                this.comm_target_name,
+                relevant_comm_ids[0]);
+            this._handleCommOpen(comm);
+        }
+    };
+
+    onMsg = (msg: KernelMessage.ICommMsgMsg) => {
+        const {method, data} = msg.content.data as { method: string, data: any };
+        if (method === "action") {
+            this.store.dispatch(data);
+        } else if (method === "run_method") {
+            this.app[data.method_name](...data.args);
+        } else if (method === "patch") {
+            try {
+                const newState = applyPatches(this.store.getState(), data.patches);
+                this.store.dispatch({
+                    'type': 'SET_STATE',
+                    'payload': newState,
+                })
+            }
+            catch (error) {
+                console.error("ERROR DURING PATCHING")
+                console.error(error);
+            }
+        } else if (method === "set_app_code") {
+            this.app = eval_code(data.code)();
+            this.app.manager = this;
+        } else if (method === "sync") {
+            this.store.dispatch({
+                'type': 'SET_STATE',
+                'payload': data.state,
+            })
+        }
+    };
+
+    /*_saveState() {
+        const state = this.get_state_sync({drop_defaults: true});
+        this._context.model.metadata.set('widgets', {
+            'application/vnd.jupyter.annotator-state+json': state
+        });
+    }*/
+
+    /**
+     * Restore widgets from kernel and saved state.
+     */
+    /*async restoreWidgets(notebook, {loadKernel, loadNotebook} = {loadKernel: true, loadNotebook: true}) {
+        if (loadKernel) {
+            await this._loadFromKernel();
+        }
+        if (loadNotebook) {
+            await this._loadFromNotebook(notebook);
+        }
+    }*/
+
+    /*async _loadFromNotebook(notebook) {
+        const widget_md = notebook.metadata.get('widgets');
+        // Restore any widgets from saved state that are not live
+        if (widget_md && widget_md[MIMETYPE]) {
+            // TODO redux hydrating here
+        }
+    }*/
+
+    /**
+     * Register a new kernel
+     */
+    _handleKernelChanged = (
+        {
+            name,
+            oldValue,
+            newValue
+        }: { name: string, oldValue: IKernelConnection | null, newValue: IKernelConnection | null}) => {
+        if (oldValue) {
+            console.log("Removing comm", oldValue);
+            this.comm = null;
+            oldValue.removeCommTarget(this.comm_target_name, this._handleCommOpen);
+        }
+
+        if (newValue) {
+            console.log("Registering comm", newValue);
+            newValue.registerCommTarget(this.comm_target_name, this._handleCommOpen);
+        }
+    };
+
+    _handleKernelStatusChange = (status: Kernel.Status) => {
+        switch (status) {
+            case 'autorestarting':
+            case 'restarting':
+            case 'dead':
+                //this.disconnect();
+                break;
+            default:
+        }
+    };
+
+    /**
+     * Disconnect the widget manager from the kernel, setting each model's comm
+     * as dead.
+     */
+    /*disconnect() {
+        // super.disconnect();
+    }*/
+
+    /**
+     * Dispose the resources held by the manager.
+     */
+    dispose = () => {
+        if (this.isDisposed) {
+            return;
+        }
+        this.isDisposed = true;
+
+        // TODO do something with the comm ?
+    };
+
+    /**
+     * A signal emitted when state is restored to the widget manager.
+     *
+     * #### Notes
+     * This indicates that previously-unavailable widget models might be available now.
+     */
+
+    /**
+     * Whether the state has been restored yet or not.
+     */
+
+    /**
+     * A signal emitted for unhandled iopub kernel messages.
+     *
+     */
+
+    /**
+     * Synchronously get the state of the live widgets in the widget manager.
+     *
+     * This includes all of the live widget models, and follows the format given in
+     * the @jupyter-widgets/schema package.
+     *
+     * @param options - The options for what state to return.
+     * @returns A state dictionary
+     */
+    /*get_state_sync(options = {}) {
+        const models = [];
+        for (const model of this.modelsSync.values()) {
+            if (model.comm_live) {
+                models.push(model);
+            }
+        }
+        return serialize_state(models, options);
+    }*/
+
+    /* **************************
+     *       REDUX STUFF        *
+     * ************************** /
+
+    /*reduxMiddleware = store => next => action => {
+        (action.meta?.executors || []).map(executor => {
+            if (executor === "kernel") {
+                this.comm.send({
+                    "method": "action",
+                    "data": {
+                        ...action,
+                        "meta": {"executors": [executor]}
+                    }
+                });
+            } else if (executor === "frontend") {
+                next(action);
+            }
+        });
+    };*/
+
+    reduce = (state = {}, action) => {
+        if (action.type === 'SET_STATE') {
+            return action.payload;
+        }
+        if (this.app?.reduce) {
+            return this.app.reduce(state, action);
+        }
+        return state;
+    };
+
+    getState = () => this.store.getState();
+
+    dispatch = (action: any) => this.store.dispatch(action);
+
+    createStore = (): Store => {
+        const composeEnhancers =
+            typeof window === 'object' &&
+            // @ts-ignore
+            window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ ?
+                // @ts-ignore
+                window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__({
+                    // Specify extension’s options like name, actionsBlacklist, actionsCreators, serialize...
+                }) : compose;
+
+        return createStore(
+            this.reduce,
+            composeEnhancers(
+                applyMiddleware(
+                    // thunkMiddleware, // lets us dispatch() functions
+                    // loggerMiddleware, // neat middleware that logs actions
+                    // this.reduxMiddleware,
+                )
+            )
+        );
+    };
+}

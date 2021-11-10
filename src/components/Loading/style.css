@@ -1,0 +1,17 @@
+.container.is-loading {
+    min-height: 100px;
+}
+
+.loading {
+    fill: var(--jp-ui-font-color1);
+    stop-color: var(--jp-ui-font-color1);
+    color: var(--jp-ui-font-color1);
+}
+
+.loading svg stop {
+    stop-color: var(--jp-ui-font-color1);
+}
+
+.loading svg circle {
+    fill: var(--jp-ui-font-color1);
+}
