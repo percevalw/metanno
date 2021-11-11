@@ -148,6 +148,7 @@
     border: none;
     top: 0;
     bottom: 0;
+    z-index: 200;
 }
 
 .mention_token.mouse_selected .label { /* -0.7 + (2.2em -> 1.45em)/2 */

@@ -76,21 +76,24 @@ const Token = React.memo(({
                                 ${metadata.selected ? 'selected' : ''}
                                 ${metadata.first_token && is_first && !metadata.openleft ? "closedleft" : ""}
                                 ${is_last && !metadata.openright ? "closedright" : ""}`}
-                    style={{...styles[metadata.style], '--vertical-offset': `${7 + 2 * metadata.depth - (metadata.highlighted ? 2: 0)}px`, zIndex: 1 + metadata.depth}}
+                    style={{...styles[metadata.style], '--vertical-offset': `${7 + 2 * metadata.depth - (metadata.highlighted ? 2 : 0)}px`, zIndex: 1 + metadata.depth}}
                 />
             );
         }
     }
-    const n_labels = metadata_list.reduce((total, metadata) => (metadata.first_token ? total+1 : total), 0);
+    const n_labels = metadata_list.reduce((total, metadata) => (metadata.first_token ? total + 1 : total), 0);
     let label_idx = 0;
     return (
 
-            <span
-                //id={is_first ? (key): undefined}
-                className="text-chunk"
-                span_begin={span_begin}
-                span_end={span_end}
-            >{annotations}<span className="text-chunk-content" style={{color: styles?.[metadata_list?.[metadata_list.length -1]?.style]?.color}}>{text}</span>
+        <span
+            //id={is_first ? (key): undefined}
+            className="text-chunk"
+            span_begin={span_begin}
+            span_end={span_end}
+        >{annotations}<span className="text-chunk-content"
+                            span_begin={span_begin}
+                            span_end={span_end}
+                            style={{color: styles?.[metadata_list?.[metadata_list.length - 1]?.style]?.color}}>{text}</span>
             {is_first && metadata_list.map((metadata, i) => {
                 if (metadata.first_token && metadata.label) {
                     label_idx += 1;
