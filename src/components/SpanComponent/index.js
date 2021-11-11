@@ -93,6 +93,8 @@ const Token = React.memo(({
         >{annotations}<span className="text-chunk-content"
                             span_begin={span_begin}
                             span_end={span_end}
+                            onMouseEnter={(event) => metadata_list.map(metadata => handleMouseEnterSpan(event, metadata.id))}
+                            onMouseLeave={(event) => metadata_list.map(metadata => handleMouseLeaveSpan(event, metadata.id))}
                             style={{color: styles?.[metadata_list?.[metadata_list.length - 1]?.style]?.color}}>{text}</span>
             {is_first && metadata_list.map((metadata, i) => {
                 if (metadata.first_token && metadata.label) {
