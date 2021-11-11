@@ -1,19 +1,19 @@
 """
 metanno setup
 """
-import json
 import os
 
+import setuptools
 from jupyter_packaging import (
     create_cmdclass, install_npm, ensure_targets,
-    combine_commands, get_version,
+    combine_commands
 )
-import setuptools
+from jupyter_packaging.setupbase import _get_data_files
 
 HERE = os.path.abspath(os.path.dirname(__file__))
 
 # The name of the project
-name="metanno"
+name = "metanno"
 
 lab_path = os.path.join(HERE, name, "labextension")
 
@@ -32,17 +32,17 @@ package_data_spec = {
 labext_name = "metanno"
 
 data_files_spec = [
-    ("share/jupyter/labextensions/%s" % labext_name, lab_path, "**"),
+    ("share/jupyter/labextensions/%s" % labext_name, os.path.join(lab_path), "**/*.*"),
     ("share/jupyter/labextensions/%s" % labext_name, HERE, "install.json"),
 ]
 
 cmdclass = create_cmdclass("jsdeps",
-    package_data_spec=package_data_spec,
-    data_files_spec=data_files_spec
-)
+                           package_data_spec=package_data_spec,
+                           data_files_spec=data_files_spec
+                           )
 
 cmdclass["jsdeps"] = combine_commands(
-    install_npm(HERE, build_cmd="build:prod", npm=["jlpm"]),
+    install_npm(HERE, build_cmd="build", npm=["jlpm"]),
     ensure_targets(jstargets),
 )
 
@@ -51,7 +51,7 @@ with open("README.md", "r") as fh:
 
 setup_args = dict(
     name="metanno",
-    version="0.0.2",
+    version="0.0.3",
     url="https://github.com/perceval/metanno",
     author="Perceval Wajsburt",
     author_email="perceval.wajsburt@sorbonne-universite.fr",
@@ -66,9 +66,10 @@ setup_args = dict(
     zip_safe=False,
     include_package_data=True,
     python_requires=">=3.6",
-    license="BSD-3-Clause",
+    license="MIT",
     platforms="Linux, Mac OS X, Windows",
     keywords=["Jupyter", "JupyterLab"],
+    # data_files=_get_data_files(data_files_spec, None),
     classifiers=[
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
@@ -80,7 +81,6 @@ setup_args = dict(
         "Framework :: Jupyter",
     ],
 )
-
 
 if __name__ == "__main__":
     setuptools.setup(**setup_args)
