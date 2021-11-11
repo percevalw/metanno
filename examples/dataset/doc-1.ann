@@ -1,0 +1,47 @@
+T1	Anatomy 386 394	ectoderm
+T2	Species 226 231	human
+T3	CellType 226 250	human fibroblast feeders
+T4	Anatomy 3017 3020	EBs
+T5	CellType 977 982	hESCs
+T6	CellType 158 172	Human ES cells
+T7	CellComponent 702 706	cDNA
+T8	Species 217 222	mouse
+T9	CellType 2377 2379	EC
+T10	GeneProtein 324 328	bFGF
+T11	Anatomy 46 61	inner cell mass
+T12	CellType 3008 3012	ESCs
+T13	Anatomy 409 417	mesoderm
+T14	CellType 2225 2240	embryoid bodies
+T15	CellType 448 458	germ cells
+T16	Anatomy 429 443	trophoectoderm
+T17	CellType 3171 3173	EC
+T18	CellType 763 768	hESCs
+T19	CellType 987 990	EBs
+T20	CellType 883 898	embryoid bodies
+T21	CellType 3017 3020	EBs
+T22	CellType 22 26	ESCs
+T23	CellComponent 1016 1023	allelic
+T24	CellType 0 20	Embryonic stem cells
+T25	Anatomy 3171 3173	EC
+T26	CellType 164 172	ES cells
+T27	GeneProtein 292 322	basic fibroblast growth factor
+T28	Anatomy 883 898	embryoid bodies
+T29	CellType 873 877	ESCs
+T30	Anatomy 2361 2370	carcinoma
+T31	Anatomy 125 156	luripotent stem cell population
+T32	CellType 124 145	pluripotent stem cell
+T33	CellComponent 2385 2399	karyotypically
+T34	Anatomy 82 89	embryos
+T35	Species 2585 2590	Human
+T36	Species 158 163	Human
+T37	CellLine 3179 3185	NTera2
+T38	Anatomy 396 404	endoderm
+T39	CellType 2213 2220	feeders
+T40	Anatomy 2225 2240	embryoid bodies
+T41	CellType 1104 1109	hESCs
+T42	Anatomy 65 89	pre-implantation embryos
+T43	Anatomy 2351 2360	embryonal
+T44	Anatomy 987 990	EBs
+T45	CellType 174 179	hESCs
+T46	CellType 2351 2375	embryonal carcinoma cell
+T47	Anatomy 2377 2379	EC

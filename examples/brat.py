@@ -1,7 +1,6 @@
-import os
-import random
-import re
 import glob
+import os
+import re
 from collections import defaultdict
 
 REGEX_ENTITY = re.compile('^(T\d+)\t([^\s]+)([^\t]+)\t(.*)$')
