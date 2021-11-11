@@ -61,7 +61,7 @@ def get_code_transkrypt(my_code, args=('-b', '-n'), silent=True):
     with open('__target__/test.js') as f:
         # re.sub("import([^;]+)from\s+([^;]+)", r"const \1 = require(\2)", res)
         res = f.read()  # re.sub("(import[^;]+from\s+[^;]+;)", r"", f.read())
-    #os.remove('test.py')
+    os.remove('test.py')
     # os.remove('__target__/test.js')
     # os.remove('__target__/test.project')
     # os.remove('__target__/org.transcrypt.__runtime__.js')
