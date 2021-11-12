@@ -1,1 +1,1 @@
-pip install metanno -U
+pip install metanno --no-cache-dir
