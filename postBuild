@@ -1,1 +1,1 @@
-pip install metanno
+pip install metanno -U
