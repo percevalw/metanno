@@ -105,6 +105,9 @@ function splitLines(text_chunks) {
             offset_in_text_chunk += tokens[token_i].length;
         }
     }
+    if (current_line.length > 0 || tokens.length && tokens[tokens.length - 1] === "\n") {
+        all_lines.push(current_line)
+    }
     return all_lines;
 }
 
