@@ -28,6 +28,11 @@ A simple pip install should be enough if you use Jupyterlab 3. You do not need t
 pip install metanno
 ```
 
+If you're a user in a shared Jupyter environment, you should instead install the extension at the user level
+```
+pip install metanno --user
+```
+
 ## Why
 
 The choice of annotation software must be taken into account in the design of the annotation scheme.
