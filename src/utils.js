@@ -78,11 +78,12 @@ function styleTextChunks_(text_chunks, spans) {
 function splitLines(text_chunks) {
     let current_line = [];
     const all_lines = [];
+    let tokens = [];
     for (let i = 0; i < text_chunks.length; i++) {
         const text_chunk = text_chunks[i];
         const begin = text_chunk.begin;
-        const tokens = text_chunk.tokens;
         const metadata_list = text_chunk.metadata_list;
+        tokens = text_chunk.tokens;
 
         let offset_in_text_chunk = 0;
         for (let token_i = 0; token_i < tokens.length; token_i++) {

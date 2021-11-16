@@ -64,9 +64,10 @@ class TableComponent extends React.Component<{
                                 hyperlink
                             />
                         ))),
-                    formatter: ({row, column}) =>
-                        row[column.key] ?
+                    formatter: ({row, column}) => {
+                        return row[column.key] ?
                             <a onClick={() => this.props.onClickCellContent(row[column.key].key)}>{row[column.key].text}</a> : null
+                    }
                 };
             case 'multi-hyperlink':
                 return {
@@ -111,7 +112,7 @@ class TableComponent extends React.Component<{
                                 onClose={onClose}
                             />
                         ))),
-                    formatter: (text) => <span>{text}</span>,
+                    formatter: ({row, ...props}) => <span>{row[props.column.key]}</span>,
                 };
             case 'multi-text':
                 return {
