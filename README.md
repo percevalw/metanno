@@ -1,6 +1,9 @@
-# Metanno
+<img src="https://github.com/percevalw/metanno/raw/master/doc/logo.png" width=120px />
 
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/percevalw/metanno/HEAD?urlpath=lab%2Ftree%2Fexamples%2FAnnotator.ipynb)
+
+--------------------------------------------------------------------------------
+
 
 Metanno is a JupyterLab extension that allows you build your own annotator. For the moment, it focuses on textual documents with rich structured entities.
 Its main objectives are:
