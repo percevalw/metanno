@@ -1,6 +1,9 @@
-# Metanno
+<img src="https://github.com/percevalw/metanno/raw/master/doc/logo.png" width=120px />
 
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/percevalw/metanno/HEAD?urlpath=lab%2Ftree%2Fexamples%2FAnnotator.ipynb)
+
+--------------------------------------------------------------------------------
+
 
 Metanno is a JupyterLab extension that allows you build your own annotator. For the moment, it focuses on textual documents with rich structured entities.
 Its main objectives are:
@@ -26,6 +29,11 @@ This project is still under development and is subject to change.
 A simple pip install should be enough if you use Jupyterlab 3. You do not need to open any port.
 ```
 pip install metanno
+```
+
+If you're a user in a shared Jupyter environment, you should instead install the extension at the user level
+```
+pip install metanno --user
 ```
 
 ## Why
