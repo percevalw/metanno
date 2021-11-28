@@ -65,6 +65,7 @@ const Token = React.memo(({
             annotations.push(
                 <span
                     key={`annotation-${metadata_i}`}
+                    id={`span-${span_begin}-${span_end}`}
                     onMouseEnter={(event) => handleMouseEnterSpan(event, metadata.id)}
                     onMouseLeave={(event) => handleMouseLeaveSpan(event, metadata.id)}
                     onMouseDown={(event) => {
@@ -119,13 +120,13 @@ const Token = React.memo(({
     );
 });
 
-const Line = React.memo(({index, styles, tokens, labelsRefs, handleMouseEnterSpan, handleMouseLeaveSpan, handleClickSpan, divRef}) => {
+const Line = React.memo(({index, styles, tokens, spansRefs, handleMouseEnterSpan, handleMouseLeaveSpan, handleClickSpan, divRef}) => {
     return (
         <div ref={divRef} className="line">
             <span className="line-number" key="line-number">{index}</span>
             {tokens.map(token => <Token
                 {...token}
-                refs={labelsRefs}
+                refs={spansRefs}
                 styles={styles}
                 handleMouseEnterSpan={handleMouseEnterSpan}
                 handleMouseLeaveSpan={handleMouseLeaveSpan}
@@ -188,8 +189,8 @@ class SpanComponent extends React.Component {
                 }
             },
             scroll_to_span: (span_id) => {
-                if (this.labelsRefs[span_id]) {
-                    scrollToElement(this.labelsRefs[span_id].current, this.containerRef.current, -5);
+                if (this.spansRefs[span_id]) {
+                    scrollToElement(this.spansRefs[span_id].current, this.containerRef.current, -5);
                 }
             },
             clear_current_mouse_selection: () => {
@@ -197,7 +198,7 @@ class SpanComponent extends React.Component {
             }
         });
         this.lineRefs = [];
-        this.labelsRefs = {};
+        this.spansRefs = {};
         this.containerRef = React.createRef();
         this.previousSelectedSpans = "";
         this.spanToTextChunks = cachedReconcile(spanToTextChunks)
@@ -280,8 +281,8 @@ class SpanComponent extends React.Component {
             this.lineRefs.push(React.createRef());
         }
         this.lineRefs = this.lineRefs.slice(0, lines.length);
-        replaceObject(this.labelsRefs, Object.fromEntries(ids.map(id => {
-            return [id, this.labelsRefs[id] || React.createRef()];
+        replaceObject(this.spansRefs, Object.fromEntries(ids.map(id => {
+            return [id, this.spansRefs[id] || React.createRef()];
         })));
 
 
@@ -299,7 +300,7 @@ class SpanComponent extends React.Component {
                         <Line
                             key={line_i}
                             divRef={this.lineRefs[line_i]}
-                            labelsRefs={this.labelsRefs}
+                            spansRefs={this.spansRefs}
                             index={line_i}
                             styles={styles}
                             tokens={tokens}
@@ -308,75 +309,6 @@ class SpanComponent extends React.Component {
                             handleClickSpan={this.handleClickSpan}
                         />
                     )}
-                </div>
-                {/*<XArrow start={"127-130"} end={"144-147"} />*/}
-            </div>
-        );
-        let current_line = [];
-        const all_lines = [];
-        let line_i = 0;
-        for (let i = 0; i < text_chunks.length; i++) {
-            const text_chunk = text_chunks[i];
-            const begin = text_chunk.begin;
-            const tokens = text_chunk.tokens;
-            const metadata_list = text_chunk.metadata_list;
-
-            let offset_in_text_chunk = 0;
-            for (let token_i = 0; token_i < tokens.length; token_i++) {
-                const span_begin = begin + offset_in_text_chunk;
-                const span_end = begin + offset_in_text_chunk + tokens[token_i].length;
-                if (tokens[token_i] === "\n") {
-                    if (this.lineRefs.length - 1 < line_i) {
-                        this.lineRefs.push(React.createRef());
-                    }
-                    all_lines.push(
-                        <div className="line" key={line_i} ref={this.lineRefs[line_i]}>
-                            <span className="line-number" key="line-number">{line_i}</span>
-                            {current_line}
-                        </div>
-                    );
-                    current_line = [];
-                    line_i++;
-                } else {
-                    current_line.push(
-                        make_text_chunk({
-                            text: tokens[token_i],
-                            key: current_line.length,
-                            span_begin: span_begin,
-                            span_end: span_end,
-                            metadata_list: metadata_list,
-                            styles: styles,
-                            refs: refs,
-                            is_first: token_i === 0,
-                            is_last: token_i === tokens.length - 1,
-                            handleMouseEnterSpan: this.handleMouseEnterSpan,
-                            handleMouseLeaveSpan: this.handleMouseLeaveSpan,
-                            handleClickSpan: this.handleClickSpan,
-                        }));
-                }
-                offset_in_text_chunk += tokens[token_i].length;
-            }
-        }
-        this.labelsRefs = newLabelsRefs;
-        if (this.lineRefs.length - 1 < line_i) {
-            this.lineRefs.push(React.createRef());
-        }
-        all_lines.push(
-            <div className="line" key={line_i} ref={this.lineRefs[line_i]}>
-                <span className="line-number">{line_i}</span>
-                {current_line}
-            </div>
-        );
-        return (
-            <div className="span-editor"
-                 ref={this.containerRef}
-            >
-                <div className={`text`}
-                     onMouseUp={this.handleMouseUp}
-                     onKeyDown={this.handleKeyDown}
-                     onKeyUp={this.handleKeyUp}
-                     tabIndex="0">
-                    {all_lines}
                 </div>
                 {/*<XArrow start={"127-130"} end={"144-147"} />*/}
             </div>
