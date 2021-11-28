@@ -95,7 +95,7 @@ class TableComponent extends React.Component<{
                 };
             case 'text':
                 return {
-                    editor: readonly ? (text) => <span>{text}</span> : (
+                    editor: readonly ? null : (
                         React.forwardRef(({
                                               row,
                                               column,

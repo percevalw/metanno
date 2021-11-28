@@ -177,6 +177,7 @@ ul.input-tag__tags {
     margin-left: 8px;
     /*transform: rotate(45deg);*/
     width: 15px;
+    flex: 0 0 15px;
     padding: 0px;
 }
 .input-tag__tags li button:focus {

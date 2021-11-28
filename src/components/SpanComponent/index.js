@@ -139,26 +139,38 @@ export function getDocumentSelectedRanges() {
     const ranges = [];
     if (window.getSelection) {
         const selection = window.getSelection();
+        let begin = null, end = null;
         for (let i = 0; i < selection.rangeCount; i++) {
             const range = selection.getRangeAt(i);
             const start_container_begin = parseInt(
                 range.startContainer.parentElement.parentNode.getAttribute("span_begin"),
                 10
             );
-            if (isNaN(start_container_begin)) continue;
             const end_container_begin = parseInt(
                 range.endContainer.parentElement.parentNode.getAttribute("span_begin"),
                 10
             );
-            if (isNaN(end_container_begin)) continue;
-            const begin = range.startOffset + start_container_begin;
-            const end = range.endOffset + end_container_begin;
+            if (!isNaN(start_container_begin)) {
+                begin = range.startOffset + start_container_begin;
+            }
+            if (!isNaN(end_container_begin)) {
+                end = range.endOffset + end_container_begin;
+            }
+            if (isNaN(start_container_begin) || isNaN(end_container_begin)) {
+                continue;
+            }
             if (begin !== end) {
                 ranges.push({
                     begin: begin,
                     end: end,
                 });
             }
+        }
+        if (ranges.length === 0 && !isNaN(begin) && begin !== null && !isNaN(end) && end !== null) {
+            ranges.push({
+                begin: begin,
+                end: end,
+            });
         }
         return ranges;
     } else if (document.selection && document.selection.type !== "Control") {
