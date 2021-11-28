@@ -31,7 +31,10 @@ const TableEditor = ({
         selectedRows,
     } = useSelector(useCallback(cachedReconcile(
         state => {
-            const derived = selectEditorState(state, id);
+            let derived = null;
+            if (selectEditorState && state) {
+                derived = selectEditorState(state, id)
+            }
             return (derived
                 ? {
                     rows: [],
@@ -45,10 +48,8 @@ const TableEditor = ({
                 }
                 : {loading: true})
         }),
-        //? {...state.editors[id], loading: false} : {loading: true}),
         state => state,
         true
-        //), []
     ));
 
     if (loading) {

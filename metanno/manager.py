@@ -102,11 +102,13 @@ class AppManager(metaclass=ManagerSingleton):
         if value is not None:
             self._app = weakref.ref(value)
             if self.comm is not None:
-                js_code = transkrypt_class(value.__class__, return_python=False)
+                js_code, py_code, sourcemap = transkrypt_class(value.__class__, return_python=False)
                 self.comm.send({
                     "method": "set_app_code",
                     "data": {
                         "code": js_code,
+                        "sourcemap": sourcemap,
+                        "py_code": py_code,
                     }
                 })
         else:

@@ -71,6 +71,7 @@ export default class metannoRenderer extends Widget {
     async hideContent() {
         if (!this.isVisible) {
             ReactDOM.unmountComponentAtNode(this.node);
+            this._manager.then(manager => manager.views.delete(this));
         }
     }
 
@@ -86,22 +87,28 @@ export default class metannoRenderer extends Widget {
         this.node.textContent = 'Loading widget...' + editor_id;
 
         const manager = await this._manager;
+        manager.views.add(this);
+
+        try {
+            ReactDOM.unmountComponentAtNode(this.node);
+        } catch (e) {}
+
         if (editor_type === "span-editor") {
             ReactDOM.render(
                 <Provider store={manager.store}>
                     <SpanEditor
                         id={editor_id}
-                        onClickSpan={(...args) => manager.app?.handle_click_span(editor_id, ...args)}
-                        onEnterSpan={(...args) => manager.app?.handle_enter_span(editor_id, ...args)}
-                        onLeaveSpan={(...args) => manager.app?.handle_leave_span(editor_id, ...args)}
-                        onKeyPress={(...args) => manager.app?.handle_key_press(editor_id, ...args)}
-                        //onKeyDown={(...args) => manager.app?.handle_key_down(editor_id, ...args)}
-                        onMouseSelect={(...args) => manager.app?.handle_mouse_select(editor_id, ...args)}
-                        onButtonPress={(...args) => manager.app?.handle_button_press(editor_id, ...args)}
+                        onClickSpan={(...args) => manager.try_catch_exec(manager.app?.handle_click_span)(editor_id, ...args)}
+                        onEnterSpan={(...args) => manager.try_catch_exec(manager.app?.handle_enter_span)(editor_id, ...args)}
+                        onLeaveSpan={(...args) => manager.try_catch_exec(manager.app?.handle_leave_span)(editor_id, ...args)}
+                        onKeyPress={(...args) => manager.try_catch_exec(manager.app?.handle_key_press)(editor_id, ...args)}
+                        //onKeyDown={(...args) => manager.try_catch_exec(manager.app?.handle_key_down)(editor_id, ...args)}
+                        onMouseSelect={(...args) => manager.try_catch_exec(manager.app?.handle_mouse_select)(editor_id, ...args)}
+                        onButtonPress={(...args) => manager.try_catch_exec(manager.app?.handle_button_press)(editor_id, ...args)}
                         registerActions={methods => {
                             manager.actions[editor_id] = methods
                         }}
-                        selectEditorState={(...args) => manager.app?.select_editor_state(...args)}
+                        selectEditorState={(...args) => manager.try_catch_exec(manager.app?.select_editor_state)(...args)}
                     />
                 </Provider>,
                 this.node,
@@ -111,16 +118,16 @@ export default class metannoRenderer extends Widget {
                 <Provider store={manager.store}>
                     <TableEditor
                         id={editor_id}
-                        onKeyPress={(...args) => manager.app?.handle_key_press(editor_id, ...args)}
-                        onClickCellContent={(...args) => manager.app?.handle_click_cell_content(editor_id, ...args)}
-                        onSelectedCellChange={(...args) => manager.app?.handle_select_cell(editor_id, ...args)}
-                        onSelectedRowsChange={(...args) => manager.app?.handle_select_rows(editor_id, ...args)}
-                        onCellChange={(...args) => manager.app?.handle_cell_change(editor_id, ...args)}
+                        onKeyPress={(...args) => manager.try_catch_exec(manager.app?.handle_key_press)(editor_id, ...args)}
+                        onClickCellContent={(...args) => manager.try_catch_exec(manager.app?.handle_click_cell_content)(editor_id, ...args)}
+                        onSelectedCellChange={(...args) => manager.try_catch_exec(manager.app?.handle_select_cell)(editor_id, ...args)}
+                        onSelectedRowsChange={(...args) => manager.try_catch_exec(manager.app?.handle_select_rows)(editor_id, ...args)}
+                        onCellChange={(...args) => manager.try_catch_exec(manager.app?.handle_cell_change)(editor_id, ...args)}
                         registerActions={methods => {
                             manager.actions[editor_id] = methods;
                         }}
-                        selectEditorState={(...args) => manager.app?.select_editor_state(...args)}
-                        onButtonPress={(...args) => manager.app?.handle_button_press(editor_id, ...args)}
+                        selectEditorState={(...args) => manager.try_catch_exec(manager.app?.select_editor_state)(...args)}
+                        onButtonPress={(...args) => manager.try_catch_exec(manager.app?.handle_button_press)(editor_id, ...args)}
                     />
                 </Provider>,
                 this.node,

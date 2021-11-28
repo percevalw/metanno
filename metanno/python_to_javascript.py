@@ -1,13 +1,14 @@
-from textwrap import dedent, indent
-import re
-import sys
-import os
-from transcrypt.__main__ import main as transcrypt
+import weakref
+
 import contextlib
 import inspect
-import weakref
+import os
+import re
+import sys
 from io import StringIO
-
+from textwrap import dedent, indent
+from transcrypt.__main__ import main as transcrypt
+import json
 
 class weakmethod:
     def __init__(self, cls_method):
@@ -61,11 +62,14 @@ def get_code_transkrypt(my_code, args=('-b', '-n'), silent=True):
     with open('__target__/test.js') as f:
         # re.sub("import([^;]+)from\s+([^;]+)", r"const \1 = require(\2)", res)
         res = f.read()  # re.sub("(import[^;]+from\s+[^;]+;)", r"", f.read())
+    with open('__target__/test.map') as f:
+        # re.sub("import([^;]+)from\s+([^;]+)", r"const \1 = require(\2)", res)
+        sourcemap = json.load(f)  # re.sub("(import[^;]+from\s+[^;]+;)", r"", f.read())
     os.remove('test.py')
     # os.remove('__target__/test.js')
     # os.remove('__target__/test.project')
     # os.remove('__target__/org.transcrypt.__runtime__.js')
-    return res
+    return res, sourcemap
 
 
 kernel_only_js_template = """
@@ -73,7 +77,6 @@ kernel_only_js_template = """
 def {func_name}(self, *args):
     return "{func_name}"
 """
-
 
 produce_js_template = """
 @produce
@@ -117,10 +120,8 @@ def transkrypt_class(cls, return_python=False, silent=True):
     if return_python:
         return appcode
 
-    codeString = get_code_transkrypt(appcode, ('-b', '-n', '-p', 'window'), silent=silent)
-    exports = re.findall('export var[ ]+([^ ]+)', codeString)
-    codeString = re.sub('export var ', 'var ', codeString)
+    codeString, sourcemap = get_code_transkrypt(appcode, ('-b', '-n', '-m', '-p', 'window'), silent=silent)
+    codeString = re.sub('export var ', 'var        ', codeString)
     codeString = re.sub("(import[^;]+from\s+[^;]+;)", r"", codeString)
-    codeString += f"\n{cls.__name__}"
-    codeString = f"var IS_JS=true;\n{codeString}"
-    return codeString
+    codeString = f"{codeString}\nvar IS_JS=true;\n{cls.__name__}"
+    return codeString, appcode, sourcemap["mappings"]

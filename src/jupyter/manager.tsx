@@ -1,4 +1,6 @@
 import "regenerator-runtime/runtime";
+import React from "react";
+
 import {applyMiddleware, compose, createStore, Store} from "redux";
 import {eval_code} from "../parse";
 import {applyPatches, enablePatches} from "immer";
@@ -14,25 +16,37 @@ import {IChangedArgs} from "@jupyterlab/coreutils";
 import {Kernel} from "@jupyterlab/services";
 // @ts-ignore
 import {ISessionContext} from "@jupyterlab/apputils/lib/sessioncontext";
+import {INotification} from 'jupyterlab_toastify';
 // @ts-ignore
 import * as KernelMessage from "@jupyterlab/services/lib/kernel/messages";
 
+import {decode, SourceMapMappings} from 'sourcemap-codec';
+import "./metanno.css";
+
 enablePatches();
+
+const toastError = (error_string) => {
+    //INotification.error(`Message: ${e.message} at ${parseInt(lineStr)-1}:${parseInt(columnStr)-1}`);
+    INotification.error(<div>{error_string.split("\n").map(line => <p>{line}</p>)}</div>, {autoClose: 10000});
+}
 
 export default class metannoManager {
     public actions: { [name: string]: Function };
     public app: any;
     public store: Store;
+    public views: Set<any>;
 
     private context: DocumentRegistry.IContext<DocumentRegistry.IModel>;
     private isDisposed: boolean;
     private readonly comm_target_name: string;
-    private settings: {saveState: boolean};
+    private settings: { saveState: boolean };
 
     //modelsSync: Map<any>;
     private comm: IComm;
+    private source_code_py: string;
+    private sourcemap: SourceMapMappings;
 
-    constructor(context: DocumentRegistry.IContext<DocumentRegistry.IModel>, settings: {saveState: boolean}) {
+    constructor(context: DocumentRegistry.IContext<DocumentRegistry.IModel>, settings: { saveState: boolean }) {
         this.store = this.createStore();
         this.actions = {};
         this.app = null;
@@ -40,6 +54,10 @@ export default class metannoManager {
         this.comm_target_name = 'metanno';
         this.context = context;
         this.comm = null;
+        this.views = new Set();
+
+        this.source_code_py = '';
+        this.sourcemap = null;
 
         // this.modelsSync = new Map();
         // this.onUnhandledIOPubMessage = new Signal(this);
@@ -151,33 +169,56 @@ export default class metannoManager {
     };
 
     onMsg = (msg: KernelMessage.ICommMsgMsg) => {
-        const {method, data} = msg.content.data as { method: string, data: any };
-        if (method === "action") {
-            this.store.dispatch(data);
-        } else if (method === "run_method") {
-            this.app[data.method_name](...data.args);
-        } else if (method === "patch") {
-            try {
-                const newState = applyPatches(this.store.getState(), data.patches);
+        try {
+            const {method, data} = msg.content.data as { method: string, data: any };
+            if (method === "action") {
+                this.store.dispatch(data);
+            } else if (method === "run_method") {
+                this.app[data.method_name](...data.args);
+            } else if (method === "patch") {
+                try {
+                    const newState = applyPatches(this.store.getState(), data.patches);
+                    this.store.dispatch({
+                        'type': 'SET_STATE',
+                        'payload': newState,
+                    })
+                } catch (error) {
+                    console.error("ERROR DURING PATCHING")
+                    console.error(error);
+                }
+            } else if (method === "set_app_code") {
+                this.app = eval_code(data.code)();
+                this.sourcemap = decode(data.sourcemap);
+                this.source_code_py = data.py_code;
+                this.app.manager = this;
+                this.views.forEach(view => view.showContent())
+            } else if (method === "sync") {
                 this.store.dispatch({
                     'type': 'SET_STATE',
-                    'payload': newState,
+                    'payload': data.state,
                 })
             }
-            catch (error) {
-                console.error("ERROR DURING PATCHING")
-                console.error(error);
-            }
-        } else if (method === "set_app_code") {
-            this.app = eval_code(data.code)();
-            this.app.manager = this;
-        } else if (method === "sync") {
-            this.store.dispatch({
-                'type': 'SET_STATE',
-                'payload': data.state,
-            })
+        } catch (e) {
+            console.error("Error during comm message reception", e);
         }
     };
+
+    try_catch_exec = (fn) =>
+        (...args) => {
+            try {
+                if (fn) return fn(...args)
+            } catch (e) {
+                console.log("Got an error !");
+                console.log(e);
+                const [_, lineStr, columnStr] = [...e.stack.matchAll(/<anonymous>:(\d+):(\d+)/gm)][0];
+                if (this.sourcemap !== null) {
+                    const source_line_str = this.source_code_py.split("\n")[this.sourcemap[parseInt(lineStr) - 1][0][2]].trim();
+                    toastError(`Error: ${e.message} at \n${source_line_str}`);
+                } else {
+                    toastError(`Error: ${e.message}`);
+                }
+            }
+        }
 
     /*_saveState() {
         const state = this.get_state_sync({drop_defaults: true});

@@ -36,10 +36,12 @@ const SpanEditor = ({
         buttons,
         styles,
         loading,
-
     } = useSelector(memoize(
         state => {
-            const derived = selectEditorState(state, id);
+            let derived = null;
+            if (selectEditorState && state) {
+                derived = selectEditorState(state, id)
+            }
             return (derived
                 ? {
                     text: '',
@@ -52,7 +54,6 @@ const SpanEditor = ({
                 }
                 : {loading: true})
         },
-        //? {...state.editors[id], loading: false} : {loading: true}),
         state => state,
         true
         ),
