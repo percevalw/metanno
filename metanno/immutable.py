@@ -1,16 +1,13 @@
-from contextlib import contextmanager
-
-import inspect
-
-import functools
-
-import collections.abc
 from copy import copy as shallow_copy
 from dataclasses import dataclass, field
 
+import collections.abc
+import functools
+import inspect
+from contextlib import contextmanager
 from itertools import count
 from typing import TypeVar, Generic, Optional, List, Tuple, Sequence, Iterable, Iterator, Any, Callable, Dict
-import os
+
 
 def get_class_that_defined_method(meth):
     if isinstance(meth, functools.partial):
@@ -32,6 +29,7 @@ def get_class_that_defined_method(meth):
 def ensure_copy(state):
     if state.copy is None:
         state.copy = shallow_copy(state.base)
+
 
 def set_on_parent(state):
     if state.setter_method is not None:
@@ -163,7 +161,7 @@ class SequenceProxyState(ProxyState[T]):
     keys: T
 
 
-class SequenceProxy(Proxy[T]):
+class SequenceProxy(Proxy[T], collections.Sequence):
     _state = SequenceProxyState[T]
 
     def __init__(self, base: Any, copy: Any = None, parent: ProxyState = None, setter_args=None, setter_method=None, keys: T = None, on_change=None):
@@ -293,6 +291,12 @@ class SequenceProxy(Proxy[T]):
     def __str__(self):
         return str(self._state.target)
 
+    def _repr_pretty_(self, p, cycle):
+        if cycle:
+            p.text("...")
+        else:
+            p.pretty(self._state.target)
+
 
 class ProxyIterator(collections.abc.Iterator):
     def __init__(self, parent: ProxyState[Iterable[T]], keys: Iterator):
@@ -313,7 +317,7 @@ class ProxyIterator(collections.abc.Iterator):
                          setter_args=(key,))
 
 
-class MapProxy(Proxy[T]):
+class MapProxy(Proxy[T], collections.Mapping):
     def __init__(self, base: T, parent: ProxyState = None, setter_args=None, setter_method=None, on_change=None):
         super(MapProxy, self).__init__()
         object.__setattr__(self, "_state", ProxyState(
@@ -349,8 +353,8 @@ class MapProxy(Proxy[T]):
         set_on_parent(state)
         maybe_on_change(self)
 
-    #__getattr__ = __getitem__
-    #__setattr__ = __setitem__
+    # __getattr__ = __getitem__
+    # __setattr__ = __setitem__
     def __repr__(self):
         return repr(self._state.target)
 
@@ -358,6 +362,18 @@ class MapProxy(Proxy[T]):
         return str(self._state.target)
 
     __proxy_setitem__ = __setitem__
+
+    def _repr_pretty_(self, p, cycle):
+        if cycle:
+            p.text("...")
+        else:
+            p.pretty(self._state.target)
+
+    def __iter__(self):
+        return self._state.target.__iter__()
+
+    def __len__(self):
+        return self._state.target.__len__()
 
 
 def commit(obj, original=None, inplace=True, do_patches=False) -> Any:
