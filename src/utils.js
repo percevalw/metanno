@@ -144,14 +144,14 @@ export const memoize = (factory, checkDeps=(input => input), shallow = false, po
     return (...args) => {
         if (post) {
             const new_state = factory(...args);
-            if (!(shallow && shallowCompare(new_state, cache) || isEqual(new_state, cache))) {
+            if (!(shallow && shallowCompare(new_state, cache) || !shallow && isEqual(new_state, cache))) {
                 cache = new_state;
             }
             return cache;
         }
         else {
             const state = checkDeps(...args);
-            if (!(shallow && shallowCompare(last, state) || isEqual(last, state))) {
+            if (!(shallow && shallowCompare(last, state) && last !== null || !shallow && isEqual(last, state) && last !== null)) {
                 last = state;
                 cache = factory(...args);
             }

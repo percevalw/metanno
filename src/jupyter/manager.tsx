@@ -354,7 +354,7 @@ export default class metannoManager {
         });
     };*/
 
-    reduce = (state = {}, action) => {
+    reduce = (state = null, action) => {
         if (action.type === 'SET_STATE') {
             return action.payload;
         }
