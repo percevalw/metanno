@@ -51,8 +51,8 @@ with open("README.md", "r") as fh:
 
 setup_args = dict(
     name="metanno",
-    version="0.0.5",
-    url="https://github.com/perceval/metanno",
+    version="0.0.6",
+    url="https://github.com/percevalw/metanno",
     author="Perceval Wajsburt",
     author_email="perceval.wajsburt@sorbonne-universite.fr",
     description="Jupyter widgets collection to setup a modular annotation environment",
