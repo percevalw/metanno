@@ -25,11 +25,6 @@ import "./metanno.css";
 
 enablePatches();
 
-const toastError = (error_string) => {
-    //INotification.error(`Message: ${e.message} at ${parseInt(lineStr)-1}:${parseInt(columnStr)-1}`);
-    INotification.error(<div>{error_string.split("\n").map(line => <p>{line}</p>)}</div>, {autoClose: 10000});
-}
-
 export default class metannoManager {
     public actions: { [name: string]: Function };
     public app: any;
@@ -210,15 +205,29 @@ export default class metannoManager {
             } catch (e) {
                 console.log("Got an error !");
                 console.log(e);
-                const [_, lineStr, columnStr] = [...e.stack.matchAll(/<anonymous>:(\d+):(\d+)/gm)][0];
-                if (this.sourcemap !== null) {
+                const py_lines = [...e.stack.matchAll(/<anonymous>:(\d+):(\d+)/gm)];
+                if (py_lines.length > 0 && this.sourcemap !== null) {
+                    const [_, lineStr, columnStr] = py_lines[0];
                     const source_line_str = this.source_code_py.split("\n")[this.sourcemap[parseInt(lineStr) - 1][0][2]].trim();
-                    toastError(`Error: ${e.message} at \n${source_line_str}`);
+                    this.toastError(`Error: ${e.message} at \n${source_line_str}`);
+                } else if (e.__args__) {
+                    this.toastError(`Error: ${e.__args__[0]}`);
                 } else {
-                    toastError(`Error: ${e.message}`);
+                    this.toastError(`Error: ${e.message}`);
                 }
             }
         }
+
+
+    toastError = (message, autoClose=10000) => {
+        //INotification.error(`Message: ${e.message} at ${parseInt(lineStr)-1}:${parseInt(columnStr)-1}`);
+        INotification.error(<div>{message.split("\n").map(line => <p>{line}</p>)}</div>, {autoClose: autoClose});
+    }
+
+    toastInfo = (message, autoClose=10000) => {
+        //INotification.error(`Message: ${e.message} at ${parseInt(lineStr)-1}:${parseInt(columnStr)-1}`);
+        INotification.info(<div>{message.split("\n").map(line => <p>{line}</p>)}</div>, {autoClose: autoClose});
+    }
 
     /*_saveState() {
         const state = this.get_state_sync({drop_defaults: true});

@@ -76,6 +76,14 @@ class App(object):
     def clear_mouse_span_selection(self, editor_id):
         self.manager.actions[editor_id].clear_current_mouse_selection()
 
+    @frontend_only
+    def error(self, message, auto_close=10000):
+        self.manager.toastError(message, auto_close)
+
+    @frontend_only
+    def info(self, message, auto_close=10000):
+        self.manager.toastInfo(message, auto_close)
+
     def span_editor(self, name=None):
         return self.manager.span_editor(name)
 

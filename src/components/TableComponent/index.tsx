@@ -1,10 +1,10 @@
-import React, {useCallback} from 'react';
+import React from 'react';
 import {DndProvider} from 'react-dnd';
 import HTML5Backend from 'react-dnd-html5-backend';
 import DataGrid, {Row, SelectColumn, EditorProps, RowRendererProps, CalculatedColumn, Column} from "react-data-grid";
 
 import './style.css';
-import {memoize, isEqual} from '../../utils';
+import {memoize} from '../../utils';
 
 import DraggableHeaderRenderer from '../DraggableHeaderRenderer'
 import MultiInputSuggest, {InputTag} from "../MultiInputSuggest";
@@ -13,7 +13,6 @@ import BooleanInput from "../BooleanInput";
 
 type BaseColumn = { key: string, name: string, suggestions: string[], type: string, readonly: boolean };
 type BaseRow = { [other: string]: any, highlighted: boolean };
-type EditorPropsWithRef<TRow, TSummary> = EditorProps<TRow, TSummary> & { ref: any }
 
 class TableComponent extends React.Component<{
     id: string;
@@ -31,12 +30,23 @@ class TableComponent extends React.Component<{
     onCellChange?: (row_idx: number, col: string, value: any) => void;
 }, {
     columnsOrder: string[],
+    lastSelectedCell: { key: string, column: string }
 }> {
     constructor(props) {
         super(props);
         this.state = {
             columnsOrder: props.columns.map(column => column.name),
+            lastSelectedCell: null,
         };
+    }
+
+    checkCellChange = (row, column, isCellSelected) => {
+        if (this.state.lastSelectedCell === null || isCellSelected && (this.state.lastSelectedCell.column !== column.key || this.state.lastSelectedCell.key !== row[this.props.rowKey])) {
+            this.setState({...this.state, lastSelectedCell: {column: column.key, key: row[this.props.rowKey]}});
+
+            const index = this.props.rows.map((someRow, i) => ({row: someRow, i})).filter(({row: someRow, i}) => someRow[this.props.rowKey] === row[this.props.rowKey])[0].i;
+            this.props.onSelectedCellChange && this.props.onSelectedCellChange(index, column.key);
+        }
     }
 
     buildFormatter = (type, readonly): Partial<Column<BaseRow, BaseRow>> => {
@@ -62,7 +72,8 @@ class TableComponent extends React.Component<{
                                 hyperlink
                             />
                         ))),
-                    formatter: ({row, column}) => {
+                    formatter: ({row, column, isCellSelected}) => {
+                        this.checkCellChange(row, column, isCellSelected);
                         return row[column.key] ?
                             <a onClick={() => this.props.onClickCellContent(row[column.key].key)}>{row[column.key].text}</a> : null
                     }
@@ -87,10 +98,12 @@ class TableComponent extends React.Component<{
                             hyperlink
                         />
                     )),
-                    formatter: ({row, ...props}) => (
-                        <InputTag autocontain readOnly {...props} hyperlink
-                                  onClick={this.props.onClickCellContent}
-                                  value={row[props.column.key]}/>)
+                    formatter: ({row, ...props}) => {
+                        this.checkCellChange(row, props.column, props.isCellSelected)
+                        return <InputTag autocontain readOnly {...props} hyperlink
+                                         onClick={this.props.onClickCellContent}
+                                         value={row[props.column.key]}/>
+                    }
                 };
             case 'text':
                 return {
@@ -112,7 +125,10 @@ class TableComponent extends React.Component<{
                                 onClose={onClose}
                             />
                         ))),
-                    formatter: ({row, ...props}) => <span>{row[props.column.key]}</span>,
+                    formatter: ({row, ...props}) => {
+                        this.checkCellChange(row, props.column, props.isCellSelected)
+                        return <span>{row[props.column.key]}</span>
+                    },
                 };
             case 'multi-text':
                 return {
@@ -132,26 +148,31 @@ class TableComponent extends React.Component<{
                             onClose={onClose}
                         />
                     )),
-                    formatter: (props) => (
-                        <InputTag
+                    formatter: (props) => {
+                        this.checkCellChange(props.row, props.column, props.isCellSelected)
+                        return <InputTag
                             autocontain
                             readOnly
                             {...props}
                             value={props.row[props.column.key]}
-                        />)
+                        />
+                    }
                 };
             case 'boolean':
                 return {
                     formatter: ({
-                                 row,
-                                 column,
-                                 onRowChange,
-                             }) =>
-                        <BooleanInput
-                            isCellSelected={false}
+                                    row,
+                                    column,
+                                    onRowChange,
+                                    isCellSelected,
+                                }) => {
+                        this.checkCellChange(row, column, isCellSelected);
+                        return <BooleanInput
+                            isCellSelected={isCellSelected}
                             value={row[column.key]}
                             onChange={value => onRowChange({...row, [column.key]: value})}
-                        />,
+                        />;
+                    }
                 };
             default:
                 return {};
