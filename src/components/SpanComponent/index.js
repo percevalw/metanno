@@ -167,7 +167,7 @@ export function getDocumentSelectedRanges() {
                 });
             }
         }
-        if (ranges.length === 0 && !isNaN(begin) && begin !== null && !isNaN(end) && end !== null) {
+        if (ranges.length === 0 && !isNaN(begin) && begin !== null && !isNaN(end) && end !== null && begin !== end) {
             ranges.push({
                 begin: begin,
                 end: end,
