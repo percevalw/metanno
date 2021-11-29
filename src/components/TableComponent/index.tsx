@@ -1,7 +1,7 @@
 import React, {useCallback} from 'react';
 import {DndProvider} from 'react-dnd';
 import HTML5Backend from 'react-dnd-html5-backend';
-import DataGrid, {Row, SelectColumn, EditorProps, RowRendererProps, CalculatedColumn, FormatterProps} from "react-data-grid";
+import DataGrid, {Row, SelectColumn, EditorProps, RowRendererProps, CalculatedColumn, SelectCellFormatter, Column} from "react-data-grid";
 //import "react-data-grid/dist/react-data-grid.css";
 
 import './style.css';
@@ -39,10 +39,7 @@ class TableComponent extends React.Component<{
         };
     }
 
-    buildFormatter = (type, readonly): {
-        formatter?: React.ComponentType<FormatterProps<BaseRow, BaseRow>>,
-        editor?: React.ComponentType<EditorProps<BaseRow, BaseRow>>,
-    } => {
+    buildFormatter = (type, readonly): Partial<Column<BaseRow, BaseRow>> => {
         switch (type) {
             case 'hyperlink':
                 return {
@@ -51,7 +48,8 @@ class TableComponent extends React.Component<{
                                               row,
                                               column,
                                               onRowChange,
-                                              onClose}: EditorProps<BaseRow, BaseRow>,
+                                              onClose
+                                          }: EditorProps<BaseRow, BaseRow>,
                                           ref: any) => (
                             <SingleInputSuggest
                                 ref={ref}
@@ -75,8 +73,9 @@ class TableComponent extends React.Component<{
                                                                     row,
                                                                     column,
                                                                     onRowChange,
-                                                                    onClose}: EditorProps<BaseRow, BaseRow>,
-                                                                    ref: any) => (
+                                                                    onClose
+                                                                }: EditorProps<BaseRow, BaseRow>,
+                                                                ref: any) => (
                         <MultiInputSuggest
                             ref={ref}
                             value={row[column.key]}
@@ -100,8 +99,9 @@ class TableComponent extends React.Component<{
                                               row,
                                               column,
                                               onRowChange,
-                                              onClose}: EditorProps<BaseRow, BaseRow>,
-                                              ref: any) => (
+                                              onClose
+                                          }: EditorProps<BaseRow, BaseRow>,
+                                          ref: any) => (
                             <SingleInputSuggest
                                 ref={ref}
                                 value={row[column.key]}
@@ -120,17 +120,18 @@ class TableComponent extends React.Component<{
                                                                     row,
                                                                     column,
                                                                     onRowChange,
-                                                                    onClose}: EditorProps<BaseRow, BaseRow>, ref: any) => (
-                            <MultiInputSuggest
-                                ref={ref}
-                                value={row[column.key]}
-                                column={column}
-                                // @ts-ignore
-                                suggestions={column.suggestions}
-                                onRowChange={onRowChange}
-                                onClose={onClose}
-                            />
-                        )),
+                                                                    onClose
+                                                                }: EditorProps<BaseRow, BaseRow>, ref: any) => (
+                        <MultiInputSuggest
+                            ref={ref}
+                            value={row[column.key]}
+                            column={column}
+                            // @ts-ignore
+                            suggestions={column.suggestions}
+                            onRowChange={onRowChange}
+                            onClose={onClose}
+                        />
+                    )),
                     formatter: (props) => (
                         <InputTag
                             autocontain
@@ -139,7 +140,19 @@ class TableComponent extends React.Component<{
                             value={props.row[props.column.key]}
                         />)
                 };
-            case 'numeric':
+            case 'boolean':
+                return {
+                    formatter: ({
+                                 row,
+                                 column,
+                                 onRowChange,
+                             }) =>
+                        <SelectCellFormatter
+                            isCellSelected={false}
+                            value={row[column.key]}
+                            onChange={value => onRowChange({...row, [column.key]: value})}
+                        />,
+                };
             default:
                 return {};
         }
@@ -151,7 +164,7 @@ class TableComponent extends React.Component<{
         };
 
         const columnObjects = this.props.columns.map(column => {
-            const {formatter, editor} = this.buildFormatter(column.type, column.readonly);
+            const {formatter, editor, ...columnProps} = this.buildFormatter(column.type, column.readonly);
             return {
                 [column.name]: {
                     ...{
@@ -165,6 +178,7 @@ class TableComponent extends React.Component<{
                     },
                     ...(formatter ? {formatter} : {}),
                     ...(!!editor ? {editor} : {}),
+                    ...columnProps,
                     headerRenderer: HeaderRenderer
                 },
             };

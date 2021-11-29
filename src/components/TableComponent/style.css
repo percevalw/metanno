@@ -71,6 +71,9 @@
     overflow: visible;
 }
 
+.metanno-table .rdg-cell {
+    position: relative;
+}
 
 /* TAGS INPUT */
 .react-tagsinput {
