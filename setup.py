@@ -61,7 +61,8 @@ setup_args = dict(
     cmdclass=cmdclass,
     packages=setuptools.find_packages(),
     install_requires=[
-        "jupyterlab>=3.0.0rc2,==3.*",
+        "transcrypt==3.7.16",
+        "ipykernel",
     ],
     zip_safe=False,
     include_package_data=True,
