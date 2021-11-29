@@ -1,8 +1,7 @@
 import React, {useCallback} from 'react';
 import {DndProvider} from 'react-dnd';
 import HTML5Backend from 'react-dnd-html5-backend';
-import DataGrid, {Row, SelectColumn, EditorProps, RowRendererProps, CalculatedColumn, SelectCellFormatter, Column} from "react-data-grid";
-//import "react-data-grid/dist/react-data-grid.css";
+import DataGrid, {Row, SelectColumn, EditorProps, RowRendererProps, CalculatedColumn, Column} from "react-data-grid";
 
 import './style.css';
 import {memoize, isEqual} from '../../utils';
@@ -10,6 +9,7 @@ import {memoize, isEqual} from '../../utils';
 import DraggableHeaderRenderer from '../DraggableHeaderRenderer'
 import MultiInputSuggest, {InputTag} from "../MultiInputSuggest";
 import SingleInputSuggest from "../SingleInputSuggest";
+import BooleanInput from "../BooleanInput";
 
 type BaseColumn = { key: string, name: string, suggestions: string[], type: string, readonly: boolean };
 type BaseRow = { [other: string]: any, highlighted: boolean };
@@ -147,7 +147,7 @@ class TableComponent extends React.Component<{
                                  column,
                                  onRowChange,
                              }) =>
-                        <SelectCellFormatter
+                        <BooleanInput
                             isCellSelected={false}
                             value={row[column.key]}
                             onChange={value => onRowChange({...row, [column.key]: value})}

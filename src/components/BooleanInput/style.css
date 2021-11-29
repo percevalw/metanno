@@ -1,0 +1,10 @@
+.rdg-checkbox-container {
+    display: flex;
+    height: 100%;
+    align-items: center;
+    justify-content: center;
+}
+
+.rdg-checkbox-container > .rdg-checkbox-label {
+    position: relative;
+}
