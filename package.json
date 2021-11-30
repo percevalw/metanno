@@ -29,10 +29,11 @@
   },
   "scripts": {
     "build:labextension": "jlpm clean:labextension && jupyter labextension build .",
-    "build:labextension:dev": "jupyter labextension build --development True .",
+    "build:labextension:dev": "jlpm clean:labextension && jupyter labextension build --development True .",
     "patch-rdg": "sed -i -- 's/\"type\": \"module\",//g' lib/node_modules/react-data-grid/package.json",
     "build:lib": "jlpm run clean:lib && babel src --out-dir lib --copy-files -x .js,.jsx,.ts,.tsx && babel node_modules/react-data-grid --out-dir lib/node_modules/react-data-grid --copy-files -x .js && jlpm patch-rdg",
     "build": "jlpm run build:lib && jlpm run build:labextension",
+    "build:dev": "jlpm run build:lib && jlpm run build:labextension:dev",
     "install-labextension": "jlpm run build && jlpm run install:prebuilt",
     "dev-start": "node scripts/start.js",
     "clean": "jlpm run clean:lib",
