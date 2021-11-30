@@ -41,7 +41,7 @@ class TableComponent extends React.Component<{
     }
 
     checkCellChange = (row, column, isCellSelected) => {
-        if (this.state.lastSelectedCell === null || isCellSelected && (this.state.lastSelectedCell.column !== column.key || this.state.lastSelectedCell.key !== row[this.props.rowKey])) {
+        if (isCellSelected && (this.state.lastSelectedCell === null || (this.state.lastSelectedCell.column !== column.key || this.state.lastSelectedCell.key !== row[this.props.rowKey]))) {
             this.setState({...this.state, lastSelectedCell: {column: column.key, key: row[this.props.rowKey]}});
 
             const index = this.props.rows.map((someRow, i) => ({row: someRow, i})).filter(({row: someRow, i}) => someRow[this.props.rowKey] === row[this.props.rowKey])[0].i;
