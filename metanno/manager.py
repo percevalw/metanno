@@ -153,7 +153,16 @@ class AppManager(metaclass=ManagerSingleton):
         elif method == "patch":
             self.apply_patches(data['patches'])
         elif method == "run_method":
-            getattr(self.app, data["method_name"])(*data["args"])
+            try:
+                getattr(self.app, data["method_name"])(*data["args"])
+            except Exception as e:
+                self.comm.send({
+                    'method': 'run_method',
+                    'data': {
+                        'method_name': 'error',
+                        'args': ['Exception: {}'.format(str(e))],
+                    }
+                })
         elif method == "sync_request":
             if self.app is not None:
                 self.app = self.app
