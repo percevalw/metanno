@@ -12,16 +12,20 @@ import metannoManager from "./manager";
 /**
  * A renderer for widgets.
  */
-export default class metannoRenderer extends Widget {
-    private readonly mimeType: string;
+export default class MetannoRenderer extends Widget {
+    private readonly _mimeType: string;
     private _manager: Promise<metannoManager>;
     private setManager: (value: metannoManager | PromiseLike<metannoManager>) => void;
     private _rerenderMimeModel: any;
     private model: any;
+    private _editor_id: string;
+    private _editor_type: string;
 
     constructor(options, manager) {
         super();
-        this.mimeType = options.mimeType;
+        this._mimeType = options.mimeType;
+        this._editor_id = options.editor_id;
+        this._editor_type = options.editor_type;
         if (manager) {
             this._manager = Promise.resolve(manager);
         } else {
@@ -31,6 +35,28 @@ export default class metannoRenderer extends Widget {
         }
         this._rerenderMimeModel = null;
         this.model = null;
+
+        // Widget will either show up "immediately", ie as soon as the manager is ready,
+        // or this method will return prematurely (no editor_id/editor_type/model) and will
+        // wait for the mimetype manager to assign a model to this widget and call renderModel
+        // on its own (which will call showContent)
+        this.showContent();
+    }
+
+    get editor_id() {
+        if (!this._editor_id) {
+            const source = this.model.data[this._mimeType];
+            this._editor_id = source['editor-id'];
+        }
+        return this._editor_id
+    }
+
+    get editor_type() {
+        if (!this._editor_type) {
+            const source = this.model.data[this._mimeType];
+            this._editor_type = source['editor-type'];
+        }
+        return this._editor_type
     }
 
     /**
@@ -76,12 +102,21 @@ export default class metannoRenderer extends Widget {
     }
 
     async showContent() {
-        if (!this.model || !this.isVisible)
+        if (!this.isVisible)
             return;
 
-        const source = this.model.data[this.mimeType];
-        const editor_id = source['editor-id'];
-        const editor_type = source['editor-type'];
+        let editor_id = this._editor_id;
+        let editor_type = this._editor_type;
+        if (!editor_id || !editor_type) {
+            if (this.model) {
+                const source = this.model.data[this._mimeType];
+                editor_id = source['editor-id'];
+                editor_type = source['editor-type'];
+            }
+            else {
+                return;
+            }
+        }
 
         // Let's be optimistic, and hope the widget state will come later.
         this.node.textContent = 'Loading widget...' + editor_id;

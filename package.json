@@ -160,6 +160,7 @@
     "postcss-normalize": "8.0.1",
     "postcss-preset-env": "6.7.0",
     "postcss-safe-parser": "4.0.1",
+    "raw-loader": "^4.0.2",
     "sass-loader": "8.0.2",
     "semver": "6.3.0",
     "source-map-loader": "0.2.4",
