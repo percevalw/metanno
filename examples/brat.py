@@ -9,6 +9,7 @@ REGEX_RELATION = re.compile('^(R\d+)\t([^\s]+) Arg1:([^\s]+) Arg2:([^\s]+)')
 REGEX_ATTRIBUTE = re.compile('^([AM]\d+)\t(.+)$')
 REGEX_EVENT = re.compile('^(E\d+)\t(.+)$')
 REGEX_EVENT_PART = re.compile('([^\s]+):([TE]\d+)')
+REGEX_CHECKED = re.compile("#\d*	Status #\d*	CHECKED")
 
 
 def load_from_brat(path, merge_spaced_fragments=True):
@@ -44,6 +45,7 @@ def load_from_brat(path, merge_spaced_fragments=True):
         entities = {}
         relations = []
         events = {}
+        checked = False
 
         # doc_id = filename.replace('.txt', '').split("/")[-1]
 
@@ -54,9 +56,11 @@ def load_from_brat(path, merge_spaced_fragments=True):
             yield {
                 "doc_id": doc_id,
                 "text": text,
+                "checked": checked,
             }
             continue
 
+        read = True
         for ann_file in files["ann"]:
             with open(ann_file) as f:
                 for line_idx, line in enumerate(f):
@@ -139,6 +143,8 @@ def load_from_brat(path, merge_spaced_fragments=True):
                                 "attributes": [],
                                 "arguments": arguments,
                             }
+                        elif REGEX_CHECKED.match(line):
+                            checked = True
                         elif line.startswith('#'):
                             match = REGEX_NOTE.match(line)
                             if match is None:
@@ -158,6 +164,7 @@ def load_from_brat(path, merge_spaced_fragments=True):
             "entities": list(entities.values()),
             "relations": relations,
             "events": list(events.values()),
+            "checked": checked,
         }
 
 
@@ -178,6 +185,8 @@ def export_to_brat(samples, filename_prefix="", overwrite_txt=False, overwrite_a
         entities_ids = defaultdict(lambda: "T" + str(len(entities_ids) + 1))
         if not os.path.exists(ann_filename) or overwrite_ann:
             with open(ann_filename, "w") as f:
+                if doc.get("checked", False):
+                    print("#1000	Status #1000	CHECKED", file=f)
                 if "entities" in doc:
                     for entity in doc["entities"]:
                         idx = None
