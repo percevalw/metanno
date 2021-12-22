@@ -31,7 +31,7 @@ A simple pip install should be enough if you use Jupyterlab 3. You do not need t
 pip install metanno
 ```
 
-If you're a user in a shared Jupyter environment, you should instead install the extension at the user level
+If **you're a user in a shared Jupyter environment** (you did not run the `jupyter lab` command), you should instead install the extension at the user level
 ```
 pip install metanno --user
 ```
@@ -68,14 +68,13 @@ with `@frontend_only` or `@kernel_only`, and the call will be transmitted over t
 
 - add basic app samples
 - add a documentation
-- add more table column types and renderers (boolean, numerical, ...)
+- add more table column types and renderers (numerical, dates, ...)
 - add customizable column filterers
 - add relations visualizations and edition with editable arrows
 - add an image annotation view
 - finish javascript to typescript conversion
 - customizable undo / redo logic
 - add multi-cell editing (through a [react-data-grid](https://github.com/adazzle/react-data-grid) PR)
-- find a logo ?
 
 ## Contribute
 
