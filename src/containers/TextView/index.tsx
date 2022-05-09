@@ -1,9 +1,9 @@
-import React from "react";
+import React, {useCallback} from "react";
 import {useSelector} from "react-redux";
 import TextComponent from "../../components/TextComponent";
 import Toolbar from "../../components/Toolbar";
 import Loading from "../../components/Loading";
-import {memoize} from "../../utils";
+import cachedReconcile from "../../utils";
 import {TextData, TextMethods, ToolbarData, ToolbarMethods} from "../../types";
 
 const TextView = ({
@@ -28,9 +28,8 @@ const TextView = ({
         buttons,
         styles,
         loading,
-    } = useSelector(
-            memoize(
-            (state: object): TextData & ToolbarData & {loading: boolean}  => {
+    } = useSelector(useCallback(cachedReconcile(
+        (state: object): TextData & ToolbarData & {loading: boolean} => {
             let derived = null;
             if (selectEditorState && state) {
                 derived = selectEditorState(state, id)
@@ -46,11 +45,9 @@ const TextView = ({
                     loading: false
                 }
                 : {loading: true})
-        },
-        state => state,
-        true
-        )
-    );
+        }),
+        [id, selectEditorState],
+    ));
 
 
     if (loading) {
