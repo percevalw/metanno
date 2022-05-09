@@ -1,5 +1,17 @@
 from metanno import App, kernel_only, frontend_only, produce, chain_map, chain_list, get_idx
 
+colors = [
+    "rgb(255,200,206)",
+    "rgb(210,236,247)",
+    "rgb(211,242,206)",
+    "rgb(242,242,206)",
+    "rgb(231,210,247)",
+    "rgb(252,215,216)",
+    "rgb(251,243,219)",
+    "rgb(250,231,212)",
+    "rgb(250,212,229)",
+]
+
 
 class NERApp(App):
     def __init__(self, data=None, suggester=None, scheme=None):
