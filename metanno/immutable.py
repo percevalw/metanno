@@ -378,7 +378,7 @@ class MapProxy(Proxy[T], collections.Mapping):
 
 def commit(obj, original=None, inplace=True, do_patches=False) -> Any:
     # if obj is immutable, return it as is
-    if isinstance(obj, (int, str, float)):
+    if isinstance(obj, (int, str, float)) or obj is None:
         return obj, []
     # if obj is proxy, commit its content and return it
     if isinstance(obj, Proxy):
@@ -398,7 +398,7 @@ def commit(obj, original=None, inplace=True, do_patches=False) -> Any:
         else:
             old_keys = set()
 
-        for key in sorted(new_keys & old_keys):
+        for key in sorted(new_keys & old_keys, key=hash):
             new_value, sub_patches = commit(obj[key], original[key], inplace=inplace, do_patches=do_patches)
             old_value = original[key]
             if old_value is not new_value:
@@ -412,19 +412,19 @@ def commit(obj, original=None, inplace=True, do_patches=False) -> Any:
             else:
                 kept_some_values = True
 
-        for key in sorted(new_keys - old_keys):
+        for key in sorted(new_keys - old_keys, key=hash):
             obj[key] = commit(obj[key], None, inplace=inplace, do_patches=do_patches)[0]
             if do_patches and kept_some_values:
                 patches.append({'op': 'add', 'path': [key], 'value': obj[key]})
         if do_patches:
             if kept_some_values:
-                for key in reversed(sorted(old_keys - new_keys)):
+                for key in reversed(sorted(old_keys - new_keys, key=hash)):
                     patches.append({'op': 'remove', 'path': [key], 'value': None})
             if not kept_some_values:
                 patches = [{'op': 'replace', 'path': [], 'value': obj}]
         return obj, patches
     else:
-        raise Exception()
+        raise Exception("Cannot process state that contains {} (type {})".format(obj, type(obj)))
 
 
 def apply_patches(obj, patches):

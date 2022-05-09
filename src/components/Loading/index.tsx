@@ -1,7 +1,7 @@
 import React from "react";
 import './style.css'
 
-export default ({color = '#fff'}) => (
+export default () => (
     <div className="loading" style={{
         'position': 'absolute',
         'top': '50%',

@@ -3,19 +3,65 @@ import './index.css';
 import {createStore} from 'redux';
 import * as ReactDOM from "react-dom";
 import {Provider} from "react-redux";
-import TableEditor from './containers/TableEditor';
-import SpanEditor from './containers/SpanEditor';
-import {combineReducersWithImmerActionReducer, createImmerActionHook} from "./immerAction";
-// import '@jupyterlab/notebook/style/index.css'
-// If you want your app to work offline and load faster, you can change
-// unregister() to register() below. Note this comes with some pitfalls.
-// Learn more about service workers: https://bit.ly/CRA-PWA
+import TableEditor from './containers/TableView';
+import SpanEditor from './containers/TextView';
 
-/*
-serviceWorker.unregister();
-*/
+import produce, {enablePatches, applyPatches} from "immer";
+import {useStore} from "react-redux";
+
+enablePatches();
+
+export function combineReducersWithImmerActionReducer(
+    reducers = {},
+    initialState = {}
+) {
+    return (state = initialState, action) => {
+        // Ensure the root state object is a new object; otherwise
+        // React may not re-render.
+        let newState = state;
+        if (typeof reducers == 'function') {
+            newState = reducers(state, action);
+        } else {
+            newState = {...state};
+            Object.keys(reducers).forEach((domain) => {
+                let obj = newState ? newState[domain] : undefined;
+                newState[domain] = reducers[domain](obj, action);
+            });
+        }
+        if (action.type.endsWith("PATCH")) {
+            newState = applyPatches(state, action.payload);
+        }
+        return newState;
+    };
+}
+
+export function createImmerActionHook(store) {
+    return function immerAction(type, fn) {
+        if (typeof type === "function") {
+            fn = type;
+            type = "PATCH";
+        } else {
+            type = `${type}_PATCH`;
+        }
+        store = store || useStore();
+        return (...args) => {
+            const changes = [];
+            produce(store.getState(), state => fn(state, ...args), (patches, inversePatches) => {
+                changes.push(...patches);
+                //inverseChanges.push(...inversePatches)
+            });
+
+            store.dispatch({type: type, payload: changes});
+        };
+    };
+}
+
+export default createImmerActionHook();
+
+
 const default_state = {
     'counter': 0,
+    'inputValue': null,
     'data': {
         'spans': [{
             'begin': 0,
@@ -45,7 +91,7 @@ const default_state = {
                 'style': 'OCCURRENCE',
                 'id': 'T4', highlighted: false,
             },
-            {
+            /*{
                 'begin': 1069,
                 'end': 1077,
                 'label': ['TEST', 'modality__FACTUAL', 'polarity__POS'],
@@ -642,288 +688,301 @@ const default_state = {
                 'label': ['DURATION', 'mod__NA'],
                 'style': 'DURATION',
                 'id': 'T92', highlighted: false,
-            }],
+            }*/],
         'docs': [
             {'doc_id': {'text': '1.xml', 'key': '1.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '107.xml', 'key': '107.xml'}, 'split': 'val'},
-            {'doc_id': {'text': '11.xml', 'key': '11.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '116.xml', 'key': '116.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '121.xml', 'key': '121.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '122.xml', 'key': '122.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '123.xml', 'key': '123.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '126.xml', 'key': '126.xml'}, 'split': 'val'},
-            {'doc_id': {'text': '141.xml', 'key': '141.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '143.xml', 'key': '143.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '151.xml', 'key': '151.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '152.xml', 'key': '152.xml'}, 'split': 'val'},
-            {'doc_id': {'text': '153.xml', 'key': '153.xml'}, 'split': 'val'},
-            {'doc_id': {'text': '156.xml', 'key': '156.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '16.xml', 'key': '16.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '162.xml', 'key': '162.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '163.xml', 'key': '163.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '166.xml', 'key': '166.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '167.xml', 'key': '167.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '168.xml', 'key': '168.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '172.xml', 'key': '172.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '173.xml', 'key': '173.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '177.xml', 'key': '177.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '178.xml', 'key': '178.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '18.xml', 'key': '18.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '182.xml', 'key': '182.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '186.xml', 'key': '186.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '188.xml', 'key': '188.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '191.xml', 'key': '191.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '192.xml', 'key': '192.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '193.xml', 'key': '193.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '197.xml', 'key': '197.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '2.xml', 'key': '2.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '201.xml', 'key': '201.xml'}, 'split': 'val'},
-            {'doc_id': {'text': '203.xml', 'key': '203.xml'}, 'split': 'val'},
-            {'doc_id': {'text': '212.xml', 'key': '212.xml'}, 'split': 'val'},
-            {'doc_id': {'text': '213.xml', 'key': '213.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '216.xml', 'key': '216.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '218.xml', 'key': '218.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '23.xml', 'key': '23.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '236.xml', 'key': '236.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '237.xml', 'key': '237.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '242.xml', 'key': '242.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '247.xml', 'key': '247.xml'}, 'split': 'val'},
-            {'doc_id': {'text': '248.xml', 'key': '248.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '252.xml', 'key': '252.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '256.xml', 'key': '256.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '26.xml', 'key': '26.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '267.xml', 'key': '267.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '271.xml', 'key': '271.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '272.xml', 'key': '272.xml'}, 'split': 'val'},
-            {'doc_id': {'text': '273.xml', 'key': '273.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '28.xml', 'key': '28.xml'}, 'split': 'val'},
-            {'doc_id': {'text': '291.xml', 'key': '291.xml'}, 'split': 'val'},
-            {'doc_id': {'text': '3.xml', 'key': '3.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '301.xml', 'key': '301.xml'}, 'split': 'val'},
-            {'doc_id': {'text': '302.xml', 'key': '302.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '307.xml', 'key': '307.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '308.xml', 'key': '308.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '311.xml', 'key': '311.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '313.xml', 'key': '313.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '316.xml', 'key': '316.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '318.xml', 'key': '318.xml'}, 'split': 'val'},
-            {'doc_id': {'text': '321.xml', 'key': '321.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '331.xml', 'key': '331.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '332.xml', 'key': '332.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '336.xml', 'key': '336.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '337.xml', 'key': '337.xml'}, 'split': 'val'},
-            {'doc_id': {'text': '343.xml', 'key': '343.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '346.xml', 'key': '346.xml'}, 'split': 'val'},
-            {'doc_id': {'text': '348.xml', 'key': '348.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '351.xml', 'key': '351.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '352.xml', 'key': '352.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '353.xml', 'key': '353.xml'}, 'split': 'val'},
-            {'doc_id': {'text': '356.xml', 'key': '356.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '357.xml', 'key': '357.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '36.xml', 'key': '36.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '362.xml', 'key': '362.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '366.xml', 'key': '366.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '367.xml', 'key': '367.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '373.xml', 'key': '373.xml'}, 'split': 'val'},
-            {'doc_id': {'text': '376.xml', 'key': '376.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '38.xml', 'key': '38.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '382.xml', 'key': '382.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '386.xml', 'key': '386.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '387.xml', 'key': '387.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '388.xml', 'key': '388.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '393.xml', 'key': '393.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '396.xml', 'key': '396.xml'}, 'split': 'val'},
-            {'doc_id': {'text': '407.xml', 'key': '407.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '408.xml', 'key': '408.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '411.xml', 'key': '411.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '413.xml', 'key': '413.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '417.xml', 'key': '417.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '42.xml', 'key': '42.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '422.xml', 'key': '422.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '423.xml', 'key': '423.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '426.xml', 'key': '426.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '427.xml', 'key': '427.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '43.xml', 'key': '43.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '432.xml', 'key': '432.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '433.xml', 'key': '433.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '437.xml', 'key': '437.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '438.xml', 'key': '438.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '452.xml', 'key': '452.xml'}, 'split': 'val'},
-            {'doc_id': {'text': '458.xml', 'key': '458.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '462.xml', 'key': '462.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '463.xml', 'key': '463.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '468.xml', 'key': '468.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '47.xml', 'key': '47.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '471.xml', 'key': '471.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '472.xml', 'key': '472.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '473.xml', 'key': '473.xml'}, 'split': 'val'},
-            {'doc_id': {'text': '481.xml', 'key': '481.xml'}, 'split': 'val'},
-            {'doc_id': {'text': '482.xml', 'key': '482.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '491.xml', 'key': '491.xml'}, 'split': 'val'},
-            {'doc_id': {'text': '492.xml', 'key': '492.xml'}, 'split': 'val'},
-            {'doc_id': {'text': '496.xml', 'key': '496.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '497.xml', 'key': '497.xml'}, 'split': 'val'},
-            {'doc_id': {'text': '502.xml', 'key': '502.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '51.xml', 'key': '51.xml'}, 'split': 'val'},
-            {'doc_id': {'text': '511.xml', 'key': '511.xml'}, 'split': 'val'},
-            {'doc_id': {'text': '512.xml', 'key': '512.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '517.xml', 'key': '517.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '521.xml', 'key': '521.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '522.xml', 'key': '522.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '526.xml', 'key': '526.xml'}, 'split': 'val'},
-            {'doc_id': {'text': '532.xml', 'key': '532.xml'}, 'split': 'val'},
-            {'doc_id': {'text': '541.xml', 'key': '541.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '546.xml', 'key': '546.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '547.xml', 'key': '547.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '557.xml', 'key': '557.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '567.xml', 'key': '567.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '571.xml', 'key': '571.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '572.xml', 'key': '572.xml'}, 'split': 'val'},
-            {'doc_id': {'text': '576.xml', 'key': '576.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '577.xml', 'key': '577.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '582.xml', 'key': '582.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '587.xml', 'key': '587.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '591.xml', 'key': '591.xml'}, 'split': 'val'},
-            {'doc_id': {'text': '596.xml', 'key': '596.xml'}, 'split': 'val'},
-            {'doc_id': {'text': '6.xml', 'key': '6.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '602.xml', 'key': '602.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '611.xml', 'key': '611.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '612.xml', 'key': '612.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '622.xml', 'key': '622.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '626.xml', 'key': '626.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '631.xml', 'key': '631.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '636.xml', 'key': '636.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '637.xml', 'key': '637.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '641.xml', 'key': '641.xml'}, 'split': 'val'},
-            {'doc_id': {'text': '642.xml', 'key': '642.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '647.xml', 'key': '647.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '656.xml', 'key': '656.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '666.xml', 'key': '666.xml'}, 'split': 'val'},
-            {'doc_id': {'text': '676.xml', 'key': '676.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '68.xml', 'key': '68.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '681.xml', 'key': '681.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '682.xml', 'key': '682.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '692.xml', 'key': '692.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '697.xml', 'key': '697.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '701.xml', 'key': '701.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '707.xml', 'key': '707.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '711.xml', 'key': '711.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '717.xml', 'key': '717.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '72.xml', 'key': '72.xml'}, 'split': 'val'},
-            {'doc_id': {'text': '721.xml', 'key': '721.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '722.xml', 'key': '722.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '726.xml', 'key': '726.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '736.xml', 'key': '736.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '747.xml', 'key': '747.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '751.xml', 'key': '751.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '756.xml', 'key': '756.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '757.xml', 'key': '757.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '776.xml', 'key': '776.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '777.xml', 'key': '777.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '786.xml', 'key': '786.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '787.xml', 'key': '787.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '791.xml', 'key': '791.xml'}, 'split': 'val'},
-            {'doc_id': {'text': '797.xml', 'key': '797.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '8.xml', 'key': '8.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '801.xml', 'key': '801.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '807.xml', 'key': '807.xml'}, 'split': 'val'},
-            {'doc_id': {'text': '81.xml', 'key': '81.xml'}, 'split': 'val'},
-            {'doc_id': {'text': '86.xml', 'key': '86.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '87.xml', 'key': '87.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '92.xml', 'key': '92.xml'}, 'split': 'val'},
-            {'doc_id': {'text': '93.xml', 'key': '93.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '96.xml', 'key': '96.xml'}, 'split': 'train'},
-            {'doc_id': {'text': '98.xml', 'key': '98.xml'}, 'split': 'train'}],
+            //{'doc_id': {'text': '107.xml', 'key': '107.xml'}, 'split': 'val'},
+            //{'doc_id': {'text': '11.xml', 'key': '11.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '116.xml', 'key': '116.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '121.xml', 'key': '121.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '122.xml', 'key': '122.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '123.xml', 'key': '123.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '126.xml', 'key': '126.xml'}, 'split': 'val'},
+            //{'doc_id': {'text': '141.xml', 'key': '141.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '143.xml', 'key': '143.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '151.xml', 'key': '151.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '152.xml', 'key': '152.xml'}, 'split': 'val'},
+            //{'doc_id': {'text': '153.xml', 'key': '153.xml'}, 'split': 'val'},
+            //{'doc_id': {'text': '156.xml', 'key': '156.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '16.xml', 'key': '16.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '162.xml', 'key': '162.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '163.xml', 'key': '163.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '166.xml', 'key': '166.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '167.xml', 'key': '167.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '168.xml', 'key': '168.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '172.xml', 'key': '172.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '173.xml', 'key': '173.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '177.xml', 'key': '177.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '178.xml', 'key': '178.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '18.xml', 'key': '18.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '182.xml', 'key': '182.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '186.xml', 'key': '186.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '188.xml', 'key': '188.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '191.xml', 'key': '191.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '192.xml', 'key': '192.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '193.xml', 'key': '193.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '197.xml', 'key': '197.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '2.xml', 'key': '2.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '201.xml', 'key': '201.xml'}, 'split': 'val'},
+            //{'doc_id': {'text': '203.xml', 'key': '203.xml'}, 'split': 'val'},
+            //{'doc_id': {'text': '212.xml', 'key': '212.xml'}, 'split': 'val'},
+            //{'doc_id': {'text': '213.xml', 'key': '213.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '216.xml', 'key': '216.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '218.xml', 'key': '218.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '23.xml', 'key': '23.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '236.xml', 'key': '236.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '237.xml', 'key': '237.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '242.xml', 'key': '242.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '247.xml', 'key': '247.xml'}, 'split': 'val'},
+            //{'doc_id': {'text': '248.xml', 'key': '248.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '252.xml', 'key': '252.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '256.xml', 'key': '256.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '26.xml', 'key': '26.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '267.xml', 'key': '267.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '271.xml', 'key': '271.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '272.xml', 'key': '272.xml'}, 'split': 'val'},
+            //{'doc_id': {'text': '273.xml', 'key': '273.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '28.xml', 'key': '28.xml'}, 'split': 'val'},
+            //{'doc_id': {'text': '291.xml', 'key': '291.xml'}, 'split': 'val'},
+            //{'doc_id': {'text': '3.xml', 'key': '3.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '301.xml', 'key': '301.xml'}, 'split': 'val'},
+            //{'doc_id': {'text': '302.xml', 'key': '302.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '307.xml', 'key': '307.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '308.xml', 'key': '308.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '311.xml', 'key': '311.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '313.xml', 'key': '313.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '316.xml', 'key': '316.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '318.xml', 'key': '318.xml'}, 'split': 'val'},
+            //{'doc_id': {'text': '321.xml', 'key': '321.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '331.xml', 'key': '331.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '332.xml', 'key': '332.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '336.xml', 'key': '336.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '337.xml', 'key': '337.xml'}, 'split': 'val'},
+            //{'doc_id': {'text': '343.xml', 'key': '343.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '346.xml', 'key': '346.xml'}, 'split': 'val'},
+            //{'doc_id': {'text': '348.xml', 'key': '348.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '351.xml', 'key': '351.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '352.xml', 'key': '352.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '353.xml', 'key': '353.xml'}, 'split': 'val'},
+            //{'doc_id': {'text': '356.xml', 'key': '356.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '357.xml', 'key': '357.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '36.xml', 'key': '36.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '362.xml', 'key': '362.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '366.xml', 'key': '366.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '367.xml', 'key': '367.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '373.xml', 'key': '373.xml'}, 'split': 'val'},
+            //{'doc_id': {'text': '376.xml', 'key': '376.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '38.xml', 'key': '38.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '382.xml', 'key': '382.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '386.xml', 'key': '386.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '387.xml', 'key': '387.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '388.xml', 'key': '388.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '393.xml', 'key': '393.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '396.xml', 'key': '396.xml'}, 'split': 'val'},
+            //{'doc_id': {'text': '407.xml', 'key': '407.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '408.xml', 'key': '408.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '411.xml', 'key': '411.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '413.xml', 'key': '413.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '417.xml', 'key': '417.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '42.xml', 'key': '42.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '422.xml', 'key': '422.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '423.xml', 'key': '423.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '426.xml', 'key': '426.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '427.xml', 'key': '427.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '43.xml', 'key': '43.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '432.xml', 'key': '432.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '433.xml', 'key': '433.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '437.xml', 'key': '437.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '438.xml', 'key': '438.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '452.xml', 'key': '452.xml'}, 'split': 'val'},
+            //{'doc_id': {'text': '458.xml', 'key': '458.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '462.xml', 'key': '462.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '463.xml', 'key': '463.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '468.xml', 'key': '468.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '47.xml', 'key': '47.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '471.xml', 'key': '471.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '472.xml', 'key': '472.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '473.xml', 'key': '473.xml'}, 'split': 'val'},
+            //{'doc_id': {'text': '481.xml', 'key': '481.xml'}, 'split': 'val'},
+            //{'doc_id': {'text': '482.xml', 'key': '482.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '491.xml', 'key': '491.xml'}, 'split': 'val'},
+            //{'doc_id': {'text': '492.xml', 'key': '492.xml'}, 'split': 'val'},
+            //{'doc_id': {'text': '496.xml', 'key': '496.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '497.xml', 'key': '497.xml'}, 'split': 'val'},
+            //{'doc_id': {'text': '502.xml', 'key': '502.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '51.xml', 'key': '51.xml'}, 'split': 'val'},
+            //{'doc_id': {'text': '511.xml', 'key': '511.xml'}, 'split': 'val'},
+            //{'doc_id': {'text': '512.xml', 'key': '512.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '517.xml', 'key': '517.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '521.xml', 'key': '521.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '522.xml', 'key': '522.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '526.xml', 'key': '526.xml'}, 'split': 'val'},
+            //{'doc_id': {'text': '532.xml', 'key': '532.xml'}, 'split': 'val'},
+            //{'doc_id': {'text': '541.xml', 'key': '541.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '546.xml', 'key': '546.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '547.xml', 'key': '547.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '557.xml', 'key': '557.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '567.xml', 'key': '567.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '571.xml', 'key': '571.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '572.xml', 'key': '572.xml'}, 'split': 'val'},
+            //{'doc_id': {'text': '576.xml', 'key': '576.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '577.xml', 'key': '577.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '582.xml', 'key': '582.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '587.xml', 'key': '587.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '591.xml', 'key': '591.xml'}, 'split': 'val'},
+            //{'doc_id': {'text': '596.xml', 'key': '596.xml'}, 'split': 'val'},
+            //{'doc_id': {'text': '6.xml', 'key': '6.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '602.xml', 'key': '602.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '611.xml', 'key': '611.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '612.xml', 'key': '612.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '622.xml', 'key': '622.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '626.xml', 'key': '626.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '631.xml', 'key': '631.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '636.xml', 'key': '636.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '637.xml', 'key': '637.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '641.xml', 'key': '641.xml'}, 'split': 'val'},
+            //{'doc_id': {'text': '642.xml', 'key': '642.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '647.xml', 'key': '647.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '656.xml', 'key': '656.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '666.xml', 'key': '666.xml'}, 'split': 'val'},
+            //{'doc_id': {'text': '676.xml', 'key': '676.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '68.xml', 'key': '68.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '681.xml', 'key': '681.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '682.xml', 'key': '682.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '692.xml', 'key': '692.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '697.xml', 'key': '697.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '701.xml', 'key': '701.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '707.xml', 'key': '707.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '711.xml', 'key': '711.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '717.xml', 'key': '717.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '72.xml', 'key': '72.xml'}, 'split': 'val'},
+            //{'doc_id': {'text': '721.xml', 'key': '721.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '722.xml', 'key': '722.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '726.xml', 'key': '726.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '736.xml', 'key': '736.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '747.xml', 'key': '747.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '751.xml', 'key': '751.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '756.xml', 'key': '756.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '757.xml', 'key': '757.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '776.xml', 'key': '776.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '777.xml', 'key': '777.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '786.xml', 'key': '786.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '787.xml', 'key': '787.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '791.xml', 'key': '791.xml'}, 'split': 'val'},
+            //{'doc_id': {'text': '797.xml', 'key': '797.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '8.xml', 'key': '8.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '801.xml', 'key': '801.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '807.xml', 'key': '807.xml'}, 'split': 'val'},
+            //{'doc_id': {'text': '81.xml', 'key': '81.xml'}, 'split': 'val'},
+            //{'doc_id': {'text': '86.xml', 'key': '86.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '87.xml', 'key': '87.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '92.xml', 'key': '92.xml'}, 'split': 'val'},
+            //{'doc_id': {'text': '93.xml', 'key': '93.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '96.xml', 'key': '96.xml'}, 'split': 'train'},
+            //{'doc_id': {'text': '98.xml', 'key': '98.xml'}, 'split': 'train'}
+        ],
         'text': 'Admission Date : 09/29/1993 Discharge Date : 10/04/1993 HISTORY OF PRESENT ILLNESS : The patient is a 28-year-old woman who is HIV positive for two years . She presented with left upper quadrant pain as well as nausea and vomiting which is a long-standing complaint . She was diagnosed in 1991 during the birth of her child . She claims she does not know why she is HIV positive . She is from Maryland , apparently had no blood transfusions before the birth of her children so it is presumed heterosexual transmission . At that time , she also had cat scratch fever and she had resection of an abscess in the left lower extremity . She has not used any anti retroviral therapy since then , because of pancytopenia and vomiting on DDI . She has complaints of nausea and vomiting as well as left upper quadrant pain on and off getting progressively worse over the past month .\nShe has had similar pain intermittently for last year .\nShe described the pain as a burning pain which is positional , worse when she walks or does any type of exercise .\nShe has no relief from antacids or H2 blockers .\nIn 10/92 , she had a CT scan which showed fatty infiltration of her liver diffusely with a 1 cm cyst in the right lobe of the liver .\nShe had a normal pancreas at that time , however , hyperdense kidneys .\nHer alkaline phosphatase was slightly elevated but otherwise relatively normal .\nHer amylase was mildly elevated but has been down since then .\nThe patient has had progressive failure to thrive and steady weight loss .\nShe was brought in for an esophagogastroduodenoscopy on 9/26 but she basically was not sufficiently sedated and readmitted at this time for a GI work-up as well as an evaluation of new abscess in her left lower calf and right medial lower extremity quadriceps muscle .\nShe was also admitted to be connected up with social services for HIV patients .\nHOSPITAL COURSE :\nThe patient was admitted and many cultures were sent which were all negative .\nShe did not have any of her pain in the hospital .\nOn the third hospital day , she did have some pain and was treated with Percocet .\nShe went for a debridement of her left calf lesion on 10/2/93 and was started empirically on IV ceftriaxone which was changed to po doxycycline on the day of discharge .\nA follow-up CT scan was done which did not show any evidence for splenomegaly or hepatomegaly .\nThe 1 cm cyst which was seen in 10/92 was still present .\nThere was a question of a cyst in her kidney with a stone right below the cyst , although this did not seem to be clinically significant .\n',
     },
     'custom': {},
     'mouse_selection': [],
+    'highlighted': [],
 };
 
 const store = createStore(
     combineReducersWithImmerActionReducer(
-    (state, action) => {
-        if (action['type'] === "ADD_SPANS_HIGHLIGHT") {
-            console.log(action);
-            return {
-                ...state,
-                "data": {
-                    ...state.data,
-                    spans: state["data"]["spans"].map(span => (
-                        action["payload"]["span_ids"].includes(span['id']) ? {
-                            ...span,
-                            highlighted: true,
-                        } : span)
-                    ),
-                }
-            };
-        }
-        else if (action['type'] === "CHANGE_TABLE_CELL")
-            return {
-                ...state,
-                "editors": {
-                    ...state["editors"],
-                    [action["payload"]["editor_id"]]: {
-                        ...state["editors"][action["payload"]["editor_id"]],
-                        "rows": state["editors"][action["payload"]["editor_id"]]["rows"].map((row, i) =>
-                            (i === action["payload"]["row"]) ? {
-                                ...row,
-                                [action["payload"]["column"]]: action["payload"]["value"]
-                            } : row
+        (state, action) => {
+            if (action['type'] === "ADD_SPANS_HIGHLIGHT") {
+                console.log(action);
+                return {
+                    ...state,
+                    "data": {
+                        ...state.data,
+                        spans: state["data"]["spans"].map(span => (
+                            action["payload"]["span_ids"].includes(span['id']) ? {
+                                ...span,
+                                highlighted: true,
+                            } : span)
                         ),
                     }
-                }
-            };
-        else if (action['type'] === "HIGHLIGHT_ROWS")
-            return {
-                ...state,
-                data: {
-                    ...state.data,
-                    "spans": state["data"]["spans"].map((row, i) => {
-                        const willHighlight = action["payload"]["rows"].includes(i);
-                        return row.highlighted !== willHighlight ? {
-                            ...row,
-                            highlighted: willHighlight,
-                        } : row
-                    })
-                }
-            };
-        else if (action['type'] === "REMOVE_SPANS_HIGHLIGHT")
-            return {
-                ...state,
-                "data": {
-                    ...state.data,
-                    spans: state["data"]["spans"].map(span => (
-                        action["payload"]["span_ids"].includes(span['id']) ? {
-                            ...span,
-                            highlighted: false,
-                        } : span)
-                    ),
-                }
-            };
-        else if (action['type'] === "CHANGE_SELECTED_TABLE_POSITION")
-            return {
-                ...state,
-                selected_table_position: action["payload"],
-            };
-        return state;
-    }, default_state), window.__REDUX_DEVTOOLS_EXTENSION__ && window.__REDUX_DEVTOOLS_EXTENSION__());
+                };
+            } else if (action['type'] === "CHANGE_TABLE_CELL")
+                return {
+                    ...state,
+                    "editors": {
+                        ...state["editors"],
+                        [action["payload"]["editor_id"]]: {
+                            ...state["editors"][action["payload"]["editor_id"]],
+                            "rows": state["editors"][action["payload"]["editor_id"]]["rows"].map((row, i) =>
+                                (i === action["payload"]["row"]) ? {
+                                    ...row,
+                                    [action["payload"]["column"]]: action["payload"]["value"]
+                                } : row
+                            ),
+                        }
+                    }
+                };
+            else if (action['type'] === "HIGHLIGHT_ROWS")
+                return {
+                    ...state,
+                    data: {
+                        ...state.data,
+                        "spans": state["data"]["spans"].map((row, i) => {
+                            const willHighlight = action["payload"]["rows"].includes(i);
+                            return row.highlighted !== willHighlight ? {
+                                ...row,
+                                highlighted: willHighlight,
+                            } : row
+                        })
+                    }
+                };
+            else if (action['type'] === "REMOVE_SPANS_HIGHLIGHT")
+                return {
+                    ...state,
+                    "data": {
+                        ...state.data,
+                        spans: state["data"]["spans"].map(span => (
+                            action["payload"]["span_ids"].includes(span['id']) ? {
+                                ...span,
+                                highlighted: false,
+                            } : span)
+                        ),
+                    }
+                };
+            else if (action['type'] === "CHANGE_SELECTED_TABLE_POSITION")
+                return {
+                    ...state,
+                    selected_table_position: action["payload"],
+                };
+            return state;
+        }, default_state), window.__REDUX_DEVTOOLS_EXTENSION__ && window.__REDUX_DEVTOOLS_EXTENSION__());
 
 const immerAction = createImmerActionHook(store);
 window.store = store;
 
 setTimeout(() => {
     immerAction(state => {
-        state.data.spans.each(span => {span.highlighted = false});
+        state.data.spans.each(span => {
+            span.highlighted = false
+        });
         state.data.spans[2].highlighted = true;
     });
 }, 2000);
 setTimeout(() => {
     immerAction(state => {
-        state.data.spans.each(span => {span.highlighted = false});
+        state.data.spans.each(span => {
+            span.highlighted = false
+        });
         state.data.spans[3].highlighted = true;
     });
 }, 4000);
+
+function removeItem(arr, value) {
+    const index = arr.indexOf(value);
+    if (index > -1) {
+        arr.splice(index, 1);
+    }
+    return arr;
+}
 
 const selectEditorState = (state, id) => {
     if (id === 'doc_editor') {
@@ -931,7 +990,7 @@ const selectEditorState = (state, id) => {
             text: state.data.text,
             spans: state.data.spans.map(
                 ({begin, end, id, label, highlighted}) => ({
-                    begin, end, id, label: label[0], style: label[0], highlighted,
+                    begin, end, id, label: label[0], style: label[0], highlighted: state.highlighted.includes(id),
                 })
             ),
             'mouse_selection': state.mouse_selection,
@@ -953,25 +1012,26 @@ const selectEditorState = (state, id) => {
     if (id === 'mentions_table') {
         return {
             rows: state.data.spans.map(
-                ({begin, end, id, label, highlighted}) => ({
+                ({begin, end, id, label}) => ({
                     mention_id: {text: state.data.text.substring(begin, end), key: id},
-                    key: state.data.text.substring(begin, end),
+                    key: id,
                     label: label,
-                    highlighted: highlighted,
                 })
             ),
             rowKey: 'key',
             columns: [
                 //{'name': 'id', 'type': 'text'},
-                {'name': 'mention_id', 'type': 'hyperlink', readonly: false, suggestions: [{key: 'id1', text: "id1"}, {key: "T2", text: "un petit texte"}]},
-                {'name': 'label', 'type': 'multi-text', readonly: false}],
+                {'name': 'mention_id', 'type': 'hyperlink', mutable: true, suggestions: [{key: 'id1', text: "id1"}, {key: "T2", text: "un petit texte"}]},
+                {'name': 'label', 'type': 'multi-text', mutable: true}],
             buttons: [],
-            styles: {}
+            styles: {},
+            highlightedRows: state.highlighted,
+            inputValue: state.inputValue,
         };
     }
     if (id === 'docs_table') {
         return {
-            rows: state.data.docs.map(doc => ({doc_id: doc.doc_id, split: doc.split, key: doc.doc_id.key})),
+            rows: state.data.docs.map(doc => ({doc_id: doc.doc_id, split: doc.split, check: doc.split === "train", key: doc.doc_id.key})),
             'rowKey': 'key',
             'columns': [
                 {
@@ -980,9 +1040,11 @@ const selectEditorState = (state, id) => {
                         {'text': 'test !', 'key': '81.xml'}
                     ]
                 },
-                {'name': 'split', 'type': 'text', 'suggestions': ['train', 'dev', 'test']}
+                {'name': 'split', 'type': 'text', 'suggestions': ['train', 'dev', 'test']},
+                {'name': 'check', 'type': 'boolean'}
             ],
             'buttons': [],
+            'highlighted': [],
             'styles': {}
         };
     }
@@ -996,14 +1058,14 @@ ReactDOM.render(
             <TableEditor
                 id="docs_table"
                 onSelectCells={(cells) => console.log(cells)}
-                onChange={immerAction("SET_TABLE_CELL", (state, row, column, value) => {
-                    state.data.docs[row][column] = value;
-                })}
-                onSelectedPositionChange={immerAction("SET_TABLE_POSITION",(state, position) => {
+                onCellChange={console.log}
+                onSelectedPositionChange={immerAction("SET_TABLE_POSITION", (state, position) => {
                     state.editors.docs_table.selected_table_position = position;
                 })}
                 onClickCellContent={console.log}
                 selectEditorState={selectEditorState}
+                registerActions={() => {
+                }}
             />
         </div>
         <div
@@ -1018,8 +1080,15 @@ ReactDOM.render(
                     state.editors.mentions_table.selected_table_position = position;
                 })}
                 onCellChange={(...args) => console.log("CELL CHANGE", ...args)}
+                onSelectedCellChange={(...args) => console.log("SELECTED CELL CHANGE", ...args)}
                 onClickCellContent={console.log}
                 selectEditorState={selectEditorState}
+                registerActions={() => {
+                }}
+                onInputChange={immerAction("UPDATE_INPUT", (state, inputValue) => {
+                    state.inputValue = inputValue;
+                })}
+
             />
         </div>
         <SpanEditor
@@ -1045,18 +1114,16 @@ ReactDOM.render(
                     return true;
                 }
             })}*/
-            onEnterSpan={immerAction("ADD_SPAN_HIGHLIGHT", (state, span_id) => {
-                state.data.spans.forEach(span => {
-                    if (span_id === span["id"]) span.highlighted = true;
-                });
+            onMouseEnterSpan={immerAction("ADD_SPAN_HIGHLIGHT", (state, span_id) => {
+                state.highlighted.push(span_id)
             })}
-            onLeaveSpan={immerAction("REMOVE_SPAN_HIGHLIGHT", (state, span_id) => {
-                state.data.spans.forEach(span => {
-                    if (span_id === span["id"]) span.highlighted = false;
-                });
+            onMouseLeaveSpan={immerAction("REMOVE_SPAN_HIGHLIGHT", (state, span_id) => {
+                removeItem(state.highlighted, span_id)
             })}
-            onMouseSelect={() => {}}
-            registerActions={() => {}}
+            onMouseSelect={() => {
+            }}
+            registerActions={() => {
+            }}
             selectEditorState={selectEditorState}
         />
     </Provider>,

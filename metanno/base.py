@@ -1,13 +1,13 @@
-from .utils import chain_map, chain_list, make_uid, frontend_only
 from .manager import AppManager
+from .utils import frontend_only
 
 IS_JS = False
-
 
 class App(object):
     def __init__(self):
         if not IS_JS:
             manager = AppManager()
+            manager.reset_state()
             self.manager = manager
             self.manager.app = self
         else:
@@ -34,13 +34,22 @@ class App(object):
     def handle_click_span(self, editor_id, span_id, modkeys):
         pass
 
-    def handle_enter_span(self, editor_id, span_id, modkeys):
+    def handle_mouse_enter_span(self, editor_id, span_id, modkeys):
         pass
 
-    def handle_leave_span(self, editor_id, span_id, modkeys):
+    def handle_mouse_leave_span(self, editor_id, span_id, modkeys):
+        pass
+
+    def handle_mouse_enter_row(self, editor_id, row_idx, modkeys):
+        pass
+
+    def handle_mouse_leave_row(self, editor_id, row_idx, modkeys):
         pass
 
     def handle_button_press(self, idx, selections):
+        pass
+
+    def handle_filters_change(self, col, value):
         pass
 
     def handle_key_down(self, editor_id, ):
@@ -71,6 +80,14 @@ class App(object):
     @frontend_only
     def scroll_to_span(self, editor_id, span_id):
         self.manager.actions[editor_id].scroll_to_span(span_id)
+
+    @frontend_only
+    def scroll_to_row(self, editor_id, row_idx):
+        self.manager.actions[editor_id].scroll_to_row(row_idx)
+
+    @frontend_only
+    def focus_input(self, editor_id, row_idx):
+        self.manager.actions[editor_id].focus_input(row_idx)
 
     @frontend_only
     def clear_mouse_span_selection(self, editor_id):

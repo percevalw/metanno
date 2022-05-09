@@ -69,12 +69,14 @@ with `@frontend_only` or `@kernel_only`, and the call will be transmitted over t
 - add basic app samples
 - add a documentation
 - add more table column types and renderers (numerical, dates, ...)
-- add customizable column filterers
+- ~~add customizable column filterers~~
 - add relations visualizations and edition with editable arrows
 - add an image annotation view
-- finish javascript to typescript conversion
-- customizable undo / redo logic
-- add multi-cell editing (through a [react-data-grid](https://github.com/adazzle/react-data-grid) PR)
+- ~~finish javascript to typescript conversion~~
+- ~~customizable undo / redo logic~~
+- add multi-cell editing (see a [react-data-grid](https://github.com/adazzle/react-data-grid) PR)
+- add a test suite (Cypress ?)
+- make a standalone version (without Jupyter)
 
 ## Contribute
 

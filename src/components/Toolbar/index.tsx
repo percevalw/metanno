@@ -1,12 +1,9 @@
 import React from "react";
 import "./style.css";
 import Color from "color";
-import PropTypes from "prop-types";
-import SpanComponent from "../SpanComponent";
-//import "@blueprintjs/core/lib/css/blueprint.css";
-// import '@jupyterlab/notebook/style/index.css'
+import {ButtonData, ToolbarData} from '../../types'
 
-const Button = ({label, secondary, color, onMouseDown}) => {
+const Button = ({label, secondary, color, onMouseDown}: ButtonData) => {
     const hsl = Color(color).hsl();
     // hsl.color[2] = Math.max(hsl.color[2], 60);
     return (<div className="toolbar-button">
@@ -24,12 +21,18 @@ const Spacer = () => {
     return <div className="toolbar-spacer" />;
 };
 
-export default class Toolbar extends React.Component {
+export default class Toolbar extends React.Component<{
+    onButtonPress?: (idx: number) => void;
+} & ToolbarData> {
+    static defaultProps = {
+        buttons: [],
+    };
+
     constructor(props) {
         super(props);
     }
 
-    renderComponent = ({type, ...props}, idx) => {
+    renderComponent = ({type, ...props}: ButtonData, idx) => {
         if (type === "button")
             return <Button
                 label={props.label}
@@ -49,24 +52,9 @@ export default class Toolbar extends React.Component {
         return (
             <div className="toolbar">
                 <div className="toolbar-content">
-                    {/*<Button label="Lateralité" secondary="l" color='#45ed5b' />
-                    <Button label="Negation" secondary="n" color='#ff5b5b' />
-                    <Button label="Quadrant" shortcut="q" color='#0f8edc' />
-                    <Button label="Cible" shortcut="c" color='black' />
-                    <Button label="Temporalité" shortcut="t" color='yellow' />*/}
                     {this.props.buttons.map(this.renderComponent)}
                 </div>
             </div>
         );
     }
 }
-
-
-Toolbar.propTypes = {
-    buttons: PropTypes.arrayOf(PropTypes.object),
-    onButtonPress: PropTypes.func,
-};
-
-SpanComponent.defaultProps = {
-    buttons: [],
-};

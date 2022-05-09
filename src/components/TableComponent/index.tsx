@@ -1,55 +1,100 @@
 import React from 'react';
 import {DndProvider} from 'react-dnd';
 import HTML5Backend from 'react-dnd-html5-backend';
-import DataGrid, {Row, SelectColumn, EditorProps, RowRendererProps, CalculatedColumn, Column} from "react-data-grid";
+import DataGrid, {CalculatedColumn, DataGridHandle, EditorProps, Row, RowRendererProps, SelectColumn} from "react-data-grid";
 
 import './style.css';
-import {memoize} from '../../utils';
+import {makeModKeys, memoize} from '../../utils';
 
-import DraggableHeaderRenderer from '../DraggableHeaderRenderer'
+import HeaderRenderer from '../DraggableHeaderRenderer'
 import MultiInputSuggest, {InputTag} from "../MultiInputSuggest";
 import SingleInputSuggest from "../SingleInputSuggest";
 import BooleanInput from "../BooleanInput";
+import {Hyperlink, ColumnData, RowData, Filters} from "../../types";
 
-type BaseColumn = { key: string, name: string, suggestions: string[], type: string, readonly: boolean };
-type BaseRow = { [other: string]: any, highlighted: boolean };
+
+function inputStopPropagation(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (['ArrowLeft', 'ArrowRight'].includes(event.key)) {
+        event.stopPropagation();
+    }
+}
 
 class TableComponent extends React.Component<{
     id: string;
     rowKey: string;
-    rows: BaseRow[];
-    selectedRows: string[];
-    columns: BaseColumn[];
-    registerActions: () => void;
-    onSelectedCellChange?: (row_idx: number, name: string) => void;
-    onSelectedRowsChange?: (rows: BaseRow[]) => void;
+    rows: RowData[];
+    selectedRows: any[];
+    highlightedRows: any[];
+    columns: ColumnData[];
+    filters: Filters;
+    suggestions: (string | Hyperlink)[],
+    inputValue: any;
+    registerActions: ({
+        scroll_to_row,
+    }: {
+        scroll_to_row: (number) => void,
+        focus_input: () => void,
+    }) => void;
+    onSelectedCellChange?: (row_id: string, name: string) => void;
+    onSelectedRowsChange?: (row_ids: string[]) => void;
+    onFiltersChange?: (name: string, value: any) => void;
     onClickCellContent?: (key: string) => void;
     onKeyPress?: () => void;
-    onEnterRow?: () => void;
-    onLeaveRow?: () => void;
-    onCellChange?: (row_idx: number, col: string, value: any) => void;
+    onMouseEnterRow?: (row_id: any, mod_keys: string[]) => void;
+    onMouseLeaveRow?: (row_id: any, mod_keys: string[]) => void;
+    onCellChange?: (row_id: any, name: string, value: any) => void;
+    onInputChange: (row_id: any, name: string, value: any) => void;
 }, {
     columnsOrder: string[],
     lastSelectedCell: { key: string, column: string }
 }> {
+    private readonly gridRef: React.MutableRefObject<DataGridHandle>;
+    private readonly inputRef: React.RefObject<any>;
+
     constructor(props) {
         super(props);
         this.state = {
             columnsOrder: props.columns.map(column => column.name),
             lastSelectedCell: null,
         };
+        this.gridRef = React.createRef();
+        this.inputRef = React.createRef();
+
+        props.registerActions({
+            scroll_to_row: (row_id) => {
+                for (let i = 0; i < this.props.rows.length; i++) {
+                    if (this.props.rows[i][this.props.rowKey] === row_id) {
+                        this.gridRef.current?.scrollToRow(i);
+                    }
+                }
+            },
+            focus_input: () => {
+                const input = this.inputRef.current?.input || this.inputRef.current
+                if (input) {
+                    input.focus();
+                }
+            },
+        });
     }
 
     checkCellChange = (row, column, isCellSelected) => {
         if (isCellSelected && (this.state.lastSelectedCell === null || (this.state.lastSelectedCell.column !== column.key || this.state.lastSelectedCell.key !== row[this.props.rowKey]))) {
             this.setState({...this.state, lastSelectedCell: {column: column.key, key: row[this.props.rowKey]}});
 
-            const index = this.props.rows.map((someRow, i) => ({row: someRow, i})).filter(({row: someRow, i}) => someRow[this.props.rowKey] === row[this.props.rowKey])[0].i;
-            this.props.onSelectedCellChange && this.props.onSelectedCellChange(index, column.key);
+            this.props.onSelectedCellChange && this.props.onSelectedCellChange(row[this.props.rowKey], column.key);
         }
     }
 
-    buildFormatter = (type, readonly): Partial<Column<BaseRow, BaseRow>> => {
+    handleMouseEnterRow = (event, row_id) => {
+        this.props.onMouseEnterRow && this.props.onMouseEnterRow(row_id, makeModKeys(event));
+    };
+
+    handleMouseLeaveRow = (event, row_id) => {
+        this.props.onMouseLeaveRow && this.props.onMouseLeaveRow(row_id, makeModKeys(event));
+    };
+
+
+    buildFormatter = (type, readonly, filterable) => {
         switch (type) {
             case 'hyperlink':
                 return {
@@ -59,19 +104,37 @@ class TableComponent extends React.Component<{
                                               column,
                                               onRowChange,
                                               onClose
-                                          }: EditorProps<BaseRow, BaseRow>,
+                                          }: EditorProps<RowData, RowData>,
                                           ref: any) => (
                             <SingleInputSuggest
                                 ref={ref}
+                                inputRef={this.inputRef}
                                 value={row[column.key]}
-                                column={column}
-                                // @ts-ignore
-                                suggestions={column.suggestions}
+                                column={column.key}
+
+                                inputValue={this.props.inputValue}
+                                onInputChange={(value) => this.props.onInputChange(row[this.props.rowKey], column.key, value)}
+                                suggestions={this.props.suggestions}
                                 onRowChange={onRowChange}
                                 onClose={onClose}
                                 hyperlink
                             />
                         ))),
+                    headerCellClass: filterable ? "metanno-table-header-filter" : undefined,
+                    headerRenderer: (p) => (
+                        <HeaderRenderer<RowData, unknown, HTMLInputElement> {...p} onColumnsReorder={this.onHeaderDrop}>
+                            {
+                                // @ts-ignore
+                                p.column.filterable ? (inputProps) => (
+                                    <input
+                                        {...inputProps}
+                                        className="metanno-table-filter"
+                                        value={this.props.filters[p.column.key]}
+                                        onChange={(e) => this.props.onFiltersChange(p.column.key, e.target.value)}
+                                        onKeyDown={inputStopPropagation}
+                                    />
+                                ) : null}
+                        </HeaderRenderer>),
                     formatter: ({row, column, isCellSelected}) => {
                         this.checkCellChange(row, column, isCellSelected);
                         return row[column.key] ?
@@ -85,19 +148,36 @@ class TableComponent extends React.Component<{
                                                                     column,
                                                                     onRowChange,
                                                                     onClose
-                                                                }: EditorProps<BaseRow, BaseRow>,
+                                                                }: EditorProps<RowData, RowData>,
                                                                 ref: any) => (
                         <MultiInputSuggest
                             ref={ref}
+                            inputRef={this.inputRef}
                             value={row[column.key]}
-                            column={column}
-                            // @ts-ignore
-                            suggestions={column.suggestions}
+                            inputValue={this.props.inputValue}
+                            column={column.key}
+                            suggestions={this.props.suggestions}
                             onRowChange={onRowChange}
+                            onInputChange={(value) => this.props.onInputChange(row[this.props.rowKey], column.key, value)}
                             onClose={onClose}
                             hyperlink
                         />
                     )),
+                    headerCellClass: filterable ? "metanno-table-header-filter" : undefined,
+                    headerRenderer: (p) => (
+                        <HeaderRenderer<RowData, unknown, HTMLInputElement> {...p} onColumnsReorder={this.onHeaderDrop}>
+                            {
+                                // @ts-ignore
+                                p.column.filterable ? (inputProps) => (
+                                    <input
+                                        {...inputProps}
+                                        className="metanno-table-filter"
+                                        value={this.props.filters[p.column.key]}
+                                        onChange={(e) => this.props.onFiltersChange(p.column.key, e.target.value)}
+                                        onKeyDown={inputStopPropagation}
+                                    />
+                                ) : null}
+                        </HeaderRenderer>),
                     formatter: ({row, ...props}) => {
                         this.checkCellChange(row, props.column, props.isCellSelected)
                         return <InputTag autocontain readOnly {...props} hyperlink
@@ -113,18 +193,35 @@ class TableComponent extends React.Component<{
                                               column,
                                               onRowChange,
                                               onClose
-                                          }: EditorProps<BaseRow, BaseRow>,
+                                          }: EditorProps<RowData, RowData>,
                                           ref: any) => (
                             <SingleInputSuggest
                                 ref={ref}
+                                inputRef={this.inputRef}
                                 value={row[column.key]}
-                                column={column}
-                                // @ts-ignore
-                                suggestions={column.suggestions}
+                                column={column.key}
+                                inputValue={this.props.inputValue}
+                                onInputChange={(value) => this.props.onInputChange(row[this.props.rowKey], column.key, value)}
+                                suggestions={this.props.suggestions}
                                 onRowChange={onRowChange}
                                 onClose={onClose}
                             />
                         ))),
+                    headerCellClass: filterable ? "metanno-table-header-filter" : undefined,
+                    headerRenderer: (p) => (
+                        <HeaderRenderer<RowData, unknown, HTMLInputElement> {...p} onColumnsReorder={this.onHeaderDrop}>
+                            {
+                                // @ts-ignore
+                                p.column.filterable ? (inputProps) => (
+                                    <input
+                                        {...inputProps}
+                                        className="metanno-table-filter"
+                                        value={this.props.filters[p.column.key]}
+                                        onChange={(e) => this.props.onFiltersChange(p.column.key, e.target.value)}
+                                        onKeyDown={inputStopPropagation}
+                                    />
+                                ) : null}
+                        </HeaderRenderer>),
                     formatter: ({row, ...props}) => {
                         this.checkCellChange(row, props.column, props.isCellSelected)
                         return <span>{row[props.column.key]}</span>
@@ -137,17 +234,34 @@ class TableComponent extends React.Component<{
                                                                     column,
                                                                     onRowChange,
                                                                     onClose
-                                                                }: EditorProps<BaseRow, BaseRow>, ref: any) => (
+                                                                }: EditorProps<RowData, RowData>, ref: any) => (
                         <MultiInputSuggest
                             ref={ref}
+                            inputRef={this.inputRef}
                             value={row[column.key]}
-                            column={column}
-                            // @ts-ignore
-                            suggestions={column.suggestions}
+                            column={column.key}
+                            inputValue={this.props.inputValue}
+                            onInputChange={(value) => this.props.onInputChange(row[this.props.rowKey], column.key, value)}
+                            suggestions={this.props.suggestions}
                             onRowChange={onRowChange}
                             onClose={onClose}
                         />
                     )),
+                    headerCellClass: filterable ? "metanno-table-header-filter" : undefined,
+                    headerRenderer: (p) => (
+                        <HeaderRenderer<RowData, unknown, HTMLInputElement> {...p} onColumnsReorder={this.onHeaderDrop}>
+                            {
+                                // @ts-ignore
+                                p.column.filterable ? (inputProps) => (
+                                    <input
+                                        {...inputProps}
+                                        className="metanno-table-filter"
+                                        value={this.props.filters[p.column.key]}
+                                        onChange={(e) => this.props.onFiltersChange(p.column.key, e.target.value)}
+                                        onKeyDown={inputStopPropagation}
+                                    />
+                                ) : null}
+                        </HeaderRenderer>),
                     formatter: (props) => {
                         this.checkCellChange(props.row, props.column, props.isCellSelected)
                         return <InputTag
@@ -172,7 +286,22 @@ class TableComponent extends React.Component<{
                             value={row[column.key]}
                             onChange={value => onRowChange({...row, [column.key]: value})}
                         />;
-                    }
+                    },
+                    headerCellClass: filterable ? "metanno-table-header-filter" : undefined,
+                    headerRenderer: (p) => (
+                        <HeaderRenderer<RowData, unknown, HTMLInputElement> {...p} onColumnsReorder={this.onHeaderDrop}>
+                            {
+                                // @ts-ignore
+                                p.column.filterable ? (inputProps) => (
+                                    <input
+                                        {...inputProps}
+                                        className="metanno-table-filter"
+                                        value={this.props.filters[p.column.key]}
+                                        onChange={(e) => this.props.onFiltersChange(p.column.key, e.target.value)}
+                                        onKeyDown={inputStopPropagation}
+                                    />
+                                ) : null}
+                        </HeaderRenderer>),
                 };
             default:
                 return {};
@@ -180,12 +309,8 @@ class TableComponent extends React.Component<{
     };
 
     buildColumns = memoize(() => {
-        const HeaderRenderer = (props) => {
-            return <DraggableHeaderRenderer {...props} onColumnsReorder={this.onHeaderDrop}/>;
-        };
-
         const columnObjects = this.props.columns.map(column => {
-            const {formatter, editor, ...columnProps} = this.buildFormatter(column.type, column.readonly);
+            const {formatter, editor, ...columnProps} = this.buildFormatter(column.type, !column.mutable, column.filterable);
             return {
                 [column.name]: {
                     ...{
@@ -194,30 +319,29 @@ class TableComponent extends React.Component<{
                         draggable: true,
                         resizable: true,
                         editable: !!editor,
-                        suggestions: column.suggestions,
-                        editorOptions: {commitOnOutsideClick: false},
+                        filterable: column.filterable,
+                        editorOptions: {commitOnOutsideClick: column.type !== "hyperlink" && column.type !== "multi-hyperlink"},
                     },
                     ...(formatter ? {formatter} : {}),
                     ...(!!editor ? {editor} : {}),
                     ...columnProps,
-                    headerRenderer: HeaderRenderer
                 },
             };
         });
         const nameToCol = Object.assign({}, ...columnObjects);
         return [{...SelectColumn, width: 50}, ...this.state.columnsOrder.map(name => nameToCol[name])];
-    }, () => ({columns: this.props.columns, columnsOrder: this.state.columnsOrder}));
+    }, () => ({columns: this.props.columns, columnsOrder: this.state.columnsOrder, filters: this.props.filters}));
 
     onRowsChange = (newRows) => {
         const updatedRows = (
             newRows
-                .map((newRow, i) => ({"oldRow": this.props.rows[i], "newRow": newRow, "i": i}))
+                .map((newRow, i) => ({"oldRow": this.props.rows[i], "newRow": newRow}))
                 .filter(({newRow, oldRow}) => newRow !== oldRow)
         );
         if (updatedRows.length === 1) {
-            const {newRow, oldRow, i} = updatedRows[0];
+            const {newRow, oldRow} = updatedRows[0];
             const changedKeys = Object.keys(newRow).filter(key => newRow[key] !== oldRow[key]);
-            this.props.onCellChange?.(i, changedKeys[0], newRow[changedKeys[0]]);
+            this.props.onCellChange?.(oldRow[this.props.rowKey], changedKeys[0], newRow[changedKeys[0]]);
         }
     };
 
@@ -236,43 +360,48 @@ class TableComponent extends React.Component<{
         this.setState(state => ({...state, columnsOrder: reorderedColumns}));
     };
 
-    onSelectedRowsChange = (rows) => {
-        this.props.onSelectedRowsChange?.(Array.from(rows));
+    onSelectedRowsChange = (row_ids: Set<string>) => {
+        this.props.onSelectedRowsChange?.(Array.from(row_ids));
     };
 
-    onSelectedCellChange = (row: BaseRow, column: CalculatedColumn<BaseRow, BaseRow>) => {
+    onSelectedCellChange = (row: RowData, column: CalculatedColumn<RowData, RowData>) => {
         this.props.onSelectedCellChange?.(row[this.props.rowKey], this.props.columns[column.idx].name);
     };
 
-    renderRow = (props: RowRendererProps<BaseRow, BaseRow>) => {
+    renderRow = (props: RowRendererProps<RowData, RowData>) => {
         return <Row
             {...props}
             selectCell={props.selectCell}//>this.onSelectedCellChange}
-            onMouseEnter={this.props.onEnterRow}
-            onMouseLeave={this.props.onLeaveRow}
-            className={props.row.highlighted ? 'metanno-row--highlighted' : ''}/>
+            onMouseEnter={(event) => this.handleMouseEnterRow(event, props.row[this.props.rowKey])}
+            onMouseLeave={(event) => this.handleMouseLeaveRow(event, props.row[this.props.rowKey])}
+            className={this.props.highlightedRows.includes(props.row[this.props.rowKey]) ? 'metanno-row--highlighted' : ''}/>
     };
 
     rowKeyGetter = row => row[this.props.rowKey];
 
+    onBlur = () => {
+        if (this.gridRef?.current && this.inputRef.current === null)
+            (this.gridRef?.current as any).selectCell({
+                idx: -1,
+                rowIdx: -2,
+            }, false);
+    }
+
     render() {
         return (
-            <div className={"metanno-table"}>
+            <div className={"metanno-table"} onBlur={this.onBlur}>
                 <DndProvider backend={HTML5Backend}>
                     <DataGrid
-                        /*enableCellSelect*/
-                        /*closeEditorAfterExternalChange={false}*/
-                        /*minColumnWidth={70}*/
-                        /*height={this.props.height}*/
+                        ref={this.gridRef}
                         rowKeyGetter={this.rowKeyGetter}
                         rowHeight={25}
                         columns={this.buildColumns()}
                         rows={this.props.rows}
                         rowRenderer={this.renderRow}
+                        headerRowHeight={this.props.columns.some(col => col.filterable) ? 65 : undefined}
                         selectedRows={new Set(this.props.selectedRows)}
                         onSelectedRowsChange={this.onSelectedRowsChange}
                         onRowsChange={this.onRowsChange}
-
                     />
                 </DndProvider>
             </div>

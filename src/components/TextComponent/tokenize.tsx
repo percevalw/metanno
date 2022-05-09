@@ -1,16 +1,23 @@
-import isEqual from "react-fast-compare";
-import React from "react";
+import {CSSProperties} from "react";
 
-export {isEqual};
-export const shallowCompare = (obj1, obj2) =>
-    obj1 === obj2 ||
-    (typeof obj1 === 'object' && typeof obj2 == 'object' &&
-    obj1 !== null && obj2 !== null &&
-    Object.keys(obj1).length === Object.keys(obj2).length &&
-    Object.keys(obj1).every(key => obj2.hasOwnProperty(key) && obj1[key] === obj2[key]));
+import {SpanData, TokenAnnotation, TokenData} from '../../types';
 
+type TextChunk = {
+    begin: number;
+    end: number;
+    label: string;
+    token_annotations: TokenAnnotation[];
+    tokens: string[];
+}
 
-function segment(spans, text) {
+export interface PreprocessedStyle extends CSSProperties {
+    shape: string;
+    '--border-color'?: string;
+    '--background-color'?: string;
+    '--z-index'?: string;
+}
+
+function chunkText(spans: SpanData[], text: string): TextChunk[] {
     // Find the minimum text split indices, ie the entities boundaries + split each new chunk into tokens
     let indices = [];
     for (let span_i = 0; span_i < spans.length; span_i++) {
@@ -20,7 +27,7 @@ function segment(spans, text) {
     }
     indices.push(0, text.length);
     indices = indices.sort((a, b) => a - b);
-    let text_chunks = [];
+    let text_chunks: TextChunk[] = [];
     let begin, end, text_slice;
     for (let indice_i = 1; indice_i < indices.length; indice_i++) {
         begin = indices[indice_i - 1];
@@ -29,7 +36,8 @@ function segment(spans, text) {
         text_chunks.push({
             begin: indices[indice_i - 1],
             end: indices[indice_i],
-            metadata_list: [],
+            label: null,
+            token_annotations: [],
             tokens: text_slice.length > 0
                 ? text_slice
                     .match(/\n|[^ \n]+|[ ]+/g)
@@ -40,18 +48,18 @@ function segment(spans, text) {
     return text_chunks;
 }
 
-function styleTextChunks_(text_chunks, spans) {
+function styleTextChunks_(text_chunks: TextChunk[], spans: SpanData[], styles: { [key: string]: PreprocessedStyle }) {
     const isNot = filled => !filled;
-    spans.forEach(({begin, end, label, style, ...meta}) => {
+    spans.forEach(({begin, end, label, style, ...rest}) => {
         let newDepth = null;
         for (let text_chunk_i = 0; text_chunk_i < text_chunks.length; text_chunk_i++) {
             if (text_chunks[text_chunk_i].begin < end && begin < text_chunks[text_chunk_i].end) {
                 if (text_chunks[text_chunk_i].begin === begin) {
                     text_chunks[text_chunk_i].label = label;
                 }
-                if (newDepth === null && !meta.mouseSelected) {
+                if (newDepth === null && !rest.mouseSelected && styles[style].shape !== "fullHeight") {
                     let missingDepths = [undefined];
-                    for (const {depth, mouseSelected} of text_chunks[text_chunk_i].metadata_list) {
+                    for (const {depth, mouseSelected} of text_chunks[text_chunk_i].token_annotations) {
                         if (!mouseSelected) {
                             missingDepths[depth] = true;
                         }
@@ -61,28 +69,33 @@ function styleTextChunks_(text_chunks, spans) {
                         newDepth = missingDepths.length;
                     }
                 }
-                text_chunks[text_chunk_i].metadata_list.unshift({
+                text_chunks[text_chunk_i].token_annotations.unshift({
                     depth: newDepth,
                     openleft: text_chunks[text_chunk_i].begin !== begin,
                     openright: text_chunks[text_chunk_i].end !== end,
                     label: label,
-                    first_token: text_chunks[text_chunk_i].begin === begin,
+                    isFirstTokenOfSpan: text_chunks[text_chunk_i].begin === begin,
                     style: style,
-                    ...meta,
+                    ...rest,
                 });
             }
         }
     });
 }
 
-function splitLines(text_chunks) {
-    let current_line = [];
-    const all_lines = [];
+/**
+ * Split text chunks into multiple lines, each composed of a subset of the total text chunks
+ * @param text_chunks: text chunks obtained by the `segment` function
+ */
+function tokenizeTextChunks(text_chunks: TextChunk[]): TokenData[][] {
+    let current_line: TokenData[] = [];
+    const all_lines: TokenData[][] = [];
+
     let tokens = [];
     for (let i = 0; i < text_chunks.length; i++) {
         const text_chunk = text_chunks[i];
         const begin = text_chunk.begin;
-        const metadata_list = text_chunk.metadata_list;
+        const token_annotations = text_chunk.token_annotations;
         tokens = text_chunk.tokens;
 
         let offset_in_text_chunk = 0;
@@ -96,11 +109,11 @@ function splitLines(text_chunks) {
                 current_line.push({
                     text: tokens[token_i],
                     key: `${span_begin}-${span_end}`,
-                    span_begin: span_begin,
-                    span_end: span_end,
-                    metadata_list: metadata_list,
-                    is_first: token_i === 0,
-                    is_last: token_i === tokens.length - 1,
+                    begin: span_begin,
+                    end: span_end,
+                    token_annotations: token_annotations,
+                    isFirstTokenOfChunk: token_i === 0,
+                    isLastTokenOfChunk: token_i === tokens.length - 1,
                 });
             }
             offset_in_text_chunk += tokens[token_i].length;
@@ -112,8 +125,10 @@ function splitLines(text_chunks) {
     return all_lines;
 }
 
-export function spanToTextChunks(spans, text, selections, highlights) {
-
+export default function tokenize(spans: SpanData[], text: string, styles: { [key: string]: PreprocessedStyle }): {
+    lines: TokenData[][];
+    ids: any[];
+} {
     // Sort the original spans to display
     spans = spans.sort(
         ({begin: begin_a, end: end_a, mouseSelected: mouseSelected_a}, {begin: begin_b, end: end_b, mouseSelected: mouseSelected_b}) =>
@@ -122,40 +137,11 @@ export function spanToTextChunks(spans, text, selections, highlights) {
                 : (mouseSelected_a ? -1 : 1)
     ).map(span => ({...span, text: text.slice(span.begin, span.end)}));
 
-    const text_chunks = segment(spans, text);
-    styleTextChunks_(text_chunks, spans);
+    const text_chunks = chunkText(spans, text);
+    styleTextChunks_(text_chunks, spans, styles);
 
     const ids = spans.map(span => span.id);
-    const lines = splitLines(text_chunks);
+    const linesOfTokens = tokenizeTextChunks(text_chunks);
 
-    return {lines: lines, ids: ids}; //.filter(({ metadata_list }) => metadata_list.length > 0);
+    return {lines: linesOfTokens, ids: ids}; //.filter(({ token_annotations }) => token_annotations.length > 0);
 }
-
-export const replaceObject = (obj, new_obj) => {
-    Object.keys(obj).forEach(key => {
-      delete obj[key];
-    })
-    Object.assign(obj, new_obj);
-}
-
-export const memoize = (factory, checkDeps=(input => input), shallow = false, post = false) => {
-    let last = null;
-    let cache = null;
-    return (...args) => {
-        if (post) {
-            const new_state = factory(...args);
-            if (!(shallow && shallowCompare(new_state, cache) || !shallow && isEqual(new_state, cache))) {
-                cache = new_state;
-            }
-            return cache;
-        }
-        else {
-            const state = checkDeps(...args);
-            if (!(shallow && shallowCompare(last, state) && last !== null || !shallow && isEqual(last, state) && last !== null)) {
-                last = state;
-                cache = factory(...args);
-            }
-            return cache;
-        }
-    }
-};

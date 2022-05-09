@@ -5,8 +5,8 @@ import { Message } from '@lumino/messaging';
 import ReactDOM from "react-dom";
 import {Provider} from "react-redux";
 import React from "react";
-import SpanEditor from "../containers/SpanEditor";
-import TableEditor from "../containers/TableEditor";
+import TextView from "../containers/TextView";
+import TableView from "../containers/TableView";
 import metannoManager from "./manager";
 
 /**
@@ -131,19 +131,18 @@ export default class MetannoRenderer extends Widget {
         if (editor_type === "span-editor") {
             ReactDOM.render(
                 <Provider store={manager.store}>
-                    <SpanEditor
+                    <TextView
                         id={editor_id}
-                        onClickSpan={(...args) => manager.try_catch_exec(manager.app?.handle_click_span)(editor_id, ...args)}
-                        onEnterSpan={(...args) => manager.try_catch_exec(manager.app?.handle_enter_span)(editor_id, ...args)}
-                        onLeaveSpan={(...args) => manager.try_catch_exec(manager.app?.handle_leave_span)(editor_id, ...args)}
-                        onKeyPress={(...args) => manager.try_catch_exec(manager.app?.handle_key_press)(editor_id, ...args)}
-                        //onKeyDown={(...args) => manager.try_catch_exec(manager.app?.handle_key_down)(editor_id, ...args)}
-                        onMouseSelect={(...args) => manager.try_catch_exec(manager.app?.handle_mouse_select)(editor_id, ...args)}
-                        onButtonPress={(...args) => manager.try_catch_exec(manager.app?.handle_button_press)(editor_id, ...args)}
-                        registerActions={methods => {
-                            manager.actions[editor_id] = methods
-                        }}
-                        selectEditorState={(...args) => manager.try_catch_exec(manager.app?.select_editor_state)(...args)}
+                        selectEditorState={(...args) => manager.try_catch_exec(manager.app?.select_editor_state, ...args)}
+
+                        onClickSpan={(...args) => manager.queue_try_catch_exec(manager.app?.handle_click_span, editor_id, ...args)}
+                        onMouseEnterSpan={(...args) => manager.queue_try_catch_exec(manager.app?.handle_mouse_enter_span, editor_id, ...args)}
+                        onMouseLeaveSpan={(...args) => manager.queue_try_catch_exec(manager.app?.handle_mouse_leave_span, editor_id, ...args)}
+                        onKeyPress={(...args) => manager.queue_try_catch_exec(manager.app?.handle_key_press, editor_id, ...args)}
+                        //onKeyDown={(...args) => manager.queue_try_catch_exec(manager.app?.handle_key_down)(editor_id, ...args)}
+                        onMouseSelect={(...args) => manager.queue_try_catch_exec(manager.app?.handle_mouse_select, editor_id, ...args)}
+                        onButtonPress={(...args) => manager.queue_try_catch_exec(manager.app?.handle_button_press, editor_id, ...args)}
+                        registerActions={methods => {manager.actions[editor_id] = methods}}
                     />
                 </Provider>,
                 this.node,
@@ -151,18 +150,21 @@ export default class MetannoRenderer extends Widget {
         } else if (editor_type === "table-editor") {
             ReactDOM.render(
                 <Provider store={manager.store}>
-                    <TableEditor
+                    <TableView
                         id={editor_id}
-                        onKeyPress={(...args) => manager.try_catch_exec(manager.app?.handle_key_press)(editor_id, ...args)}
-                        onClickCellContent={(...args) => manager.try_catch_exec(manager.app?.handle_click_cell_content)(editor_id, ...args)}
-                        onSelectedCellChange={(...args) => manager.try_catch_exec(manager.app?.handle_select_cell)(editor_id, ...args)}
-                        onSelectedRowsChange={(...args) => manager.try_catch_exec(manager.app?.handle_select_rows)(editor_id, ...args)}
-                        onCellChange={(...args) => manager.try_catch_exec(manager.app?.handle_cell_change)(editor_id, ...args)}
-                        registerActions={methods => {
-                            manager.actions[editor_id] = methods;
-                        }}
-                        selectEditorState={(...args) => manager.try_catch_exec(manager.app?.select_editor_state)(...args)}
-                        onButtonPress={(...args) => manager.try_catch_exec(manager.app?.handle_button_press)(editor_id, ...args)}
+                        selectEditorState={(...args) => manager.try_catch_exec(manager.app?.select_editor_state, ...args)}
+
+                        onKeyPress={(...args) => manager.queue_try_catch_exec(manager.app?.handle_key_press, editor_id, ...args)}
+                        onClickCellContent={(...args) => manager.queue_try_catch_exec(manager.app?.handle_click_cell_content, editor_id, ...args)}
+                        onMouseEnterRow={(...args) => manager.queue_try_catch_exec(manager.app?.handle_mouse_enter_row, editor_id, ...args)}
+                        onMouseLeaveRow={(...args) => manager.queue_try_catch_exec(manager.app?.handle_mouse_leave_row, editor_id, ...args)}
+                        onSelectedCellChange={(...args) => manager.queue_try_catch_exec(manager.app?.handle_select_cell, editor_id, ...args)}
+                        onSelectedRowsChange={(...args) => manager.queue_try_catch_exec(manager.app?.handle_select_rows, editor_id, ...args)}
+                        onCellChange={(...args) => manager.queue_try_catch_exec(manager.app?.handle_cell_change, editor_id, ...args)}
+                        onFiltersChange={(...args) => manager.queue_try_catch_exec(manager.app?.handle_filters_change, editor_id, ...args)}
+                        registerActions={methods => { manager.actions[editor_id] = methods; }}
+                        onButtonPress={(...args) => manager.queue_try_catch_exec(manager.app?.handle_button_press, editor_id, ...args)}
+                        onInputChange={(...args) => manager.queue_try_catch_exec(manager.app?.handle_input_change, editor_id, ...args)}
                     />
                 </Provider>,
                 this.node,

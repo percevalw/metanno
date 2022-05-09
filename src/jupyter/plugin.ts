@@ -40,7 +40,6 @@ import MetannoRenderer from "./renderer";
 import metannoSvgstr from '../icon.svg';
 import "./dontDisplayHiddenOutput";
 
-
 const MIMETYPE = 'application/vnd.jupyter.annotator+json';
 export const notebookIcon = new LabIcon({name: 'ui-components:metanno', svgstr: metannoSvgstr});
 

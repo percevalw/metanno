@@ -1,22 +1,16 @@
 :root {
-    --metanno-toolbar-height: 2.5em;
+    --metanno-toolbar-item-height: 2em;
     --metanno-toolbar-spacing: 4px;
 }
 
 .toolbar {
     display: flex;
     width: 100%;
-    overflow-x: scroll;
 
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
     box-sizing: border-box;
-    height: var(--metanno-toolbar-height);
     color: var(--jp-ui-font-color1);
-    /*background: #f2f2f2;*/
-    
+    overflow: auto;
+
     border-bottom: var(--jp-border-width) solid var(--jp-toolbar-border-color);
     box-shadow: var(--jp-toolbar-box-shadow);
     min-height: var(--jp-toolbar-micro-height);
@@ -28,6 +22,15 @@
     flex: 1;
     display: flex;
     flex-direction: row;
+    gap: var(--metanno-toolbar-spacing);
+}
+
+.toolbar.toolbar-wrap .toolbar-content {
+    flex-wrap: wrap;
+}
+
+.toolbar.toolbar-wrap {
+    overflow: unset;
 }
 
 .toolbar-spacer {
@@ -39,7 +42,9 @@
 .toolbar div.toolbar-button {
     display: flex;
     flex-direction: row;
+    flex: 1;
     align-items: stretch;
+    height: var(--metanno-toolbar-item-height);
 
     box-sizing: border-box;
     outline: none;
@@ -64,6 +69,7 @@
     display: flex;
     flex-direction: row;
     align-items: stretch;
+    flex: 1;
 
     background: var(--jp-layout-color1);
     padding: 0 0px;
@@ -87,10 +93,7 @@
     box-sizing: border-box;
     display: flex;
     align-items: stretch;
-}
-
-.container.has-toolbar {
-    padding-top: var(--metanno-toolbar-height);
+    flex-direction: column;
 }
 
 .toolbar-button > .toolbar-button-component > .toolbar-button-text,
@@ -104,17 +107,38 @@
     font-weight: 700;
 }
 
-.toolbar-button > .toolbar-button-component >:last-child {
+.toolbar-button > .toolbar-button-component > .toolbar-button-text {
+    flex: 1;
+    justify-content: center;
+}
+
+.toolbar-button > .toolbar-button-component > .toolbar-button-secondary {
+    flex-grow: 0;
+}
+
+.toolbar-button > .toolbar-button-component > :last-child {
     border-bottom-right-radius: 2px;
     border-top-right-radius: 2px;
     overflow: hidden;
 }
 
-.toolbar-button > .toolbar-button-component >:first-child {
+.toolbar-button > .toolbar-button-component > :first-child {
     border-bottom-left-radius: 2px;
     border-top-left-radius: 2px;
     overflow: hidden;
 }
+
 .toolbar-button > .toolbar-button-component > span {
     line-height: 0;
+}
+
+
+.toolbar {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* Internet Explorer 10+ */
+}
+
+.toolbar::-webkit-scrollbar { /* WebKit */
+    width: 0;
+    height: 0;
 }

@@ -2,7 +2,7 @@ import "regenerator-runtime/runtime";
 import React from "react";
 
 import {applyMiddleware, compose, createStore, Store} from "redux";
-import {eval_code} from "../parse";
+import {eval_code} from "./loadTranscypt";
 import {applyPatches, enablePatches} from "immer";
 // @ts-ignore
 import {JSONObject, JSONValue} from "@lumino/coreutils";
@@ -19,17 +19,18 @@ import {ISessionContext} from "@jupyterlab/apputils/lib/sessioncontext";
 import {INotification} from 'jupyterlab_toastify';
 // @ts-ignore
 import * as KernelMessage from "@jupyterlab/services/lib/kernel/messages";
-
+import {UUID} from "@lumino/coreutils";
 import {decode, SourceMapMappings} from 'sourcemap-codec';
 import "./metanno.css";
 
 enablePatches();
 
 export default class metannoManager {
-    public actions: { [name: string]: Function };
+    public actions: { [editor_id: string]: { [action_name: string]: Function } };
     public app: any;
     public store: Store;
     public views: Set<any>;
+    public id: string;
 
     private context: DocumentRegistry.IContext<DocumentRegistry.IModel>;
     private isDisposed: boolean;
@@ -40,16 +41,24 @@ export default class metannoManager {
     private comm: IComm;
     private source_code_py: string;
     private sourcemap: SourceMapMappings;
+    private readonly callbacks: { [callbackId: string]: (any) => void };
+
+    // Lock promise to chain events, and avoid concurrent state access
+    // Each event calls .then on this promise and replaces it to queue itself
+    private lock: Promise<void>;
 
     constructor(context: DocumentRegistry.IContext<DocumentRegistry.IModel>, settings: { saveState: boolean }) {
         this.store = this.createStore();
         this.actions = {};
         this.app = null;
+        this.id = UUID.uuid4();
+        this.callbacks = {};
 
         this.comm_target_name = 'metanno';
         this.context = context;
         this.comm = null;
         this.views = new Set();
+        this.lock = Promise.resolve();
 
         this.source_code_py = '';
         this.sourcemap = null;
@@ -163,13 +172,53 @@ export default class metannoManager {
         }
     };
 
+    /**
+     * Register a callback that will be called when the kernel has sent back the
+     * return of a remote method call
+     *
+     * @param callbackId - the callback ID, to know which call does the callback resolves
+     * @param callback - the resolve method of a Promise
+     */
+    registerRemoteCallback = (callbackId: string, callback: (any) => void) => {
+        this.callbacks[callbackId] = callback;
+    }
+
+    /**
+     * Remotely calls a method and returns a Promise that awaits for the call to end
+     * on the kernel and the return value to be sent back, to be resolved
+     *
+     * @param func_name - the name of the method to call remotely
+     * @param args - the arguments of the call
+     */
+    remoteCall = (func_name, args) => {
+        const callbackId = UUID.uuid4()
+        this.comm.send({
+            'method': 'method_call',
+            'data': {
+                'method_name': func_name,
+                'args': args,
+                'callback_id': callbackId,
+            }
+        });
+        return new Promise((resolve, reject) => {
+            this.registerRemoteCallback(callbackId, resolve);
+        });
+    }
+
     onMsg = (msg: KernelMessage.ICommMsgMsg) => {
         try {
             const {method, data} = msg.content.data as { method: string, data: any };
+            const exceptId = msg?.metadata?.exceptId;
+            if (this.id === exceptId) {
+                return;
+            }
             if (method === "action") {
                 this.store.dispatch(data);
-            } else if (method === "run_method") {
+            } else if (method === "method_call") {
                 this.app[data.method_name](...data.args);
+            } else if (method === "method_return") {
+                this.callbacks[data.callback_id](data.value);
+                delete this.callbacks[data.callback_id];
             } else if (method === "patch") {
                 try {
                     const newState = applyPatches(this.store.getState(), data.patches);
@@ -198,33 +247,59 @@ export default class metannoManager {
         }
     };
 
-    try_catch_exec = (fn) =>
-        (...args) => {
-            try {
-                if (fn) return fn(...args)
-            } catch (e) {
-                console.log("Got an error !");
-                console.log(e);
-                const py_lines = [...e.stack.matchAll(/<anonymous>:(\d+):(\d+)/gm)];
-                if (py_lines.length > 0 && this.sourcemap !== null) {
-                    const [_, lineStr, columnStr] = py_lines[0];
-                    const source_line_str = this.source_code_py.split("\n")[this.sourcemap[parseInt(lineStr) - 1][0][2]].trim();
-                    this.toastError(`Error: ${e.message} at \n${source_line_str}`);
-                } else if (e.__args__) {
-                    this.toastError(`Error: ${e.__args__[0]}`);
-                } else {
-                    this.toastError(`Error: ${e.message}`);
-                }
+    handle_exception = (e: Error) => {
+        console.log("Got an error !");
+        console.log(e);
+        const py_lines = [...e.stack.matchAll(/<anonymous>:(\d+):(\d+)/gm)];
+        if (py_lines.length > 0 && this.sourcemap !== null) {
+            const [_, lineStr, columnStr] = py_lines[0];
+            const source_line_str = this.source_code_py.split("\n")[this.sourcemap[parseInt(lineStr) - 1][0][2]].trim();
+            this.toastError(`Error: ${e.message} at \n${source_line_str}`);
+        } else { // @ts-ignore
+            if (e.__args__) {
+                // @ts-ignore
+                this.toastError(`Error: ${e.__args__[0]}`);
+            } else {
+                this.toastError(`Error: ${e.message}`);
             }
         }
+    };
+
+    /**
+     * Queue the execution of a function, to avoid concurrent access to the state
+     *
+     * @param fn: Function to execute
+     * @param args: Call arguments
+     */
+    queue_try_catch_exec = (fn: Function, ...args: any[]): void => {
+        this.lock = this.lock.then(() => {
+            return this.try_catch_exec(fn, ...args);
+        }).catch(this.handle_exception);
+    };
+
+    /**
+     * Executes a function and display any error using custom components
+     *
+     * @param fn: Function to execute
+     * @param args: Call arguments
+     */
+    try_catch_exec = (fn: Function, ...args: any[]): any => {
+        try {
+            if (fn) {
+                return fn(...args);
+            }
+        } catch (e) {
+            this.handle_exception(e)
+        }
+    };
 
 
-    toastError = (message, autoClose=10000) => {
+    toastError = (message, autoClose = 10000) => {
         //INotification.error(`Message: ${e.message} at ${parseInt(lineStr)-1}:${parseInt(columnStr)-1}`);
         INotification.error(<div>{message.split("\n").map(line => <p>{line}</p>)}</div>, {autoClose: autoClose});
     }
 
-    toastInfo = (message, autoClose=10000) => {
+    toastInfo = (message, autoClose = 10000) => {
         //INotification.error(`Message: ${e.message} at ${parseInt(lineStr)-1}:${parseInt(columnStr)-1}`);
         INotification.info(<div>{message.split("\n").map(line => <p>{line}</p>)}</div>, {autoClose: autoClose});
     }
@@ -264,7 +339,7 @@ export default class metannoManager {
             name,
             oldValue,
             newValue
-        }: { name: string, oldValue: IKernelConnection | null, newValue: IKernelConnection | null}) => {
+        }: { name: string, oldValue: IKernelConnection | null, newValue: IKernelConnection | null }) => {
         if (oldValue) {
             console.log("Removing comm", oldValue);
             this.comm = null;

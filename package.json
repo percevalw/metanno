@@ -1,6 +1,6 @@
 {
   "name": "metanno",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "Jupyter widgets collection to setup a modular annotation environment",
   "keywords": [
     "jupyter",
