@@ -353,7 +353,8 @@ class NERApp(App):
     @frontend_only
     @produce
     def handle_mouse_enter_span(self, editor_id, span_id, modkeys):
-        self.state["highlighted"].extend([span_id])
+        if span_id not in self.state["highlighted"]:
+            self.state["highlighted"].append(span_id)
 
     @frontend_only
     @produce
