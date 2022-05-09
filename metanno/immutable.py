@@ -353,6 +353,41 @@ class MapProxy(Proxy[T], collections.Mapping):
         set_on_parent(state)
         maybe_on_change(self)
 
+    def pop(self, indexer):
+        state = self._state
+        ensure_copy(state)
+        state.copy.pop(indexer)
+        set_on_parent(state)
+        maybe_on_change(self)
+
+    def clear(self):
+        state = self._state
+        ensure_copy(state)
+        state.copy.clear()
+        set_on_parent(state)
+        maybe_on_change(self)
+
+    def update(self, other):
+        state = self._state
+        ensure_copy(state)
+        state.copy.update(other)
+        set_on_parent(state)
+        maybe_on_change(self)
+
+    def setdefault(self, key, default):
+        state = self._state
+        ensure_copy(state)
+        state.copy.setdefault(key, default)
+        set_on_parent(state)
+        maybe_on_change(self)
+
+    def popitem(self):
+        state = self._state
+        ensure_copy(state)
+        state.copy.popitem()
+        set_on_parent(state)
+        maybe_on_change(self)
+
     # __getattr__ = __getitem__
     # __setattr__ = __setitem__
     def __repr__(self):
@@ -444,7 +479,7 @@ def apply_patches(obj, patches):
             else:
                 item[p['path'][-1]] = p['value']
         if p['op'] == 'remove':
-            item.pop(p['path'][-1], p['value'])
+            item.pop(p['path'][-1])
     return proxy._state.target
 
 
