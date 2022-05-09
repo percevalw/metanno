@@ -12,6 +12,7 @@ import json
 
 from collections import defaultdict
 import ast
+import astunparse
 
 
 class weakmethod:
@@ -195,7 +196,10 @@ def make_async(code):
 
     tree = ast.fix_missing_locations(MapTransformer().visit(tree))
 
-    return ast.unparse(tree)
+    if hasattr(ast, 'unparse'):
+        return ast.unparse(tree)
+    else:
+        return astunparse.unparse(tree)
 
 
 def transcrypt_class(cls, return_python=False, silent=True):

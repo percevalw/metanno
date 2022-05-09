@@ -63,6 +63,7 @@ setup_args = dict(
     install_requires=[
         "transcrypt==3.9.0",
         "ipykernel",
+        "astunparse",
     ],
     zip_safe=False,
     include_package_data=True,
