@@ -4,7 +4,7 @@ import TableComponent from "../../components/TableComponent";
 import Toolbar from "../../components/Toolbar";
 import Loading from "../../components/Loading";
 import cachedReconcile from "../../utils";
-import {TableData, TableMethods, ToolbarMethods} from "../../types";
+import {TableData, TableMethods, ToolbarData, ToolbarMethods} from "../../types";
 
 const TableView = ({
      id,
@@ -39,7 +39,7 @@ const TableView = ({
         selectedRows,
         highlightedRows,
     } = useSelector(useCallback(cachedReconcile(
-        state => {
+        (state: object): TableData & ToolbarData & {loading: boolean}  => {
             let derived = null;
             if (selectEditorState && state) {
                 derived = selectEditorState(state, id)
