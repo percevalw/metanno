@@ -55,7 +55,7 @@ class SingleInputSuggest<T extends (string | Hyperlink)> extends React.Component
     inputRef?: React.RefObject<HTMLInputElement>;
 
     onClose?: () => void;
-    onInputChange?: (value: any) => void;
+    onInputChange?: (value: any, cause: string) => void;
     onRowChange?: (rowUpdate: object, commitChanges: boolean) => void;
     onClick?: (key: string) => void;
     registerActions?: (actions: object) => void;
@@ -75,15 +75,15 @@ class SingleInputSuggest<T extends (string | Hyperlink)> extends React.Component
     }
 
     componentDidMount() {
-        this.props.onInputChange(this.props.value);
+        this.props.onInputChange(this.props.value, 'mount');
     }
 
     componentWillUnmount() {
-        this.props.onInputChange(null);
+        this.props.onInputChange(null, 'unmount');
     }
 
-    onInputChange = (event, {newValue}) => {
-        this.props.onInputChange?.(newValue);
+    onInputChange = (event, {newValue, method}: {newValue: string, method: string}) => {
+        this.props.onInputChange?.(newValue, method);
     };
 
     inputKeyDown = (event) => {

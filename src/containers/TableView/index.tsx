@@ -4,7 +4,7 @@ import TableComponent from "../../components/TableComponent";
 import Toolbar from "../../components/Toolbar";
 import Loading from "../../components/Loading";
 import cachedReconcile from "../../utils";
-import {TableData} from "../../types";
+import {TableData, TableMethods, ToolbarMethods} from "../../types";
 
 const TableView = ({
      id,
@@ -25,23 +25,8 @@ const TableView = ({
  }: {
     id: string;
     className?: string,
-
     selectEditorState: (state: object, id: string) => TableData;
-    registerActions: ({scroll_to_row, focus_input}: {
-        scroll_to_row: (number) => void,
-        focus_input: () => void,
-    }) => void;
-    onSelectedCellChange?: (row_id: string, name: string) => void;
-    onSelectedRowsChange?: (row_ids: string[]) => void;
-    onFiltersChange?: (name: string, value: any) => void;
-    onClickCellContent?: (key: string) => void;
-    onKeyPress?: () => void;
-    onButtonPress?: (idx: number) => void;
-    onMouseEnterRow?: (row_id: any, mod_keys: string[]) => void;
-    onMouseLeaveRow?: (row_id: any, mod_keys: string[]) => void;
-    onCellChange?: (row_id: any, name: string, value: any) => void;
-    onInputChange: (value: any) => void;
-}) => {
+} & TableMethods & ToolbarMethods) => {
     const {
         rows,
         rowKey,

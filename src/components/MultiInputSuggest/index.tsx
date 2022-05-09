@@ -56,7 +56,7 @@ class MultiInputSuggest<T extends (string | Hyperlink)> extends React.Component<
     inputRef?: React.RefObject<HTMLInputElement>;
 
     onClose?: () => void;
-    onInputChange?: (value: any) => void;
+    onInputChange?: (value: any, cause: string) => void;
     onRowChange?: (rowUpdate: object, commitChanges: boolean) => void;
     onClick?: (key: string) => void;
     registerActions?: (actions: object) => void;
@@ -88,30 +88,30 @@ class MultiInputSuggest<T extends (string | Hyperlink)> extends React.Component<
     }
 
     componentDidMount() {
-        this.props.onInputChange([...this.props.value, ""]);
+        this.props.onInputChange([...this.props.value, ""], "mount");
     }
 
     componentWillUnmount() {
-        this.props.onInputChange(null);
+        this.props.onInputChange(null, "unmount");
     }
 
-    onInputChange = (event, {newValue}) => {
+    onInputChange = (event, {newValue, method}: {newValue: string, method: string}) => {
         const newTags = [...this.getInputValue() || []];
         newTags[newTags.length - 1] = newValue
 
-        this.props.onInputChange?.(newTags);
+        this.props.onInputChange?.(newTags, method);
     };
 
     removeTag = (i) => {
         const newTags = [...this.props.inputValue || []];
         newTags.splice(i, 1);
-        this.props.onInputChange?.(newTags);
+        this.props.onInputChange?.(newTags, "remove");
     };
 
     addTag = () => {
         const newTags = [...this.props.inputValue || []];
         newTags.push("");
-        this.props.onInputChange(newTags);
+        this.props.onInputChange(newTags, "add");
     }
 
     inputKeyDown = (event) => {

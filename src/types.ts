@@ -92,3 +92,44 @@ export type TableData = {
     filters: Filters;
     inputValue: any;
 }
+
+export type TableMethods = {
+    registerActions: ({
+        scroll_to_row,
+        focus_input,
+    }: {
+        scroll_to_row: (number) => void,
+        focus_input: () => void,
+    }) => void;
+    onSelectedCellChange?: (row_id: string, name: string) => void;
+    onSelectedRowsChange?: (row_ids: string[]) => void;
+    onFiltersChange?: (name: string, value: any) => void;
+    onClickCellContent?: (key: string) => void;
+    onKeyPress?: () => void;
+    onMouseEnterRow?: (row_id: any, mod_keys: string[]) => void;
+    onMouseLeaveRow?: (row_id: any, mod_keys: string[]) => void;
+    onCellChange?: (row_id: any, name: string, value: any) => void;
+    onInputChange: (row_id: any, name: string, value: any, cause: string) => void;
+}
+
+export type TextMethods = {
+    registerActions: ({
+                          scroll_to_line,
+                          scroll_to_span,
+                          clear_current_mouse_selection,
+                      }: {
+        scroll_to_line: (number) => void,
+        scroll_to_span: () => void,
+        clear_current_mouse_selection: () => void,
+    }) => void;
+
+    onKeyPress?: (key: string, modkeys: string[], ranges: TextRange[]) => void;
+    onClickSpan?: (span_id: any, modkeys: string[]) => void;
+    onMouseEnterSpan?: (span_id: any, modkeys: string[]) => void;
+    onMouseLeaveSpan?: (span_id: any, modkeys: string[]) => void;
+    onMouseSelect?: (modkeys: string[], ranges: TextRange[]) => void
+}
+
+export type ToolbarMethods = {
+    onButtonPress?: (idx: number, ranges?: TextRange[]) => void;
+}

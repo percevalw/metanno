@@ -4,7 +4,7 @@ import TextComponent from "../../components/TextComponent";
 import Toolbar from "../../components/Toolbar";
 import Loading from "../../components/Loading";
 import {memoize} from "../../utils";
-import {TextRange, ToolbarData, TextData} from "../../types";
+import {TextData, TextMethods, ToolbarData, ToolbarMethods} from "../../types";
 
 const TextView = ({
     id,
@@ -19,25 +19,8 @@ const TextView = ({
 }: {
     id: string;
     className?: string,
-
     selectEditorState: (state: object, id: string) => TextData;
-    registerActions: ({
-                          scroll_to_line,
-                          scroll_to_span,
-                          clear_current_mouse_selection,
-                      }: {
-        scroll_to_line: (number) => void,
-        scroll_to_span: () => void,
-        clear_current_mouse_selection: () => void,
-    }) => void;
-
-    onButtonPress?: (idx: number, ranges: TextRange[]) => void;
-    onKeyPress?: (key: string, modkeys: string[], ranges: TextRange[]) => void;
-    onClickSpan?: (span_id: any, modkeys: string[]) => void;
-    onMouseEnterSpan?: (span_id: any, modkeys: string[]) => void;
-    onMouseLeaveSpan?: (span_id: any, modkeys: string[]) => void;
-    onMouseSelect?: (modkeys: string[], ranges: TextRange[]) => void
-}) => {
+} & ToolbarMethods & TextMethods) => {
     const {
         spans,
         text,

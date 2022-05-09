@@ -10,7 +10,7 @@ import HeaderRenderer from '../DraggableHeaderRenderer'
 import MultiInputSuggest, {InputTag} from "../MultiInputSuggest";
 import SingleInputSuggest from "../SingleInputSuggest";
 import BooleanInput from "../BooleanInput";
-import {Hyperlink, ColumnData, RowData, Filters} from "../../types";
+import {RowData, TableData, TableMethods} from "../../types";
 
 
 function inputStopPropagation(event: React.KeyboardEvent<HTMLInputElement>) {
@@ -19,32 +19,7 @@ function inputStopPropagation(event: React.KeyboardEvent<HTMLInputElement>) {
     }
 }
 
-class TableComponent extends React.Component<{
-    id: string;
-    rowKey: string;
-    rows: RowData[];
-    selectedRows: any[];
-    highlightedRows: any[];
-    columns: ColumnData[];
-    filters: Filters;
-    suggestions: (string | Hyperlink)[],
-    inputValue: any;
-    registerActions: ({
-        scroll_to_row,
-    }: {
-        scroll_to_row: (number) => void,
-        focus_input: () => void,
-    }) => void;
-    onSelectedCellChange?: (row_id: string, name: string) => void;
-    onSelectedRowsChange?: (row_ids: string[]) => void;
-    onFiltersChange?: (name: string, value: any) => void;
-    onClickCellContent?: (key: string) => void;
-    onKeyPress?: () => void;
-    onMouseEnterRow?: (row_id: any, mod_keys: string[]) => void;
-    onMouseLeaveRow?: (row_id: any, mod_keys: string[]) => void;
-    onCellChange?: (row_id: any, name: string, value: any) => void;
-    onInputChange: (row_id: any, name: string, value: any) => void;
-}, {
+class TableComponent extends React.Component<{ id: string; } & TableData & TableMethods, {
     columnsOrder: string[],
     lastSelectedCell: { key: string, column: string }
 }> {
@@ -113,7 +88,7 @@ class TableComponent extends React.Component<{
                                 column={column.key}
 
                                 inputValue={this.props.inputValue}
-                                onInputChange={(value) => this.props.onInputChange(row[this.props.rowKey], column.key, value)}
+                                onInputChange={(value, cause) => this.props.onInputChange(row[this.props.rowKey], column.key, value, cause)}
                                 suggestions={this.props.suggestions}
                                 onRowChange={onRowChange}
                                 onClose={onClose}
@@ -158,7 +133,7 @@ class TableComponent extends React.Component<{
                             column={column.key}
                             suggestions={this.props.suggestions}
                             onRowChange={onRowChange}
-                            onInputChange={(value) => this.props.onInputChange(row[this.props.rowKey], column.key, value)}
+                            onInputChange={(value, cause) => this.props.onInputChange(row[this.props.rowKey], column.key, value, cause)}
                             onClose={onClose}
                             hyperlink
                         />
@@ -201,7 +176,7 @@ class TableComponent extends React.Component<{
                                 value={row[column.key]}
                                 column={column.key}
                                 inputValue={this.props.inputValue}
-                                onInputChange={(value) => this.props.onInputChange(row[this.props.rowKey], column.key, value)}
+                                onInputChange={(value, cause) => this.props.onInputChange(row[this.props.rowKey], column.key, value, cause)}
                                 suggestions={this.props.suggestions}
                                 onRowChange={onRowChange}
                                 onClose={onClose}
@@ -241,7 +216,7 @@ class TableComponent extends React.Component<{
                             value={row[column.key]}
                             column={column.key}
                             inputValue={this.props.inputValue}
-                            onInputChange={(value) => this.props.onInputChange(row[this.props.rowKey], column.key, value)}
+                            onInputChange={(value, cause) => this.props.onInputChange(row[this.props.rowKey], column.key, value, cause)}
                             suggestions={this.props.suggestions}
                             onRowChange={onRowChange}
                             onClose={onClose}

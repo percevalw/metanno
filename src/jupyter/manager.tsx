@@ -341,13 +341,11 @@ export default class metannoManager {
             newValue
         }: { name: string, oldValue: IKernelConnection | null, newValue: IKernelConnection | null }) => {
         if (oldValue) {
-            console.log("Removing comm", oldValue);
             this.comm = null;
             oldValue.removeCommTarget(this.comm_target_name, this._handleCommOpen);
         }
 
         if (newValue) {
-            console.log("Registering comm", newValue);
             newValue.registerCommTarget(this.comm_target_name, this._handleCommOpen);
         }
     };

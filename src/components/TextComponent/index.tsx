@@ -3,7 +3,7 @@ import {default as tokenize, PreprocessedStyle} from "./tokenize"
 import Color from 'color';
 import {makeModKeys, memoize, replaceObject} from "../../utils";
 import cachedReconcile from "../../utils";
-import {SpanData, TokenData, TextRange, QuickStyle, TextData} from '../../types';
+import {SpanData, TokenData, TextRange, QuickStyle, TextData, TextMethods} from '../../types';
 
 import "./style.css";
 
@@ -111,9 +111,9 @@ const Token = React.memo((
                                 ${isLastTokenOfChunk && !annotation.openright ? 'closedright' : ""}`}
                     style={{
                         ...styles[annotation.style],
-                        ...(styles[annotation.style].shape === "fullHeight" ? {top: 0, bottom: 0} : {}),
+                        ...(styles[annotation.style]?.shape === "fullHeight" ? {top: 0, bottom: 0} : {}),
                         '--vertical-offset': `${7 + 2 * annotation.depth - (annotation.highlighted ? 2 : 0)}px`,
-                        '--z-index': styles[annotation.style].shape === "fullHeight" ? 1 : 2 + annotation.depth,
+                        '--z-index': styles[annotation.style]?.shape === "fullHeight" ? 1 : 2 + annotation.depth,
                     } as CSSProperties}
                 />
             );
@@ -187,25 +187,7 @@ const Line = React.memo(<StyleRest extends object>({index, styles, tokens, spans
 });
 
 
-class TextComponent extends React.Component<{
-    id: string;
-
-    onKeyPress?: (key: string, modkeys: string[], ranges: TextRange[]) => void;
-    onClickSpan?: (span_id: any, modkeys: string[]) => void;
-    onMouseEnterSpan?: (span_id: any, modkeys: string[]) => void;
-    onMouseLeaveSpan?: (span_id: any, modkeys: string[]) => void;
-    onMouseSelect?: (modkeys: string[], ranges: TextRange[]) => void
-
-    registerActions: ({
-                          scroll_to_line,
-                          scroll_to_span,
-                          clear_current_mouse_selection,
-                      }: {
-        scroll_to_line: (number) => void,
-        scroll_to_span: () => void,
-        clear_current_mouse_selection: () => void,
-    }) => void;
-} & TextData> {
+class TextComponent extends React.Component<{ id: string; } & TextData & TextMethods> {
     public defaultProps = {
         spans: [],
         mouse_selection: [],
