@@ -14,10 +14,8 @@ class NERApp(App):
                 chain_map(doc, {
                     "entities": {
                         ent["id"]: chain_map(ent, {
-                            # "attributes": {
-                            #     att["name"]: att["value"]
-                            #     for att in ent["attributes"]
-                            # }
+                                att["label"]: att["value"]
+                                for att in ent["attributes"]
                         })
                         for ent in doc["entities"]
                     }
@@ -188,9 +186,9 @@ class NERApp(App):
             if (
                   ("mention" not in filters or filters["mention"] in doc["text"][entity["begin"]:entity["end"]].lower()) and
                   all(
-                    column_filter in entity[key].lower()
+                    key in entity and entity[key] and column_filter in entity[key].lower()
                     for key, column_filter in filters.items()
-                    if key != "mention")
+                    if key != "mention" and len(column_filter) > 0)
             )
         ], key=lambda ent: ent["begin"] + (1. - ent["end"]/10000))
 
@@ -268,6 +266,8 @@ class NERApp(App):
             self.state["mouse_selection"] = []
 
     def delete_entities(self, entities_id):
+        for entity_id in entities_id:
+            del self.state["docs"][self.state["doc_id"]]["entities"][entity_id]
         self.state["highlighted"] = [span_id for span_id in self.state["highlighted"] if span_id not in entities_id]
         self.state["selected"] = [span_id for span_id in self.state["selected"] if span_id not in entities_id]
 
@@ -275,8 +275,19 @@ class NERApp(App):
         if "docs" in old_state and not (state["docs"] is old_state.get("docs", None)):
             self.manager.save_state()
             docs = [
-                chain_map(doc, {"entities": list(doc["entities"].values())})
-                for doc in state["docs"]
+                chain_map(doc, {
+                    "entities": [
+                        chain_map(ent, {
+                            "attributes": [
+                                {"label": attribute["name"], "value": ent[attribute["name"]]}
+                                for attribute in state["scheme"]["attributes"]
+                                if attribute["name"] in ent
+                            ]
+                        }) for ent in list(doc["entities"].values())
+                    ]
+                })
+                for doc, old_doc in zip(state["docs"], old_state["docs"])
+                if doc is not old_doc
             ]
             self.data.save(docs)
 
@@ -359,14 +370,20 @@ class NERApp(App):
 
     @frontend_only
     @produce
-    def handle_input_change(self, editor_id, row_id, col, value):
+    def handle_input_change(self, editor_id, row_id, col, value, cause):
         self.state['inputValue'] = value
         # entity_suggestions = self.state["docs"][self.state["doc_id"]]["entities"][row_id]["suggestions"]
         # self.state['suggestions'] = entity_suggestions[col] if col in entity_suggestions else []
+        if cause == "up" or cause == "down":
+            return
         if col == "label":
             self.state["suggestions"] = [label["name"] for label in self.state["scheme"]["labels"]]
         else:
-            self.state["suggestions"] = self.state["scheme"]["attributes"][get_idx(self.state["scheme"]["attributes"], col, "name")]["choices"]
+            self.state["suggestions"] = [
+                suggestion
+                for suggestion in self.state["scheme"]["attributes"][get_idx(self.state["scheme"]["attributes"], col, "name")]["choices"]
+                if (not value or value is None) or value.lower() in suggestion.lower()
+            ][:100]
 
     def handle_click_cell_content(self, editor_id, key):
         if editor_id == "docs":
@@ -380,7 +397,6 @@ class NERApp(App):
 
     @produce
     def handle_filters_change(self, editor_id, col, value):
-        print(str((col, value)))
         if editor_id == "entities":
             self.state["entities_filters"][col] = value
 
