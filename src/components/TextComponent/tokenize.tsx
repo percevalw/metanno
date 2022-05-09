@@ -57,7 +57,7 @@ function styleTextChunks_(text_chunks: TextChunk[], spans: SpanData[], styles: {
                 if (text_chunks[text_chunk_i].begin === begin) {
                     text_chunks[text_chunk_i].label = label;
                 }
-                if (newDepth === null && !rest.mouseSelected && styles[style].shape !== "fullHeight") {
+                if (newDepth === null && !rest.mouseSelected && styles[style]?.shape !== "fullHeight") {
                     let missingDepths = [undefined];
                     for (const {depth, mouseSelected} of text_chunks[text_chunk_i].token_annotations) {
                         if (!mouseSelected) {
