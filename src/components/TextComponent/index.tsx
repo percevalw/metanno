@@ -129,12 +129,12 @@ const Token = React.memo((
             span_begin={begin}
         >{annotations}<span className="text-chunk-content"
             // @ts-ignore
-                            span_begin={begin}
-            // @ts-ignore
-                            onMouseEnter={(event) => token_annotations.map(annotation => handleMouseEnterSpan(event, annotation.id))}
-                            onMouseLeave={(event) => token_annotations.map(annotation => handleMouseLeaveSpan(event, annotation.id))}
-                            onMouseDown={(event) => {token_annotations.map(annotation => handleClickSpan(event, annotation.id))}}
-                            style={{color: styles?.[token_annotations?.[token_annotations.length - 1]?.style]?.color}}>{text}</span>
+            span_begin={begin}
+            onMouseEnter={(event) => token_annotations.map(annotation => handleMouseEnterSpan(event, annotation.id))}
+            onMouseLeave={(event) => token_annotations.map(annotation => handleMouseLeaveSpan(event, annotation.id))}
+            onMouseDown={(event) => {token_annotations.map(annotation => handleClickSpan(event, annotation.id))}}
+
+            style={{color: styles?.[token_annotations?.[token_annotations.length - 1]?.style]?.color}}>{text}</span>
             {isFirstTokenOfChunk && token_annotations.map((annotation) => {
                 if (annotation.isFirstTokenOfSpan && annotation.label) {
                     label_idx += 1;
@@ -201,6 +201,7 @@ class TextComponent extends React.Component<{ id: string; } & TextData & TextMet
     private linesRef: React.RefObject<HTMLDivElement>[];
     private previousSelectedSpans: string;
     private processStyles: ((style: {[style_name: string]: QuickStyle}) => {[style_name: string]: PreprocessedStyle});
+    private hoveredCounts: {[span_id: string]: number};
 
     constructor(props) {
         super(props);
@@ -224,6 +225,7 @@ class TextComponent extends React.Component<{ id: string; } & TextData & TextMet
         this.containerRef = React.createRef();
         this.previousSelectedSpans = "";
         this.tokenize = cachedReconcile(tokenize);
+        this.hoveredCounts = {};
         this.processStyles = memoize(styles => Object.assign({}, ...Object.keys(styles).map(key => ({...styles[key], [key]: processStyle(styles[key])}))));
     }
 
@@ -268,11 +270,21 @@ class TextComponent extends React.Component<{ id: string; } & TextData & TextMet
     };
 
     handleMouseEnterSpan = (event: React.MouseEvent<HTMLElement>, span_id: any) => {
-        this.props.onMouseEnterSpan && this.props.onMouseEnterSpan(span_id, makeModKeys(event));
+        if (!this.hoveredCounts[span_id]) {
+            this.props.onMouseEnterSpan && this.props.onMouseEnterSpan(span_id, makeModKeys(event));
+            this.hoveredCounts[span_id] = 0;
+        }
+        this.hoveredCounts[span_id] ++;
     };
 
     handleMouseLeaveSpan = (event: React.MouseEvent<HTMLElement>, span_id: any) => {
-        this.props.onMouseLeaveSpan && this.props.onMouseLeaveSpan(span_id, makeModKeys(event));
+        setTimeout(() => {
+            if (this.hoveredCounts[span_id] == 1) {
+                this.props.onMouseLeaveSpan && this.props.onMouseLeaveSpan(span_id, makeModKeys(event));
+                this.hoveredCounts[span_id] = 1;
+            }
+            this.hoveredCounts[span_id]--;
+        }, 10)
     };
 
     render() {
