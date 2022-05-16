@@ -92,7 +92,7 @@ function __clear__(obj) {
 
 function __getdefault__(obj, aKey, aDefault) {
     if (!(obj instanceof Object))
-        return obj.get()
+        return obj.get(aKey, aDefault)
     var result = obj [aKey];
     if (result == undefined) {
         result = obj ['py_' + aKey]
@@ -102,7 +102,7 @@ function __getdefault__(obj, aKey, aDefault) {
 
 function __setdefault__(obj, aKey, aDefault) {
     if (!(obj instanceof Object))
-        return obj.setdefault()
+        return obj.setdefault(aKey, aDefault)
     var result = obj [aKey];
     if (result != undefined) {
         return result;
@@ -114,7 +114,7 @@ function __setdefault__(obj, aKey, aDefault) {
 
 function __pop__(obj, aKey, aDefault) {
     if (!(obj instanceof Object))
-        return obj.pop()
+        return obj.pop(aKey, aDefault)
     var result = obj [aKey];
     if (result != undefined) {
         delete obj [aKey];
@@ -141,7 +141,7 @@ function __popitem__(obj) {
 
 function __update__(obj, aDict) {
     if (!(obj instanceof Object))
-        return obj.update()
+        return obj.update(aDict)
     for (var aKey in aDict) {
         obj [aKey] = aDict [aKey];
     }
