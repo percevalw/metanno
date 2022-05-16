@@ -26,7 +26,7 @@ export const InputTag = ({
     readOnly?: boolean;
     hyperlink?: boolean;
     onRemoveTag?: (index: number) => void;
-    onClick?: (key: string) => void;
+    onClick?: (value?: string) => void;
 }) => {
     const res = (
         <div className={`input-tag ${readOnly ? '' : 'editable'}`}>
@@ -53,12 +53,13 @@ export const InputTag = ({
 
 class MultiInputSuggest<T extends (string | Hyperlink)> extends React.Component<{
     column: string;
+    row_id: string;
     inputRef?: React.RefObject<HTMLInputElement>;
 
     onClose?: () => void;
     onInputChange?: (value: any, cause: string) => void;
     onRowChange?: (rowUpdate: object, commitChanges: boolean) => void;
-    onClick?: (key: string) => void;
+    onClick?: (row_id: string, name: string, key: any) => void;
     registerActions?: (actions: object) => void;
 
     hyperlink?: boolean;
@@ -155,7 +156,7 @@ class MultiInputSuggest<T extends (string | Hyperlink)> extends React.Component<
     renderSuggestion = (suggestion) => (
         <div>
             {this.props.hyperlink
-                ? <a onClick={() => this.props.onClick?.(suggestion.key)}>{suggestion.text}</a>
+                ? <a onClick={() => this.props.onClick?.(this.props.row_id, this.props.column, suggestion.key)}>{suggestion.text}</a>
                 : suggestion}
         </div>
     );

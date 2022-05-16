@@ -149,6 +149,20 @@
     width: 80px;
 }
 
+.rdg-cell > button {
+    width: 100%;
+    cursor: pointer;
+    outline: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    color: black;
+    padding: 0;
+    background: #f8f8f8;
+    border: none;
+    box-shadow: var(--jp-toolbar-box-shadow);
+    border-radius: 2px 2px 2px 2px;
+}
+
 .rdg-cell-editing {
     padding: 0
 }

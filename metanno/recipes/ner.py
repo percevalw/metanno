@@ -171,9 +171,9 @@ class NERApp(App):
                 ],
                 rowKey="id",
                 columns=chain_list([
-
-                    {"name": "mention", "type": "hyperlink", "mutable": True, "filterable": True},
                     {"name": "offsets", "type": "text"},
+                    {"name": "delete", "type": "button"},
+                    {"name": "mention", "type": "hyperlink", "mutable": True, "filterable": True},
                     {"name": "label", "type": "text", "mutable": True, "filterable": True, "choices": [
                         label["name"] for label in state["scheme"]["labels"]
                     ]},
@@ -398,11 +398,19 @@ class NERApp(App):
                 if (not value or value is None) or value.lower() in suggestion.lower()
             ][:100]
 
-    def handle_click_cell_content(self, editor_id, key):
+    @produce
+    def delete_annotation(self, id):
+        del self.state["docs"][self.state["doc_id"]]["entities"][id]
+
+    def handle_click_cell_content(self, editor_id, row_id, col, value):
         if editor_id == "docs":
-            self.change_doc(key)
+            if col == "id":
+                self.change_doc(value)
         else:
-            self.scroll_to_span("text", key)
+            if col == "mention":
+                self.scroll_to_span("text", value)
+            if col == "delete":
+                self.delete_annotation(row_id)
 
     @produce
     def handle_select_rows(self, editor_id, span_ids):

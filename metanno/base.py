@@ -61,7 +61,7 @@ class App(object):
     def select_editor_state(self, editor_id, ):
         pass
 
-    def handle_click_cell_content(self, editor_id, ):
+    def handle_click_cell_content(self, editor_id, row_id, col, value):
         pass
 
     def handle_select_rows(self, editor_id, row_keys):
@@ -70,7 +70,7 @@ class App(object):
     def handle_select_cell(self, editor_id, *args):
         pass
 
-    def handle_cell_change(self, editor_id, row_idx, col, value):
+    def handle_cell_change(self, editor_id, row_id, col, value):
         pass
 
     @frontend_only
@@ -92,6 +92,10 @@ class App(object):
     @frontend_only
     def clear_mouse_span_selection(self, editor_id):
         self.manager.actions[editor_id].clear_current_mouse_selection()
+
+    @frontend_only
+    def select_cell(self, editor_id, row_id, col, edit=False):
+        self.manager.actions[editor_id].select_cell(row_id, col, edit)
 
     @frontend_only
     def error(self, message, auto_close=10000):

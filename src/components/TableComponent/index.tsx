@@ -83,6 +83,7 @@ class TableComponent extends React.Component<{ id: string; } & TableData & Table
                                           ref: any) => (
                             <SingleInputSuggest
                                 ref={ref}
+                                row_id={row[this.props.rowKey]}
                                 inputRef={this.inputRef}
                                 value={row[column.key]}
                                 column={column.key}
@@ -113,7 +114,7 @@ class TableComponent extends React.Component<{ id: string; } & TableData & Table
                     formatter: ({row, column, isCellSelected}) => {
                         this.checkCellChange(row, column, isCellSelected);
                         return row[column.key] ?
-                            <a onClick={() => this.props.onClickCellContent(row[column.key].key)}>{row[column.key].text}</a> : null
+                            <a onClick={() => this.props.onClickCellContent(row[this.props.rowKey], column.key)}>{row[column.key].text}</a> : null
                     }
                 };
             case 'multi-hyperlink':
@@ -127,6 +128,7 @@ class TableComponent extends React.Component<{ id: string; } & TableData & Table
                                                                 ref: any) => (
                         <MultiInputSuggest
                             ref={ref}
+                            row_id={row[this.props.rowKey]}
                             inputRef={this.inputRef}
                             value={row[column.key]}
                             inputValue={this.props.inputValue}
@@ -156,7 +158,7 @@ class TableComponent extends React.Component<{ id: string; } & TableData & Table
                     formatter: ({row, ...props}) => {
                         this.checkCellChange(row, props.column, props.isCellSelected)
                         return <InputTag autocontain readOnly {...props} hyperlink
-                                         onClick={this.props.onClickCellContent}
+                                         onClick={(value) => this.props.onClickCellContent(row[this.props.rowKey], props.column.key, value)}
                                          value={row[props.column.key]}/>
                     }
                 };
@@ -172,6 +174,7 @@ class TableComponent extends React.Component<{ id: string; } & TableData & Table
                                           ref: any) => (
                             <SingleInputSuggest
                                 ref={ref}
+                                row_id={row[this.props.rowKey]}
                                 inputRef={this.inputRef}
                                 value={row[column.key]}
                                 column={column.key}
@@ -212,6 +215,7 @@ class TableComponent extends React.Component<{ id: string; } & TableData & Table
                                                                 }: EditorProps<RowData, RowData>, ref: any) => (
                         <MultiInputSuggest
                             ref={ref}
+                            row_id={row[this.props.rowKey]}
                             inputRef={this.inputRef}
                             value={row[column.key]}
                             column={column.key}
@@ -278,6 +282,13 @@ class TableComponent extends React.Component<{ id: string; } & TableData & Table
                                 ) : null}
                         </HeaderRenderer>),
                 };
+            case 'button':
+                return {
+                    formatter: ({row, column, isCellSelected}) => {
+                        this.checkCellChange(row, column, isCellSelected);
+                        return <button onClick={() => this.props.onClickCellContent(row[this.props.rowKey], column.key)}>{column.key}</button>
+                    }
+                }
             default:
                 return {};
         }

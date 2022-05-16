@@ -51,6 +51,7 @@ export const Input = ({
 
 
 class SingleInputSuggest<T extends (string | Hyperlink)> extends React.Component<{
+    row_id: string,
     column: string;
     inputRef?: React.RefObject<HTMLInputElement>;
 
