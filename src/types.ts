@@ -25,6 +25,7 @@ export type SpanData = {
 
 export type TokenAnnotation = {
     depth: number;
+    zIndex: number;
     openleft: boolean;
     openright: boolean;
     isFirstTokenOfSpan: boolean;
@@ -40,10 +41,11 @@ export type TokenData = {
 } & TextRange;
 
 export type QuickStyle = {
-    color: string;
-    border: string;
-    alpha: number;
-    shape: string;
+    backgroundColor: string;
+    borderColor: string
+    autoNestingLayout: boolean;
+    labelPosition: string;
+    shape: string,
 } & CSSProperties;
 
 export type TextData = {

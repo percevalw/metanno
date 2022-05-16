@@ -10,11 +10,12 @@ type TextChunk = {
     tokens: string[];
 }
 
-export interface PreprocessedStyle extends CSSProperties {
-    shape: string;
-    '--border-color'?: string;
-    '--background-color'?: string;
-    '--z-index'?: string;
+export interface PreprocessedStyle {
+    base: CSSProperties;
+    highlighted: CSSProperties;
+    labelPosition?: string;
+    autoNestingLayout: boolean;
+    shape: string,
 }
 
 function chunkText(spans: SpanData[], text: string): TextChunk[] {
@@ -26,7 +27,7 @@ function chunkText(spans: SpanData[], text: string): TextChunk[] {
         indices.push(begin, end);
     }
     indices.push(0, text.length);
-    indices = indices.sort((a, b) => a - b);
+    indices = [...new Set(indices)].sort((a, b) => a - b);
     let text_chunks: TextChunk[] = [];
     let begin, end, text_slice;
     for (let indice_i = 1; indice_i < indices.length; indice_i++) {
@@ -48,39 +49,89 @@ function chunkText(spans: SpanData[], text: string): TextChunk[] {
     return text_chunks;
 }
 
+/**
+ * Compute the layout properties of each token depending on the spans that contain it
+ * To compute the depth (annotation top-bottom offsets) of box and underline annotations,
+ * we iterate over spans (left to right) and find out which tokens are contained within each span.
+ * For each of these tokens, we take a depth that has not been assigned to another annotation
+ * and propagate it to the tokens of the span.
+ *
+ * To obtain underline depths, we have to reverse those depths (-1, -2, ... instead of 1, 2, 3)
+ * To know which value to substract (it is not just multiplying by -1), we must cluster underlined
+ * tokens together and detect the biggest depth.
+ *
+ * @param text_chunks
+ * @param spans
+ * @param styles
+ */
 function styleTextChunks_(text_chunks: TextChunk[], spans: SpanData[], styles: { [key: string]: PreprocessedStyle }) {
     const isNot = filled => !filled;
-    spans.forEach(({begin, end, label, style, ...rest}) => {
-        let newDepth = null;
+    const underlineCluster = new Set<number>();
+    let underlineClusterDepth = 0;
+    let rightMostOffset = 0;
+
+    const reverseUnderlineClusterDepths = () => {
+        underlineCluster.forEach(text_chunk_i => {
+            text_chunks[text_chunk_i].token_annotations.forEach(annotation => {
+                if (styles?.[annotation.style]?.shape === 'underline') {
+                    annotation.depth = annotation.depth - underlineClusterDepth - 1;
+                }
+            })
+        })
+    };
+
+    spans.forEach(({begin, end, label, style, ...rest}, span_i) => {
+        let newDepth = null, newZIndex = null;
+
+        if (begin >= rightMostOffset) {
+            reverseUnderlineClusterDepths();
+            underlineCluster.clear();
+            rightMostOffset = end;
+        } else if (rightMostOffset < end) {
+            rightMostOffset = end;
+        }
         for (let text_chunk_i = 0; text_chunk_i < text_chunks.length; text_chunk_i++) {
             if (text_chunks[text_chunk_i].begin < end && begin < text_chunks[text_chunk_i].end) {
+                underlineCluster.add(text_chunk_i);
                 if (text_chunks[text_chunk_i].begin === begin) {
                     text_chunks[text_chunk_i].label = label;
                 }
-                if (newDepth === null && !rest.mouseSelected && styles[style]?.shape !== "fullHeight") {
-                    let missingDepths = [undefined];
-                    for (const {depth, mouseSelected} of text_chunks[text_chunk_i].token_annotations) {
+                if (newDepth === null && !rest.mouseSelected && styles[style]?.autoNestingLayout !== false) {
+                    let missingBoxDepths = [undefined];
+                    let missingUnderlineDepths = [undefined];
+                    let missingZIndices = [undefined];
+                    for (const {depth, zIndex, mouseSelected, style: tokenStyle} of text_chunks[text_chunk_i].token_annotations) {
                         if (!mouseSelected) {
-                            missingDepths[depth] = true;
+                            (styles[tokenStyle].shape === 'underline' ? missingUnderlineDepths : missingBoxDepths)[depth] = true;
+                            missingZIndices[zIndex] = true;
                         }
                     }
-                    newDepth = missingDepths.findIndex(isNot);
+                    newDepth = (styles[style].shape === 'underline' ? missingUnderlineDepths : missingBoxDepths).findIndex(isNot);
                     if (newDepth === -1) {
-                        newDepth = missingDepths.length;
+                        newDepth = (styles[style].shape === 'underline' ? missingUnderlineDepths : missingBoxDepths).length;
+                    }
+                    newZIndex = missingZIndices.findIndex(isNot);
+                    if (newZIndex === -1) {
+                        newZIndex = missingZIndices.length;
                     }
                 }
-                text_chunks[text_chunk_i].token_annotations.unshift({
+                const annotation = {
                     depth: newDepth,
                     openleft: text_chunks[text_chunk_i].begin !== begin,
                     openright: text_chunks[text_chunk_i].end !== end,
                     label: label,
                     isFirstTokenOfSpan: text_chunks[text_chunk_i].begin === begin,
                     style: style,
+                    zIndex: newZIndex,
                     ...rest,
-                });
+                };
+                if (styles?.[style]?.shape === 'underline' && underlineClusterDepth < newDepth)
+                    underlineClusterDepth = newDepth;
+                text_chunks[text_chunk_i].token_annotations.unshift(annotation);
             }
         }
     });
+    reverseUnderlineClusterDepths();
 }
 
 /**

@@ -4,7 +4,8 @@
 .span-editor {
     font-family: sans-serif;
     text-align: left;
-    overflow: scroll;
+    overflow-y: scroll;
+    overflow-x: hidden;
     height: 100%;
     width: 100%;
 }
@@ -24,7 +25,10 @@
 }
 
 .line {
-    margin-left: 41px;
+    padding-left: 41px;
+    box-sizing: border-box;
+    width: 100%;
+    overflow-x: hidden;
 }
 
 .line-number {
@@ -76,91 +80,87 @@
 
 .text-chunk-content {
     position: relative;
-    z-index: 100;
+    z-index: 150;
 }
 
 .mention_token {
-    position: relative;
     box-sizing: content-box;
     border-radius: 0.0000001em;
-    --background-color: #f0f0f0;
-    --border-color: #e6e6e6;
     display: inline-block;
-    /*margin-top: -10000px;*/
-    /*margin-bottom: -10000px;*/
-    /*background: rgba(var(--jp-layout-color0), 0.8);*/
-    /*border: 0.1em solid var(--jp-ui-font-color1);*/
-    border-right-width: 0;
-    border-left-width: 0;
-    z-index: 0;
-}
 
-.mention_token {
-    content: "";
+    pointer-events: none;
     position: absolute;
     background-color: var(--background-color);
     border-color: var(--border-color);
     left: 0px;
     right: 0px;
-    top: var(--vertical-offset);
-    bottom: var(--vertical-offset);
     border-width: 2px;
     border-style: solid;
     border-right-width: 0;
     border-left-width: 0;
-    z-index: var(--z-index);
 }
 
-.mention_token.highlighted {
-    /*margin-right: -4px;*/
-    border-top-width: 4px;
-    border-bottom-width: 4px;
-    z-index: calc(var(--z-index) + 50);
-    /*top: -4px;*/
-    /*bottom: -4px;*/
+.label {
+    box-sizing: content-box;
+    position: absolute;
+    white-space: pre;
+    border-radius: 0.2em;
+    font-size: 0.6em;
+    padding: 0.5em 0.1em 0em;
+    background: white;
+    line-height: 0em;
+    height: 0.4em;
+    pointer-events: none;
+    background: var(--jp-layout-color0);
+    color: var(--jp-ui-font-color1);
+    border: 2px solid var(--jp-ui-font-color1);
 }
 
-.mention_token.closedright.highlighted {
-    /*margin-right: -4px;*/
-    right: -2px;
-    border-right-width: 4px;
+.mention_token.mention_underline, .mention_token.mention_underline.closed_left, .mention_token.mention_underline.closed_right {
+    top: unset;
+    border-top: 0;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
 }
 
-.mention_token.closedleft.highlighted {
-    /*margin-left: -2px;*/
-    border-left-width: 4px;
-    left: -2px;
-}
-
-.closedleft {
+.mention_token.closedleft {
     left: -1px;
     border-left-width: 2px;
     border-top-left-radius: 2px;
     border-bottom-left-radius: 2px;
 }
 
-.closedright {
+.mention_token.closedright {
     right: -1px;
     border-right-width: 2px;
     border-top-right-radius: 2px;
     border-bottom-right-radius: 2px;
 }
 
-.mention_token.mouse_selected {
+.mention_token.highlighted {
+    border-top-width: 4px;
+    border-bottom-width: 4px;
+}
+
+.mention_token.mention_underline, .mention_token.closedright.mention_underline, .mention_token.closedleft.mention_underline {
+    right: -2px;
+    border-top: 0;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+}
+
+.mention_token.closedleft.highlighted {
+    border-left-width: 4px;
+    left: -2px;
+}
+
+.mouse_selected {
     line-height: 2.2em;
     background: rgba(137, 188, 250, 0.6); /*#b2d7ff88;*/
     border: none;
     top: 0;
     bottom: 0;
     z-index: 100;
-}
-
-.mention_token.mouse_selected .label { /* -0.7 + (2.2em -> 1.45em)/2 */
-   top: -0.4em;
-}
-
-.label:hover, .label.highlighted {
-    z-index: 100 !important;
 }
 
 @keyframes blink {
@@ -175,23 +175,6 @@
 .mention_token.selected {
     animation: var(--blink-animation);
 }
-
-.label {
-    box-sizing: content-box;
-    position: absolute;
-    white-space: pre;
-    border-radius: 0.2em;
-    font-size: 0.6em;
-    padding: 0.7em 0.1em 0em;
-    background: white;
-    line-height: 0em;
-    height: 0.6em;
-    z-index: calc(var(--z-index) + 1);
-    background: var(--jp-layout-color0);
-    color: var(--jp-ui-font-color1);
-    border: 1px solid var(--jp-ui-font-color1);
-}
-
 /*.text.select_mode .mention_token.hover {
   filter: invert(100%);
 }*/

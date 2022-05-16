@@ -3,7 +3,7 @@ import {useSelector} from "react-redux";
 import TableComponent from "../../components/TableComponent";
 import Toolbar from "../../components/Toolbar";
 import Loading from "../../components/Loading";
-import cachedReconcile from "../../utils";
+import {cachedReconcile} from "../../utils";
 import {TableData, TableMethods, ToolbarData, ToolbarMethods} from "../../types";
 
 const TableView = ({

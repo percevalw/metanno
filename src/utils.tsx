@@ -1,5 +1,6 @@
 import isEqual from "react-fast-compare";
 import React from "react";
+import {TextRange} from "./types";
 
 export {isEqual};
 
@@ -119,7 +120,7 @@ export function reconcile(a, b) {
  * ```
  * @param fn: Function whose output we want to cache
  */
-export default function cachedReconcile<Inputs extends any[], Output>(fn: (...args: Inputs) => Output): (...args: Inputs) => Output {
+export function cachedReconcile<Inputs extends any[], Output>(fn: (...args: Inputs) => Output): (...args: Inputs) => Output {
     let cache = null;
     return ((...args) => {
         const a = fn(...args);
@@ -127,4 +128,57 @@ export default function cachedReconcile<Inputs extends any[], Output>(fn: (...ar
         cache = reconciled ? cache : a;
         return cache;
     });
+}
+
+export function getDocumentSelectedRanges(): TextRange[] {
+    const ranges: TextRange[] = [];
+    let range = null;
+    const get_span_begin = (range) => {
+        return (range?.getAttribute?.("span_begin")
+            || range.parentElement.getAttribute("span_begin")
+            || range.parentElement.parentElement.getAttribute("span_begin"))
+    }
+    if (window.getSelection) {
+        const selection = window.getSelection();
+        let begin = null, end = null;
+        for (let i = 0; i < selection.rangeCount; i++) {
+            range = selection.getRangeAt(i);
+            const startContainerBegin = parseInt(
+                // @ts-ignore
+                get_span_begin(range.startContainer),
+                10
+            );
+            const endContainerBegin = parseInt(
+                // @ts-ignore
+                get_span_begin(range.endContainer),
+                10
+            );
+            if (!isNaN(startContainerBegin)) {
+                begin = range.startOffset + startContainerBegin;
+            }
+            if (!isNaN(endContainerBegin)) {
+                end = range.endOffset + endContainerBegin;
+            }
+            if (isNaN(startContainerBegin) || isNaN(endContainerBegin)) {
+                continue;
+            }
+            if (begin !== end) {
+                ranges.push({
+                    begin: begin,
+                    end: end,
+                });
+            }
+        }
+        if (ranges.length === 0 && !isNaN(begin) && begin !== null && !isNaN(end) && end !== null && begin !== end) {
+            ranges.push({
+                begin: begin,
+                end: end,
+            });
+        }
+        return ranges;
+    } else { // @ts-ignore
+        if (document.selection && document.selection.type !== "Control") {
+        }
+    }
+    return ranges
 }

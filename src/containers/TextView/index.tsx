@@ -3,7 +3,7 @@ import {useSelector} from "react-redux";
 import TextComponent from "../../components/TextComponent";
 import Toolbar from "../../components/Toolbar";
 import Loading from "../../components/Loading";
-import cachedReconcile from "../../utils";
+import {cachedReconcile} from "../../utils";
 import {TextData, TextMethods, ToolbarData, ToolbarMethods} from "../../types";
 
 const TextView = ({

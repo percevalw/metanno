@@ -1,70 +1,65 @@
-import React, {CSSProperties} from "react";
+import React, {CSSProperties, useEffect, useRef, useState} from "react";
 import {default as tokenize, PreprocessedStyle} from "./tokenize"
 import Color from 'color';
-import {makeModKeys, memoize, replaceObject} from "../../utils";
-import cachedReconcile from "../../utils";
-import {SpanData, TokenData, TextRange, QuickStyle, TextData, TextMethods} from '../../types';
+import {cachedReconcile, getDocumentSelectedRanges, makeModKeys, memoize, replaceObject} from "../../utils";
+import {QuickStyle, SpanData, TextData, TextMethods, TokenData} from '../../types';
 
 import "./style.css";
 
-const processStyle = ({color, border, alpha, ...rest}: QuickStyle): PreprocessedStyle => {
-    const backgroundColor = Color(color);
-    const textColor = backgroundColor.isLight() ? '#000000de' : '#ffffffde';
-    const borderColor = border ? Color(border) : backgroundColor.darken(0.02);
+const toLuminance = (color: Color, y: number=0.6) => {
+    let [r, g, b] = color.rgb().color;
+	// let y = ((0.299 * r) + ( 0.587 * g) + ( 0.114 * b)) / 255;
+	let i = ((0.596 * r) + (-0.275 * g) + (-0.321 * b)) / 255;
+	let q = ((0.212 * r) + (-0.523 * g) + ( 0.311 * b)) / 255;
+
+	r = (y + ( 0.956 * i) + ( 0.621 * q)) * 255;
+	g = (y + (-0.272 * i) + (-0.647 * q)) * 255;
+	b = (y + (-1.105 * i) + ( 1.702 * q)) * 255;
+
+    // bounds-checking
+	if (r < 0){ r=0; } else if (r > 255){ r = 255};
+	if (g < 0){ g=0; } else if (g > 255){ g = 255};
+	if (b < 0){ b=0; } else if (b > 255){ b = 255};
+
+    return Color.rgb(r, g, b);
+}
+
+const processStyle = ({color, shape, autoNestingLayout, labelPosition, ...rest}: QuickStyle): PreprocessedStyle => {
+    let colorObject = Color(color);
+    let highlightedColor, highlightedTextColor, backgroundColor, textColor;
+    highlightedColor = toLuminance(colorObject.saturate(1.), 0.6).toString()
+    if (colorObject.isLight() || shape === 'underline') {
+        highlightedTextColor = '#ffffffde';
+        textColor = '#000000de';
+        backgroundColor = colorObject.lighten(0.02).toString();
+    } else {
+        highlightedTextColor = '#000000de';
+        textColor = '#ffffffde'
+        backgroundColor = colorObject.darken(0.02).toString();
+    }
+    if (shape === 'underline')
+        textColor = '#000000de';
     return {
-        '--border-color': borderColor.toString(),
-        '--background-color': backgroundColor.alpha(alpha || 0.8).toString(),
-        'color': textColor,
-        ...rest,
+        base: {
+            'borderColor': color,
+            'backgroundColor': shape === 'underline' ? 'transparent' : backgroundColor,
+            'color': textColor,
+            ...rest,
+        },
+        highlighted: {
+            'borderColor': highlightedColor,
+            'backgroundColor': highlightedColor,
+            'color': highlightedTextColor,
+            ...rest,
+        },
+        autoNestingLayout,
+        labelPosition,
+        shape,
     };
 };
 
-export function getDocumentSelectedRanges(): TextRange[] {
-    const ranges: TextRange[] = [];
-    if (window.getSelection) {
-        const selection = window.getSelection();
-        let begin = null, end = null;
-        for (let i = 0; i < selection.rangeCount; i++) {
-            const range = selection.getRangeAt(i);
-            const startContainerBegin = parseInt(
-                // @ts-ignore
-                range.startContainer.parentElement.parentNode.getAttribute("span_begin"),
-                10
-            );
-            const endContainerBegin = parseInt(
-                // @ts-ignore
-                range.endContainer.parentElement.parentNode.getAttribute("span_begin"),
-                10
-            );
-            if (!isNaN(startContainerBegin)) {
-                begin = range.startOffset + startContainerBegin;
-            }
-            if (!isNaN(endContainerBegin)) {
-                end = range.endOffset + endContainerBegin;
-            }
-            if (isNaN(startContainerBegin) || isNaN(endContainerBegin)) {
-                continue;
-            }
-            if (begin !== end) {
-                ranges.push({
-                    begin: begin,
-                    end: end,
-                });
-            }
-        }
-        if (ranges.length === 0 && !isNaN(begin) && begin !== null && !isNaN(end) && end !== null && begin !== end) {
-            ranges.push({
-                begin: begin,
-                end: end,
-            });
-        }
-        return ranges;
-    } else { // @ts-ignore
-        if (document.selection && document.selection.type !== "Control") {
-        }
-    }
-    return ranges
-}
+// Create your Styles. Remember, since React-JSS uses the default preset,
+// most plugins are available without further configuration needed.
 
 const Token = React.memo((
     {
@@ -80,16 +75,48 @@ const Token = React.memo((
         handleMouseLeaveSpan,
         handleClickSpan,
     }: TokenData & {
-        refs: { [key: string]: React.RefObject<HTMLSpanElement> },
+        refs: { [key: string]: React.MutableRefObject<HTMLSpanElement> },
         styles: {[key: string]: PreprocessedStyle},
         handleMouseEnterSpan: (event: React.MouseEvent<HTMLSpanElement>, id: string) => void,
         handleMouseLeaveSpan: (event: React.MouseEvent<HTMLSpanElement>, id: string) => void,
         handleClickSpan: (event: React.MouseEvent<HTMLSpanElement>, id: string) => void,
     }) => {
 
+    const hoveredKeys = useRef(new Set<string>());
+    const elements = useRef<HTMLElement[]>([]);
+    let lastAnnotation = token_annotations[0];
+    const labelIdx = {box: 0, underline: 0};
+    const nLabels = {
+        box: 0,
+        underline: 0,
+    };
+    let shape;
+    const zIndices = {};
+    token_annotations.forEach(a => {
+        if (a.mouseSelected)
+            return;
+        if (a.highlighted > lastAnnotation.highlighted || a.highlighted === lastAnnotation.highlighted && a.depth > lastAnnotation.depth) {
+            lastAnnotation = a;
+        }
+        if (a.isFirstTokenOfSpan && a.label)
+            if (styles[a.style]?.shape !== 'underline') {
+                nLabels.box ++;
+            } else {
+                nLabels.underline++;
+            }
+        zIndices[a.id] = a.zIndex;
+    });
+    let elementsCount = 0;
+    useEffect(() => {
+        if (elements)
+            elements.current.length = annotations.length * 2
+    });
+
     let annotations = []
+    let verticalOffset = 0;
     for (let annotation_i = 0; annotation_i < token_annotations.length; annotation_i++) {
         const annotation = token_annotations[annotation_i];
+        const isUnderline = styles?.[annotation.style]?.shape === 'underline';
         if (annotation.mouseSelected) {
             annotations.push(
                 <span
@@ -97,68 +124,123 @@ const Token = React.memo((
                     className={`mention_token mouse_selected`}/>
             );
         } else {
+            verticalOffset = 9 + annotation.depth * 2;
             annotations.push(
                 <span
                     key={`annotation-${annotation_i}`}
                     id={`span-${begin}-${end}`}
-                    onMouseEnter={(event) => handleMouseEnterSpan(event, annotation.id)}
-                    onMouseLeave={(event) => handleMouseLeaveSpan(event, annotation.id)}
-                    onMouseDown={(event) => handleClickSpan(event, annotation.id)}
-                    className={`mention_token
-                                ${annotation.highlighted ? 'highlighted' : ''}
-                                ${annotation.selected ? 'selected' : ''}
-                                ${isFirstTokenOfChunk && !annotation.openleft ? 'closedleft' : ""}
-                                ${isLastTokenOfChunk && !annotation.openright ? 'closedright' : ""}`}
+                    // @ts-ignore
+                    span_key={annotation.id}
+                    ref={element => {if (elements)
+                        elements.current[elementsCount ++] = element;
+                        if (isFirstTokenOfChunk && refs[annotation.id]) {
+                            refs[annotation.id].current = element;
+                        }
+                    }}
+                    /*onMouseEnter={(event) => handleMouseEnterSpan(event, annotation.id)}*/
+                    /*onMouseLeave={(event) => handleMouseLeaveSpan(event, annotation.id)}*/
+                    /*onMouseDown={(event) => handleClickSpan(event, annotation.id)}*/
+                    className={`mention_token mention_${isUnderline && !annotation.highlighted ? 'underline' : 'box'}
+                               ${annotation.highlighted ? 'highlighted' : ''}
+                               ${annotation.selected ? 'selected' : ''}
+                               ${isFirstTokenOfChunk && !annotation.openleft ? 'closedleft' : ""}
+                               ${isLastTokenOfChunk && !annotation.openright ? 'closedright' : ""}`}
                     style={{
-                        ...styles[annotation.style],
-                        ...(styles[annotation.style]?.shape === "fullHeight" ? {top: 0, bottom: 0} : {}),
-                        '--vertical-offset': `${7 + 2 * annotation.depth - (annotation.highlighted ? 2 : 0)}px`,
-                        '--z-index': styles[annotation.style]?.shape === "fullHeight" ? 1 : 2 + annotation.depth,
+                        top: (isUnderline && !annotation.highlighted) ? 22 : verticalOffset,
+                        bottom: verticalOffset,
+                        zIndex: annotation.zIndex + 2 + (annotation.highlighted ? 50 : 0),
+                        ...styles[annotation.style][annotation.highlighted ? 'highlighted' : 'base'],
                     } as CSSProperties}
                 />
             );
         }
     }
-    const n_labels = token_annotations.reduce((total, annotation) => (annotation.isFirstTokenOfSpan && annotation.label ? total + 1 : total), 0);
-    let label_idx = 0;
-    return (
-
+    const component = (
         <span
             className="text-chunk"
             // @ts-ignore
             span_begin={begin}
-        >{annotations}<span className="text-chunk-content"
-            // @ts-ignore
-            span_begin={begin}
-            onMouseEnter={(event) => token_annotations.map(annotation => handleMouseEnterSpan(event, annotation.id))}
-            onMouseLeave={(event) => token_annotations.map(annotation => handleMouseLeaveSpan(event, annotation.id))}
-            onMouseDown={(event) => {token_annotations.map(annotation => handleClickSpan(event, annotation.id))}}
-
-            style={{color: styles?.[token_annotations?.[token_annotations.length - 1]?.style]?.color}}>{text}</span>
-            {isFirstTokenOfChunk && token_annotations.map((annotation) => {
-                if (annotation.isFirstTokenOfSpan && annotation.label) {
-                    label_idx += 1;
-                    return (
-                        <span
-                            onMouseEnter={(event) => handleMouseEnterSpan(event, annotation.id)}
-                            onMouseLeave={(event) => handleMouseLeaveSpan(event, annotation.id)}
-                            onMouseDown={(event) => {
-                                handleClickSpan(event, annotation.id);
-                            }}
-                            className={`label ${(annotation.highlighted || annotation.selected) ? 'highlighted' : ''}`}
-                            ref={isFirstTokenOfChunk ? refs[annotation.id] : null}
-                            key={annotation.id}
-                            style={{
-                                borderColor: styles[annotation.style]?.['--border-color'],
-                                //top: `${2 * annotation.depth - 2}px`,
-                                left: `${(n_labels - label_idx) * 4}px`,
-                                '--z-index': 50 + annotation.depth
-                            } as CSSProperties}>{annotation.label.toUpperCase()}</span>
-                    )
+            onMouseMove={token_annotations.length > 0 ? (e) => {
+                if (!elements || !hoveredKeys)
+                    return;
+                const newSet = new Set(
+                    elements.current.map(element => {
+                        if (!element)
+                            return;
+                        const rect = element.getBoundingClientRect();
+                        if (e.clientX >= rect.left && e.clientX <= rect.right &&
+                            (token_annotations.length === 1 || (e.clientY >= rect.top && e.clientY <= rect.bottom))) {
+                            return element.getAttribute("span_key");
+                        }
+                    }).filter(key => !!key)
+                );
+                hoveredKeys.current.forEach(x => !newSet.has(x) && handleMouseLeaveSpan(e, x));
+                newSet.forEach(x => !hoveredKeys.current.has(x) && handleMouseEnterSpan(e, x));
+                hoveredKeys.current = newSet;
+            } : null}
+            /*onMouseEnter={(event) => token_annotations.map(annotation => handleMouseEnterSpan(event, annotation.id))}*/
+            onMouseLeave={(event) => {
+                if (!hoveredKeys)
+                    return;
+                hoveredKeys.current.forEach(x => handleMouseLeaveSpan(event, x));
+                hoveredKeys.current.clear();
+            }}
+            onMouseDown={token_annotations.length > 0 ? (e) => {
+                const hits = elements.current.map(element => {
+                    if (!element)
+                        return;
+                    const rect = element.getBoundingClientRect();
+                    if (e.clientX >= rect.left && e.clientX <= rect.right &&
+                        (token_annotations.length === 1 || (e.clientY >= rect.top && e.clientY <= rect.bottom))) {
+                        return element.getAttribute("span_key");
+                    }
+                }).filter(key => !!key).sort((a, b) => zIndices[b] - zIndices[a]);
+                if (hits.length > 0) {
+                    handleClickSpan(e, hits[0]);
                 }
-            })}
-            </span>
+            } : null}
+
+            /*style={{color: styles?.[token_annotations?.[token_annotations.length - 1]?.style]?.color}}*/
+        >{
+            annotations
+        }<span
+            className="text-chunk-content"
+            // @ts-ignore
+            style={{color: styles?.[lastAnnotation?.style]?.[lastAnnotation?.highlighted ? 'highlighted' : 'base']?.color}}
+        >{
+            text
+        }</span>{
+            isFirstTokenOfChunk && token_annotations.map((annotation, annotation_i) => {
+            if (annotation.isFirstTokenOfSpan && annotation.label) {
+                shape = styles[annotation.style]?.shape || 'box';
+                const isUnderline = styles[annotation.style].shape === 'underline';
+                labelIdx[shape] += 1;
+                return (
+                    <span
+                        /*onMouseEnter={(event) => handleMouseEnterSpan(event, annotation.id)}*/
+                        /*onMouseLeave={(event) => handleMouseLeaveSpan(event, annotation.id)}*/
+                        /*onMouseDown={(event) => {handleClickSpan(event, annotation.id);}}*/
+                        className={`label ${(annotation.highlighted || annotation.selected) ? 'highlighted' : ''}`}
+                        ref={element => {
+                            elements.current[elementsCount ++] = element;
+                        }}
+                        key={annotation.id}
+                        // @ts-ignore
+                        span_key={annotation.id}
+                        style={{
+                            borderColor: styles?.[annotation?.style]?.[annotation?.highlighted ? 'highlighted' : 'base']?.borderColor,
+                            [isUnderline ? 'bottom': 'top']: 0,
+                            left: (nLabels[shape] - labelIdx[shape]) * 4 + (shape === 'box' ? -1 : 2),
+                            // Labels are above every text entity overlay, except when this entity is highlighted
+                            zIndex: 50 + annotation.zIndex + (annotation.highlighted ? 50 : 0)
+                        } as CSSProperties}>{annotation.label.toUpperCase()}</span>
+                );
+            }
+        })}
+        </span>
     );
+    elements.current.length = elementsCount;
+    return component;
 });
 
 const Line = React.memo(<StyleRest extends object>({index, styles, tokens, spansRef, handleMouseEnterSpan, handleMouseLeaveSpan, handleClickSpan, divRef}: {
@@ -168,7 +250,7 @@ const Line = React.memo(<StyleRest extends object>({index, styles, tokens, spans
     handleMouseEnterSpan: (event: React.MouseEvent<HTMLSpanElement>, id: string) => void;
     handleMouseLeaveSpan: (event: React.MouseEvent<HTMLSpanElement>, id: string) => void;
     handleClickSpan: (event: React.MouseEvent<HTMLSpanElement>, id: string) => void;
-    spansRef: { [key: string]: React.RefObject<HTMLSpanElement> };
+    spansRef: { [key: string]: React.MutableRefObject<HTMLSpanElement> };
     divRef: React.RefObject<HTMLDivElement>;
 }) => {
     return (
@@ -188,7 +270,7 @@ const Line = React.memo(<StyleRest extends object>({index, styles, tokens, spans
 
 
 class TextComponent extends React.Component<{ id: string; } & TextData & TextMethods> {
-    public defaultProps = {
+    public static defaultProps = {
         spans: [],
         mouse_selection: [],
         text: "",
@@ -197,7 +279,7 @@ class TextComponent extends React.Component<{ id: string; } & TextData & TextMet
 
     private readonly tokenize: (spans: SpanData[], text: string, styles: {[key: string]: PreprocessedStyle}) => { ids: any[]; lines: TokenData[][] };
     private readonly containerRef: React.RefObject<HTMLDivElement>;
-    private readonly spansRef: { [span_id: string]: React.RefObject<HTMLSpanElement> };
+    private readonly spansRef: { [span_id: string]: React.MutableRefObject<HTMLSpanElement> };
     private linesRef: React.RefObject<HTMLDivElement>[];
     private previousSelectedSpans: string;
     private processStyles: ((style: {[style_name: string]: QuickStyle}) => {[style_name: string]: PreprocessedStyle});
@@ -266,7 +348,9 @@ class TextComponent extends React.Component<{ id: string; } & TextData & TextMet
     };
 
     handleClickSpan = (event, span_id) => {
-        this.props.onClickSpan(span_id, makeModKeys(event));
+        this.props.onClickSpan && this.props.onClickSpan(span_id, makeModKeys(event));
+        /*event.stopPropagation();
+        event.preventDefault();*/
     };
 
     handleMouseEnterSpan = (event: React.MouseEvent<HTMLElement>, span_id: any) => {
@@ -316,12 +400,12 @@ class TextComponent extends React.Component<{ id: string; } & TextData & TextMet
         return (
             <div className="span-editor"
                  ref={this.containerRef}
+                 onMouseUp={this.handleMouseUp}
+                 onKeyDown={this.handleKeyDown}
+                 onKeyUp={this.handleKeyUp}
+                 tabIndex={0}
             >
-                <div className={`text`}
-                     onMouseUp={this.handleMouseUp}
-                     onKeyDown={this.handleKeyDown}
-                     onKeyUp={this.handleKeyUp}
-                     tabIndex={0}>
+                <div className={`text`}>
                     {lines.map((tokens, lineIndex) =>
                         <Line
                             key={lineIndex}

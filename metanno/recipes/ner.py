@@ -51,8 +51,8 @@ class NERApp(App):
                 "suggestions": [],
                 # "entities_subset": list(range(len(docs[0]["entities"]))),
                 "styles": {
-                    field["name"]: chain_map({"alpha": 0.8}, field)  # chain_map(){"color": field["color"], "alpha": 0.8}
-                    for field in chain_list(scheme["labels"])
+                    field["name"]: field  # chain_map(){"color": field["color"], "alpha": 0.8}
+                    for field in scheme["labels"]
                 },
                 "buttons": [
                     {
