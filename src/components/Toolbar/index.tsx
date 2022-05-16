@@ -50,7 +50,7 @@ export default class Toolbar extends React.Component<{
 
     render() {
         return (
-            <div className="toolbar">
+            <div className="toolbar toolbar-wrap">
                 <div className="toolbar-content">
                     {this.props.buttons.map(this.renderComponent)}
                 </div>
