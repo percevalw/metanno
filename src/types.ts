@@ -97,9 +97,11 @@ export type TableMethods = {
     registerActions: ({
         scroll_to_row,
         focus_input,
+        select_cell,
     }: {
         scroll_to_row: (number) => void,
         focus_input: () => void,
+        select_cell: (row_id: string, key: string, edit: boolean) => void,
     }) => void;
     onSelectedCellChange?: (row_id: string, name: string) => void;
     onSelectedRowsChange?: (row_ids: string[]) => void;

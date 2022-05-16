@@ -277,6 +277,9 @@ class NERApp(App):
                 return
             self.state["mouse_selection"] = []
 
+            if new_id is not None:
+                self.select_cell("entities", new_id, "mention")
+
     def delete_entities(self, entities_id):
         for entity_id in entities_id:
             del self.state["docs"][self.state["doc_id"]]["entities"][entity_id]
@@ -347,8 +350,9 @@ class NERApp(App):
                 self.state['selected'].remove(span_id)
             else:
                 self.state['selected'].append(span_id)
-        if "Meta" in modkeys:
-            self.scroll_to_row("entities", span_id)
+        if "Meta" in modkeys: # we are not editing
+            self.select_cell("entities", span_id, "mention")
+            self.scroll_to_row("entities", span_id);
 
     @frontend_only
     @produce

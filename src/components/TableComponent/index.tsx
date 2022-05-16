@@ -19,6 +19,14 @@ function inputStopPropagation(event: React.KeyboardEvent<HTMLInputElement>) {
     }
 }
 
+const getIdx = (items: { [key: string]: any }[], value: any, key: string = "id"): number => {
+    for (let i = 0; i < items.length; i++) {
+        if (items[i][key] === value) {
+            return i;
+        }
+    }
+}
+
 class TableComponent extends React.Component<{ id: string; } & TableData & TableMethods, {
     columnsOrder: string[],
     lastSelectedCell: { key: string, column: string }
@@ -48,6 +56,15 @@ class TableComponent extends React.Component<{ id: string; } & TableData & Table
                 if (input) {
                     input.focus();
                 }
+            },
+            select_cell: (row_id: string, col: string, edit: boolean) => {
+                setTimeout(() => {
+                    this.gridRef.current.element.focus();
+                    this.gridRef.current.selectCell({
+                        idx: getIdx(this.props.columns, col, 'name') + 1,
+                        rowIdx: getIdx(this.props.rows, row_id, this.props.rowKey),
+                    }, edit);
+                }, 30);
             },
         });
     }
