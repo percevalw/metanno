@@ -46,15 +46,19 @@ class NERApp(App):
                 "mouse_selection": [],
                 "highlighted": [],
                 "selected": [],
-                "scheme": scheme,
                 "entities_filters": {},
+                "aliases": {
+                    field["name"]: field["alias"]  # chain_map(){"color": field["color"], "alpha": 0.8}
+                    for field in scheme["labels"]
+                },
+                "scheme": scheme,
                 "suggestions": [],
                 # "entities_subset": list(range(len(docs[0]["entities"]))),
                 "styles": {
                     field["name"]: field  # chain_map(){"color": field["color"], "alpha": 0.8}
                     for field in scheme["labels"]
                 },
-                "buttons": [
+                "buttons": ([
                     {
                         "type": "button",
                         "key": "suggest",
@@ -63,7 +67,7 @@ class NERApp(App):
                         # "secondary": None,
                         "color": "white",
                     }
-                ] + [
+                ] if self.suggester is not None else []) + [
                     chain_map({
                         "type": "button",
                         "key": field["key"],
@@ -84,6 +88,7 @@ class NERApp(App):
                 "mouse_selection": [],
                 "highlighted": [],
                 "selected": [],
+                "aliases": {},
                 "scheme": {},
                 "styles": {},
                 "buttons": [],
@@ -110,7 +115,7 @@ class NERApp(App):
                     {
                         "begin": entity["begin"],
                         "end": entity["end"],
-                        "label": "".join(chain_list([entity["label"]], [
+                        "label": "".join(chain_list([state["aliases"][entity["label"]]], [
                             "["+entity[attribute["name"]] + "]"
                             for attribute in state["scheme"]["attributes"]
                             if attribute["name"] in entity
@@ -162,7 +167,7 @@ class NERApp(App):
                         "id": entity["id"],
                         "offsets": str(entity["begin"]) + "-" + str(entity["end"]),
                         "mention": hyperlinks.get(entity["id"], None),
-                        "label": entity["label"],
+                        "label": state["aliases"][entity["label"]],
                     }, {
                         attribute["name"]: entity[attribute["name"]] if attribute["name"] in entity else None
                         for attribute in state["scheme"]["attributes"]
@@ -235,6 +240,7 @@ class NERApp(App):
 
         doc = self.state["docs"][self.state["doc_id"]]
         has_new_spans = False
+        new_id = None
 
         if key == " ":
             first_selection = self.state["mouse_selection"][0]
@@ -395,6 +401,8 @@ class NERApp(App):
             return
         if col == "label":
             self.state["suggestions"] = [label["name"] for label in self.state["scheme"]["labels"]]
+        elif col == "mention":
+            self.state["suggestions"] = []
         else:
             self.state["suggestions"] = [
                 suggestion
@@ -425,6 +433,13 @@ class NERApp(App):
         if editor_id == "entities":
             self.state["entities_filters"][col] = value
 
+    @frontend_only
+    @produce
+    def handle_select_cell(self, editor_id, row_id, col):
+        if editor_id == "entities":
+            self.state["highlighted"] = [row_id]
+            self.scroll_to_span("text", row_id)
+
     @produce
     def handle_cell_change(self, editor_id, row_id, col, value):
         if editor_id == "entities":
@@ -436,3 +451,4 @@ class NERApp(App):
             self.state["mouse_selection"] = []
         if editor_id == "docs" and col == "checked":
             self.state["docs"][self.state["doc_id"]]["seen"] = value
+        self.state["inputValue"] = None
