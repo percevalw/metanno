@@ -258,14 +258,15 @@ class NERApp(App):
                 self.state["mouse_selection"].append({"begin": next_occurrence, "end": next_occurrence + len(term)})
         elif key == "Backspace":
             self.delete_entities([
-                span_id
-                for span_id, span in doc["entities"].items()
-                if any(has_overlap(span, mouse_span) for mouse_span in spans)
+                ent_id
+                for ent_id, ent in doc["entities"].items()
+                if any(has_overlap(ent, mouse_span) for mouse_span in spans)
             ])
         elif key == "suggest":
             self.suggest()
             self.state["mouse_selection"] = []
         elif len(spans):
+            entities_to_delete = []
             for button in self.state["buttons"]:
                 if button['type'] == 'button' and button["key"] == key:
                     if button["annotation_kind"] == "labels":
@@ -278,6 +279,11 @@ class NERApp(App):
                                 "id": new_id,
                             }
                             has_new_spans = True
+                            entities_to_delete.extend([
+                                ent_id
+                                for ent_id, ent in doc["entities"].items()
+                                if has_overlap(ent, span) and ent["label"] == button["label"] and ent_id != new_id
+                            ])
                     if button["annotation_kind"] == "attributes" and button["key"] == key:
                         is_true = None
                         for span in doc["entities"].values():
@@ -289,6 +295,7 @@ class NERApp(App):
                     pass
             if not has_new_spans:
                 return
+            self.delete_entities(entities_to_delete)
             self.state["mouse_selection"] = []
 
             if new_id is not None:
