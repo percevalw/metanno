@@ -462,6 +462,6 @@ class NERApp(App):
             elif col:
                 self.state["docs"][self.state["doc_id"]]["entities"][row_id][col] = value
             self.state["mouse_selection"] = []
-        if editor_id == "docs" and col == "checked":
-            self.state["docs"][self.state["doc_id"]]["seen"] = value
+        if editor_id == "docs" and col == "seen":
+            self.state["docs"][get_idx(self.state["docs"], row_id, "id")]["seen"] = value
         self.state["inputValue"] = None

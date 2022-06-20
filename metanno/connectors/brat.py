@@ -88,30 +88,15 @@ class BratDataConnector:
                                 "attributes": [],
                                 "comments": [],
                             }
-                            last_end = None
-                            fragment_i = 0
                             begins_ends = sorted([(int(s.split()[0]), int(s.split()[1])) for s in span.split(';')])
-
-                            for begin, end in begins_ends:
-                                # If merge_spaced_fragments, merge two fragments that are only separated by a newline (brat automatically creates
-                                # multiple fragments for a entity that spans over more than one line)
-                                if self.merge_newline_fragments and last_end is not None and len(text[last_end:begin].strip()) == 0 and "\n" in text[last_end:begin].strip():
-                                    entities[ann_id]["fragments"][-1]["end"] = end
-                                    continue
-                                entities[ann_id]["begin"] = begin
-                                entities[ann_id]["end"] = end
-                                entities[ann_id]["fragments"].append({
-                                    "begin": begin,
-                                    "end": end,
-                                })
-                                fragment_i += 1
-                                last_end = end
+                            entities[ann_id]["begin"] = begins_ends[0][0]
+                            entities[ann_id]["end"] = begins_ends[-1][1]
                         elif line.startswith('A') or line.startswith('M'):
                             match = REGEX_ATTRIBUTE.match(line)
                             if match is None:
                                 raise ValueError(f'File {ann_file}, unrecognized Brat line {line}')
                             # ann_id = match.group(1)
-                            parts = match.group(2).split(" ")
+                            parts = match.group(2).split(" ", 2)
                             if len(parts) >= 3:
                                 entity, entity_id, value = parts
                             elif len(parts) == 2:
@@ -205,10 +190,10 @@ class BratDataConnector:
         ann_filename = txt_filename.replace(".txt", ".ann")
         attribute_idx = 1
         entities_ids = defaultdict(lambda: "T" + str(len(entities_ids) + 1))
-        if "seen" in doc and doc["seen"]:
-            print("#1000\tStatus #1000\tCHECKED", file=f)
         if not os.path.exists(ann_filename) or self.overwrite_ann:
             with open(ann_filename, "w") as f:
+                if "seen" in doc and doc["seen"]:
+                    print("#1000\tStatus #1000\tCHECKED", file=f)
                 if "entities" in doc:
                     for entity in doc["entities"]:
                         # idx = None
