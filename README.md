@@ -28,10 +28,17 @@ Its main objectives are:
 This project is still under development and is subject to change.
 A simple pip install should be enough if you use Jupyterlab 3. You do not need to open any port.
 ```
+# To setup the environment
+conda create --name annotation python=3.9
+conda activate annotation
+pip install ipykernel && python -m ipykernel install --user --name annotation
+
+# To install the package
 pip install metanno
 ```
 
 If **you're a user in a shared Jupyter environment** (you did not run the `jupyter lab` command), you should instead install the extension at the user level
+
 ```
 pip install metanno --user
 ```
