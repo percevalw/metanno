@@ -182,9 +182,9 @@ const Token = React.memo((
                     }).filter(key => !!key)
                 );
                 // @ts-ignore
-                hoveredKeys.current.forEach(x => !newSet.has(x) && console.log("LEAVE", x) || handleMouseLeaveSpan(e, x));
+                hoveredKeys.current.forEach(x => !newSet.has(x) && handleMouseLeaveSpan(e, x));
                 // @ts-ignore
-                newSet.forEach(x => !hoveredKeys.current.has(x) && console.log("ENTER", x) || handleMouseEnterSpan(e, x));
+                newSet.forEach(x => !hoveredKeys.current.has(x) && handleMouseEnterSpan(e, x));
                 hoveredKeys.current = newSet;
             } : null}
             /*onMouseEnter={(event) => token_annotations.map(annotation => handleMouseEnterSpan(event, annotation.id))}*/
@@ -192,7 +192,7 @@ const Token = React.memo((
                 if (!hoveredKeys)
                     return;
                 // @ts-ignore
-                hoveredKeys.current.forEach(x => console.log("QUIT", x) || handleMouseLeaveSpan(event, x));
+                hoveredKeys.current.forEach(x => handleMouseLeaveSpan(event, x));
                 hoveredKeys.current.clear();
             } : null}
             onMouseUp={token_annotations.length > 0 ? (e) => {
