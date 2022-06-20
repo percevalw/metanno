@@ -147,7 +147,7 @@ class AutoProxy(Proxy[T]):
     def __new__(cls, obj, *args, **kwargs):
         if isinstance(obj, Proxy):
             return obj
-        if isinstance(obj, (str, int)):
+        if isinstance(obj, (str, int, float)) or obj is None:
             return obj
         if hasattr(obj.__class__, 'keys'):
             return MapProxy(obj, *args, **kwargs)
