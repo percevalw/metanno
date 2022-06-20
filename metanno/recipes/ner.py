@@ -51,6 +51,12 @@ class NERApp(App):
                     field["name"]: field["alias"]  # chain_map(){"color": field["color"], "alpha": 0.8}
                     for field in scheme["labels"]
                 },
+                "table_position": {
+                    "id": "",
+                    "row_id": "",
+                    "col": "",
+                    "mode": "SELECT",
+                },
                 "scheme": scheme,
                 "suggestions": [],
                 # "entities_subset": list(range(len(docs[0]["entities"]))),
@@ -67,7 +73,7 @@ class NERApp(App):
                         # "secondary": None,
                         "color": "white",
                     }
-                ] if self.suggester is not None else []) + [
+                ] if suggester is not None else []) + [
                     chain_map({
                         "type": "button",
                         "key": field["key"],
@@ -156,6 +162,7 @@ class NERApp(App):
                 ],
                 selectedRows=[],
                 highlightedRows=[state["docs"][state["doc_id"]]["id"]],
+                selectedPosition=(state["table_position"] if state["table_position"] and state["table_position"]["editor_id"] == "docs" else None),
             )
         elif editor_id == "entities":
             return dict(
@@ -194,6 +201,7 @@ class NERApp(App):
                 highlightedRows=state["highlighted"],
                 inputValue=state["inputValue"],
                 suggestions=state["suggestions"],
+                selectedPosition=(state["table_position"] if state["table_position"] and state["table_position"]["editor_id"] == "entities" else None),
             )
 
     def filter_and_sort_entities(self, doc, entities, filters):
@@ -262,7 +270,7 @@ class NERApp(App):
                 if button['type'] == 'button' and button["key"] == key:
                     if button["annotation_kind"] == "labels":
                         for span in spans:
-                            new_id = f"metanno-{doc['id']}-{len(doc['entities'])}"
+                            new_id = f"metanno-{doc['id']}-{span['begin']}-{span['end']}-{button['label']}"
                             doc['entities'][new_id] = {
                                 "begin": span["begin"],
                                 "end": span["end"],
@@ -284,7 +292,8 @@ class NERApp(App):
             self.state["mouse_selection"] = []
 
             if new_id is not None:
-                self.select_cell("entities", new_id, "mention")
+                self.state["table_position"] = {"editor_id": "entities", "row_id": new_id, "col": "mention", "mode": "SELECT"}
+                self.focus("entities")
 
     def delete_entities(self, entities_id):
         for entity_id in entities_id:
@@ -340,10 +349,10 @@ class NERApp(App):
 
     @produce
     def handle_mouse_select(self, editor_id, modkeys, spans):
-        if len(spans):
+        if len(spans) and self.state["table_position"]["mode"] == "EDIT":
             text = self.state["docs"][self.state["doc_id"]]["text"]
             self.state["inputValue"] = {"text": text[spans[0]["begin"]:spans[0]["end"]], "key": "", "begin": spans[0]["begin"], "end": spans[0]["end"]}
-            self.focus_input("entities")
+            self.focus("entities")
         if "Shift" in modkeys:
             self.state["mouse_selection"].extend(spans)
         else:
@@ -351,14 +360,10 @@ class NERApp(App):
 
     @produce
     def handle_click_span(self, editor_id, span_id, modkeys):
-        if "Shift" in modkeys:
-            if span_id in self.state['selected']:
-                self.state['selected'].remove(span_id)
-            else:
-                self.state['selected'].append(span_id)
-        if "Meta" in modkeys: # we are not editing
-            self.select_cell("entities", span_id, "mention")
-            self.scroll_to_row("entities", span_id);
+        if "Shift" in modkeys: # we are not editing
+            self.state["table_position"] = {"editor_id": "entities", "row_id": span_id, "col": "mention", "mode": "SELECT"}
+            #self.focus("entities")
+            self.scroll_to_row("entities", span_id)
 
     @frontend_only
     @produce
@@ -435,7 +440,8 @@ class NERApp(App):
 
     @frontend_only
     @produce
-    def handle_select_cell(self, editor_id, row_id, col):
+    def handle_selected_position_change(self, editor_id, row_id, col, mode, cause=None):
+        self.state["table_position"] = {"editor_id": editor_id, "row_id": row_id, "col": col, "mode": mode}
         if editor_id == "entities":
             self.state["highlighted"] = [row_id]
             self.scroll_to_span("text", row_id)

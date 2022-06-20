@@ -158,7 +158,7 @@ export default class MetannoRenderer extends Widget {
                         onClickCellContent={(...args) => manager.queue_try_catch_exec(manager.app?.handle_click_cell_content, editor_id, ...args)}
                         onMouseEnterRow={(...args) => manager.queue_try_catch_exec(manager.app?.handle_mouse_enter_row, editor_id, ...args)}
                         onMouseLeaveRow={(...args) => manager.queue_try_catch_exec(manager.app?.handle_mouse_leave_row, editor_id, ...args)}
-                        onSelectedCellChange={(...args) => manager.queue_try_catch_exec(manager.app?.handle_select_cell, editor_id, ...args)}
+                        onSelectedPositionChange={(...args) => manager.queue_try_catch_exec(manager.app?.handle_selected_position_change, editor_id, ...args)}
                         onSelectedRowsChange={(...args) => manager.queue_try_catch_exec(manager.app?.handle_select_rows, editor_id, ...args)}
                         onCellChange={(...args) => manager.queue_try_catch_exec(manager.app?.handle_cell_change, editor_id, ...args)}
                         onFiltersChange={(...args) => manager.queue_try_catch_exec(manager.app?.handle_filters_change, editor_id, ...args)}

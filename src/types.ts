@@ -93,19 +93,18 @@ export type TableData = {
     suggestions?: (Hyperlink | string)[],
     filters: Filters;
     inputValue: any;
+    selectedPosition: {row_id: string, col: string, mode: "EDIT" | "SELECT"};
 }
 
 export type TableMethods = {
     registerActions: ({
         scroll_to_row,
-        focus_input,
-        select_cell,
+        focus,
     }: {
         scroll_to_row: (number) => void,
-        focus_input: () => void,
-        select_cell: (row_id: string, key: string, edit: boolean) => void,
+        focus: () => void,
     }) => void;
-    onSelectedCellChange?: (row_id: string, name: string) => void;
+    onSelectedPositionChange?: (row_id: string, name: string, mode: string, cause: string) => void;
     onSelectedRowsChange?: (row_ids: string[]) => void;
     onFiltersChange?: (name: string, value: any) => void;
     onClickCellContent?: (row_id: string, name: string, value?: any) => void;

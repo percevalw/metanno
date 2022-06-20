@@ -30,8 +30,8 @@
   "scripts": {
     "build:labextension": "jlpm clean:labextension && jupyter labextension build .",
     "build:labextension:dev": "jlpm clean:labextension && jupyter labextension build --development True .",
-    "patch-rdg": "sed -i -- 's/\"type\": \"module\",//g' lib/node_modules/react-data-grid/package.json",
-    "build:lib": "jlpm run clean:lib && babel src --out-dir lib --copy-files -x .js,.jsx,.ts,.tsx && babel node_modules/react-data-grid --out-dir lib/node_modules/react-data-grid --copy-files -x .js && jlpm patch-rdg",
+    "build:lib:old": "jlpm run clean:lib && babel src --out-dir lib --copy-files -x .js,.jsx,.ts,.tsx && babel node_modules/react-data-grid --out-dir lib/node_modules/react-data-grid --copy-files -x .js && jlpm patch-rdg",
+    "build:lib": "jlpm run clean:lib && babel src --out-dir lib --copy-files -x .js,.jsx,.ts,.tsx",
     "build": "jlpm run build:lib && jlpm run build:labextension",
     "build:dev": "jlpm run build:lib && jlpm run build:labextension:dev",
     "install-labextension": "jlpm run build && jlpm run install:prebuilt",
@@ -46,7 +46,7 @@
     "rimraf": "./node_modules/rimraf/bin.js"
   },
   "peerDependencies": {
-    "@jupyterlab/application": "^3.0.0",
+    "@jupyterlab/application": "3.2.4",
     "@jupyterlab/docregistry": "^3.0.0",
     "@jupyterlab/logconsole": "^3.0.0",
     "@jupyterlab/mainmenu": "^3.0.0",
@@ -81,7 +81,7 @@
     "react-addons-shallow-compare": "15.6.3",
     "react-app-polyfill": "1.0.6",
     "react-autosuggest": "9.4.3",
-    "react-data-grid": "7.0.0-beta.7",
+    "react-data-grid": "percevalw/react-data-grid#prop_position",
     "react-dev-utils": "10.2.1",
     "react-dnd": "10.0.2",
     "react-dnd-html5-backend": "10.0.2",
@@ -116,7 +116,7 @@
     "@babel/preset-env": "7.16.0",
     "@babel/preset-react": "7.16.0",
     "@babel/preset-typescript": "7.16.0",
-    "@jupyterlab/builder": "^3.0.0",
+    "@jupyterlab/builder": "^3.4.1",
     "@svgr/webpack": "4.3.3",
     "@testing-library/jest-dom": "4.2.4",
     "@testing-library/react": "9.5.0",

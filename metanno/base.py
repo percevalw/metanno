@@ -67,7 +67,7 @@ class App(object):
     def handle_select_rows(self, editor_id, row_keys):
         pass
 
-    def handle_select_cell(self, editor_id, *args):
+    def handle_selected_position_change(self, editor_id, row_id, col, mode, cause=None):
         pass
 
     def handle_cell_change(self, editor_id, row_id, col, value):
@@ -75,27 +75,28 @@ class App(object):
 
     @frontend_only
     def scroll_to_line(self, editor_id, line_number):
-        self.manager.actions[editor_id].scroll_to_line(line_number)
+        if editor_id in self.manager.actions and self.manager.actions[editor_id]:
+            self.manager.actions[editor_id].scroll_to_line(line_number)
 
     @frontend_only
     def scroll_to_span(self, editor_id, span_id):
-        self.manager.actions[editor_id].scroll_to_span(span_id)
+        if editor_id in self.manager.actions and self.manager.actions[editor_id]:
+            self.manager.actions[editor_id].scroll_to_span(span_id)
 
     @frontend_only
     def scroll_to_row(self, editor_id, row_idx):
-        self.manager.actions[editor_id].scroll_to_row(row_idx)
+        if editor_id in self.manager.actions and self.manager.actions[editor_id]:
+            self.manager.actions[editor_id].scroll_to_row(row_idx)
 
     @frontend_only
-    def focus_input(self, editor_id, row_idx):
-        self.manager.actions[editor_id].focus_input(row_idx)
+    def focus(self, editor_id):
+        if editor_id in self.manager.actions and self.manager.actions[editor_id]:
+            self.manager.actions[editor_id].focus()
 
     @frontend_only
     def clear_mouse_span_selection(self, editor_id):
-        self.manager.actions[editor_id].clear_current_mouse_selection()
-
-    @frontend_only
-    def select_cell(self, editor_id, row_id, col, edit=False):
-        self.manager.actions[editor_id].select_cell(row_id, col, edit)
+        if editor_id in self.manager.actions and self.manager.actions[editor_id]:
+            self.manager.actions[editor_id].clear_current_mouse_selection()
 
     @frontend_only
     def error(self, message, auto_close=10000):

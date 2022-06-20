@@ -12,7 +12,7 @@ const TableView = ({
 
      onKeyPress,
      onClickCellContent,
-     onSelectedCellChange,
+     onSelectedPositionChange,
      registerActions,
      onFiltersChange,
      onSelectedRowsChange,
@@ -37,6 +37,7 @@ const TableView = ({
         filters,
         suggestions,
         selectedRows,
+        selectedPosition,
         highlightedRows,
     } = useSelector(useCallback(cachedReconcile(
         (state: object): TableData & ToolbarData & {loading: boolean}  => {
@@ -56,6 +57,7 @@ const TableView = ({
                     filters: {},
                     suggestions: [],
                     selectedRows: [],
+                    selectedPosition: {},
                     highlightedRows: [],
                     inputValue: undefined,
 
@@ -90,13 +92,14 @@ const TableView = ({
                 rowKey={rowKey}
                 inputValue={inputValue}
                 suggestions={suggestions}
+                selectedPosition={selectedPosition}
 
                 onKeyPress={onKeyPress}
                 onMouseEnterRow={onMouseEnterRow}
                 onMouseLeaveRow={onMouseLeaveRow}
                 onFiltersChange={onFiltersChange}
                 onSelectedRowsChange={onSelectedRowsChange}
-                onSelectedCellChange={onSelectedCellChange}
+                onSelectedPositionChange={onSelectedPositionChange}
                 onClickCellContent={onClickCellContent}
                 onCellChange={onCellChange}
                 onInputChange={onInputChange}

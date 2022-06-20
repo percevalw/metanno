@@ -84,7 +84,12 @@ class SingleInputSuggest<T extends (string | Hyperlink)> extends React.Component
     }
 
     onInputChange = (event, {newValue, method}: {newValue: string, method: string}) => {
-        this.props.onInputChange?.(newValue, method);
+        if (method === "click") {
+            this.props.onRowChange({[this.props.column]: newValue}, true);
+            this.props.onClose();
+        } else {
+            this.props.onInputChange?.(newValue, method);
+        }
     };
 
     inputKeyDown = (event) => {
