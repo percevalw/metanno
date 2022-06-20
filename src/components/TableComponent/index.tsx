@@ -305,7 +305,7 @@ class TableComponent extends React.Component<{ id: string; } & TableData & Table
             };
         });
         const nameToCol = Object.assign({}, ...columnObjects);
-        return [{...SelectColumn, width: 50}, ...this.state.columnsOrder.map(name => nameToCol[name])];
+        return [...this.state.columnsOrder.map(name => nameToCol[name])];
     }, () => ({columns: this.props.columns, columnsOrder: this.state.columnsOrder, filters: this.props.filters}));
 
     onRowsChange = (newRows) => {
