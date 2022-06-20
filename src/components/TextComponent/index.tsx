@@ -7,7 +7,7 @@ import {QuickStyle, SpanData, TextData, TextMethods, TokenData} from '../../type
 import "./style.css";
 
 const toLuminance = (color: Color, y: number=0.6) => {
-    let [r, g, b] = color.rgb().color;
+    let [r, g, b, a] = [...color.rgb().color, color.alpha];
 	// let y = ((0.299 * r) + ( 0.587 * g) + ( 0.114 * b)) / 255;
 	let i = ((0.596 * r) + (-0.275 * g) + (-0.321 * b)) / 255;
 	let q = ((0.212 * r) + (-0.523 * g) + ( 0.311 * b)) / 255;
@@ -21,14 +21,14 @@ const toLuminance = (color: Color, y: number=0.6) => {
 	if (g < 0){ g=0; } else if (g > 255){ g = 255};
 	if (b < 0){ b=0; } else if (b > 255){ b = 255};
 
-    return Color.rgb(r, g, b);
+    return Color.rgb(r, g, b).alpha(a);
 }
 
 const processStyle = ({color, shape, autoNestingLayout, labelPosition, ...rest}: QuickStyle): PreprocessedStyle => {
-    let colorObject = Color(color);
+    let colorObject = Color(color).alpha(0.8);
     let highlightedColor, highlightedTextColor, backgroundColor, textColor;
     highlightedColor = toLuminance(colorObject.saturate(1.), 0.6).toString()
-    if (colorObject.isLight() || shape === 'underline') {
+    if (true || colorObject.isLight() || shape === 'underline') {
         highlightedTextColor = '#ffffffde';
         textColor = '#000000de';
         backgroundColor = colorObject.lighten(0.02).toString();
@@ -47,9 +47,9 @@ const processStyle = ({color, shape, autoNestingLayout, labelPosition, ...rest}:
             ...rest,
         },
         highlighted: {
-            'borderColor': highlightedColor,
-            'backgroundColor': highlightedColor,
-            'color': highlightedTextColor,
+            'borderColor': color,
+            'backgroundColor': backgroundColor,
+            'color': textColor,
             ...rest,
         },
         autoNestingLayout,
@@ -124,7 +124,7 @@ const Token = React.memo((
                     className={`mention_token mouse_selected`}/>
             );
         } else {
-            verticalOffset = 9 + annotation.depth * 2;
+            verticalOffset = 9 + annotation.depth * 2.5;
             annotations.push(
                 <span
                     key={`annotation-${annotation_i}`}
@@ -168,24 +168,34 @@ const Token = React.memo((
                         if (!element)
                             return;
                         const rect = element.getBoundingClientRect();
-                        if (e.clientX >= rect.left && e.clientX <= rect.right &&
-                            (token_annotations.length === 1 || (e.clientY >= rect.top && e.clientY <= rect.bottom))) {
+                        if (
+                            e.clientX >= rect.left && e.clientX <= rect.right &&
+                            (token_annotations.length === 1 ||
+                                (element.className.includes("underline")
+                                    ? (e.clientY <= rect.bottom)
+                                    : (e.clientY >= rect.top && e.clientY <= rect.bottom)
+                                )
+                            )
+                        ) {
                             return element.getAttribute("span_key");
                         }
                     }).filter(key => !!key)
                 );
-                hoveredKeys.current.forEach(x => !newSet.has(x) && handleMouseLeaveSpan(e, x));
-                newSet.forEach(x => !hoveredKeys.current.has(x) && handleMouseEnterSpan(e, x));
+                // @ts-ignore
+                hoveredKeys.current.forEach(x => !newSet.has(x) && console.log("LEAVE", x) || handleMouseLeaveSpan(e, x));
+                // @ts-ignore
+                newSet.forEach(x => !hoveredKeys.current.has(x) && console.log("ENTER", x) || handleMouseEnterSpan(e, x));
                 hoveredKeys.current = newSet;
             } : null}
             /*onMouseEnter={(event) => token_annotations.map(annotation => handleMouseEnterSpan(event, annotation.id))}*/
-            onMouseLeave={(event) => {
+            onMouseLeave={token_annotations.length > 0 ? (event) => {
                 if (!hoveredKeys)
                     return;
-                hoveredKeys.current.forEach(x => handleMouseLeaveSpan(event, x));
+                // @ts-ignore
+                hoveredKeys.current.forEach(x => console.log("QUIT", x) || handleMouseLeaveSpan(event, x));
                 hoveredKeys.current.clear();
-            }}
-            onMouseDown={token_annotations.length > 0 ? (e) => {
+            } : null}
+            onMouseUp={token_annotations.length > 0 ? (e) => {
                 const hits = elements.current.map(element => {
                     if (!element)
                         return;
@@ -213,7 +223,7 @@ const Token = React.memo((
             isFirstTokenOfChunk && token_annotations.map((annotation, annotation_i) => {
             if (annotation.isFirstTokenOfSpan && annotation.label) {
                 shape = styles[annotation.style]?.shape || 'box';
-                const isUnderline = styles[annotation.style].shape === 'underline';
+                const isUnderline = shape === 'underline';
                 labelIdx[shape] += 1;
                 return (
                     <span
@@ -230,7 +240,7 @@ const Token = React.memo((
                         style={{
                             borderColor: styles?.[annotation?.style]?.[annotation?.highlighted ? 'highlighted' : 'base']?.borderColor,
                             [isUnderline ? 'bottom': 'top']: 0,
-                            left: (nLabels[shape] - labelIdx[shape]) * 4 + (shape === 'box' ? -1 : 2),
+                            left: (nLabels[shape] - labelIdx[shape]) * 6 + (shape === 'box' ? -1 : 2),
                             // Labels are above every text entity overlay, except when this entity is highlighted
                             zIndex: 50 + annotation.zIndex + (annotation.highlighted ? 50 : 0)
                         } as CSSProperties}>{annotation.label.toUpperCase()}</span>
@@ -283,7 +293,6 @@ class TextComponent extends React.Component<{ id: string; } & TextData & TextMet
     private linesRef: React.RefObject<HTMLDivElement>[];
     private previousSelectedSpans: string;
     private processStyles: ((style: {[style_name: string]: QuickStyle}) => {[style_name: string]: PreprocessedStyle});
-    private hoveredCounts: {[span_id: string]: number};
 
     constructor(props) {
         super(props);
@@ -294,9 +303,11 @@ class TextComponent extends React.Component<{ id: string; } & TextData & TextMet
                 }
             },
             scroll_to_span: (span_id) => {
-                if (this.spansRef[span_id]) {
-                    this.spansRef[span_id].current?.scrollIntoView({behavior: 'smooth', block: 'center'})
-                }
+                setTimeout(() => {
+                    if (this.spansRef[span_id]) {
+                        this.spansRef[span_id].current?.scrollIntoView({behavior: 'smooth', block: 'center'})
+                    }
+                }, 10)
             },
             clear_current_mouse_selection: () => {
                 window.getSelection().removeAllRanges();
@@ -307,7 +318,6 @@ class TextComponent extends React.Component<{ id: string; } & TextData & TextMet
         this.containerRef = React.createRef();
         this.previousSelectedSpans = "";
         this.tokenize = cachedReconcile(tokenize);
-        this.hoveredCounts = {};
         this.processStyles = memoize(styles => Object.assign({}, ...Object.keys(styles).map(key => ({...styles[key], [key]: processStyle(styles[key])}))));
     }
 
@@ -354,21 +364,11 @@ class TextComponent extends React.Component<{ id: string; } & TextData & TextMet
     };
 
     handleMouseEnterSpan = (event: React.MouseEvent<HTMLElement>, span_id: any) => {
-        if (!this.hoveredCounts[span_id]) {
-            this.props.onMouseEnterSpan && this.props.onMouseEnterSpan(span_id, makeModKeys(event));
-            this.hoveredCounts[span_id] = 0;
-        }
-        this.hoveredCounts[span_id] ++;
+        this.props.onMouseEnterSpan && this.props.onMouseEnterSpan(span_id, makeModKeys(event));
     };
 
     handleMouseLeaveSpan = (event: React.MouseEvent<HTMLElement>, span_id: any) => {
-        setTimeout(() => {
-            if (this.hoveredCounts[span_id] == 1) {
-                this.props.onMouseLeaveSpan && this.props.onMouseLeaveSpan(span_id, makeModKeys(event));
-                this.hoveredCounts[span_id] = 1;
-            }
-            this.hoveredCounts[span_id]--;
-        }, 10)
+        this.props.onMouseLeaveSpan && this.props.onMouseLeaveSpan(span_id, makeModKeys(event));
     };
 
     render() {
