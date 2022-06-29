@@ -106,7 +106,7 @@ class BratDataConnector:
                                 raise ValueError(f'File {ann_file}, unrecognized Brat line {line}')
                             (entities[entity_id] if entity_id.startswith('T') else events[entity_id])["attributes"].append({
                                 "label": entity,
-                                "value": value,
+                                "value": value if value not in ("True", "False") else value == "True",
                             })
                         elif line.startswith('R'):
                             match = REGEX_RELATION.match(line)
