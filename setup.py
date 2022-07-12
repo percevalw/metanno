@@ -51,7 +51,7 @@ with open("README.md", "r") as fh:
 
 setup_args = dict(
     name="metanno",
-    version="0.0.7",
+    version="0.0.9",
     url="https://github.com/percevalw/metanno",
     author="Perceval Wajsburt",
     author_email="perceval.wajsburt@sorbonne-universite.fr",
