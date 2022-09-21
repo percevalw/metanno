@@ -15,6 +15,11 @@ HERE = os.path.abspath(os.path.dirname(__file__))
 # The name of the project
 name = "metanno"
 
+# Requirements
+with open("requirements.txt") as requirements_file:
+    requirements = requirements_file.readlines()
+
+
 lab_path = os.path.join(HERE, name, "labextension")
 
 # Representative files that should exist after a successful build
@@ -60,11 +65,7 @@ setup_args = dict(
     long_description_content_type="text/markdown",
     cmdclass=cmdclass,
     packages=setuptools.find_packages(),
-    install_requires=[
-        "transcrypt==3.9.0",
-        "ipykernel",
-        "astunparse",
-    ],
+    install_requires=requirements,
     zip_safe=False,
     include_package_data=True,
     python_requires=">=3.6",
