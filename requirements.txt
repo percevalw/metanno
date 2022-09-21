@@ -1,4 +1,4 @@
-transcrypt==3.7.16
+transcrypt==3.9.0
 ipykernel
 astunparse
 pandas
