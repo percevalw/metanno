@@ -161,7 +161,7 @@ class SequenceProxyState(ProxyState[T]):
     keys: T
 
 
-class SequenceProxy(Proxy[T], collections.Sequence):
+class SequenceProxy(Proxy[T], collections.abc.Sequence):
     _state = SequenceProxyState[T]
 
     def __init__(self, base: Any, copy: Any = None, parent: ProxyState = None, setter_args=None, setter_method=None, keys: T = None, on_change=None):
@@ -317,7 +317,7 @@ class ProxyIterator(collections.abc.Iterator):
                          setter_args=(key,))
 
 
-class MapProxy(Proxy[T], collections.Mapping):
+class MapProxy(Proxy[T], collections.abc.Mapping):
     def __init__(self, base: T, parent: ProxyState = None, setter_args=None, setter_method=None, on_change=None):
         super(MapProxy, self).__init__()
         object.__setattr__(self, "_state", ProxyState(
