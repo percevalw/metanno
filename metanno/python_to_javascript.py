@@ -7,7 +7,7 @@ import re
 import sys
 from io import StringIO
 from textwrap import dedent, indent
-from transcrypt.__main__ import main as transcrypt
+from metanno_transcrypt.__main__ import main as transcrypt
 import json
 
 from collections import defaultdict
@@ -57,6 +57,7 @@ def capture_stdout():
 def get_code_transcrypt(my_code, args=('-b', '-n'), silent=True):
     with open('test.py', 'w') as f:
         f.write(my_code)
+    print("Python file:", os.path.abspath("test.py"))
     with redirect_argv(*args, 'test.py'):
         with capture_stdout() as output:
             transcrypt()
@@ -161,14 +162,23 @@ def make_async(code):
 
     for info in new_async_methods:
         node = info["node"]
-        nodes_map[node] = ast.AsyncFunctionDef(
-            name=node.name,
-            args=node.args,
-            body=node.body,
-            decorator_list=node.decorator_list,
-            returns=node.returns,
-            type_comment=node.type_comment,
-        )
+        if hasattr(node, 'type_comment'):
+            nodes_map[node] = ast.AsyncFunctionDef(
+                name=node.name,
+                args=node.args,
+                body=node.body,
+                decorator_list=node.decorator_list,
+                returns=node.returns,
+                type_comment=node.type_comment,
+            )
+        else:
+            nodes_map[node] = ast.AsyncFunctionDef(
+                name=node.name,
+                args=node.args,
+                body=node.body,
+                decorator_list=node.decorator_list,
+                returns=node.returns,
+            )
 
     for info in new_await_calls:
         node = info["node"]

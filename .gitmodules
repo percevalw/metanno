@@ -1,0 +1,3 @@
+[submodule "submodules/Transcrypt"]
+	path = submodules/Transcrypt
+	url = https://github.com/QQuick/Transcrypt.git

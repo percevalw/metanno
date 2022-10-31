@@ -61,7 +61,6 @@ setup_args = dict(
     cmdclass=cmdclass,
     packages=setuptools.find_packages(),
     install_requires=[
-        "transcrypt==3.9.0",
         "ipykernel",
         "astunparse",
     ],
