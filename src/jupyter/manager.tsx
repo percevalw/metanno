@@ -68,21 +68,21 @@ export default class metannoManager {
 
 
         // https://github.com/jupyter-widgets/ipywidgets/commit/5b922f23e54f3906ed9578747474176396203238
-        context.sessionContext.kernelChanged.connect((
+        context?.sessionContext.kernelChanged.connect((
             sender: ISessionContext,
             args: IChangedArgs<Kernel.IKernelConnection | null, Kernel.IKernelConnection | null, 'kernel'>
         ) => {
             this._handleKernelChanged(args);
         });
 
-        context.sessionContext.statusChanged.connect((
+        context?.sessionContext.statusChanged.connect((
             sender: ISessionContext,
             status: Kernel.Status,
         ) => {
             this._handleKernelStatusChange(status);
         });
 
-        if (context.sessionContext.session?.kernel) {
+        if (context?.sessionContext.session?.kernel) {
             this._handleKernelChanged({
                 name: 'kernel',
                 oldValue: null,
@@ -125,7 +125,7 @@ export default class metannoManager {
         metadata?: JSONObject,
         buffers?: (ArrayBuffer | ArrayBufferView)[]
     ): Promise<IComm> => {
-        let kernel = this.context.sessionContext.session?.kernel;
+        let kernel = this.context?.sessionContext.session?.kernel;
         if (!kernel) {
             throw new Error('No current kernel');
         }
@@ -140,7 +140,7 @@ export default class metannoManager {
      * Get the currently-registered comms.
      */
     _get_comm_info = async (): Promise<any> => {
-        let kernel = this.context.sessionContext.session?.kernel;
+        let kernel = this.context?.sessionContext.session?.kernel;
         if (!kernel) {
             throw new Error('No current kernel');
         }
@@ -153,12 +153,12 @@ export default class metannoManager {
     }
 
     connectToAnyKernel = async () => {
-        if (!this.context.sessionContext) {
+        if (!this.context?.sessionContext) {
             return;
         }
         await this.context.sessionContext.ready;
 
-        if (this.context.sessionContext.session.kernel.handleComms === false) {
+        if (this.context?.sessionContext.session.kernel.handleComms === false) {
             return;
         }
         const all_comm_ids = await this._get_comm_info();

@@ -114,6 +114,7 @@ export class MetannoArea extends Panel {
         this._cell = options.cell || null;
 
         if (!this._editor_id || !this._editor_type) {
+            // @ts-ignore
             const widget = this._cell.outputArea.widgets[0].widgets[1] as MetannoRenderer;
             this._editor_id = widget.editor_id;
             this._editor_type = widget.editor_type;
@@ -151,7 +152,7 @@ export class MetannoArea extends Panel {
     }
 
     get path(): string {
-        return this?._notebook?.context?._path;
+        return this?._notebook?.context?.path;
     }
 }
 

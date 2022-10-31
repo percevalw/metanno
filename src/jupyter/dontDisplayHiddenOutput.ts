@@ -31,7 +31,7 @@ import {JSONObject} from '@lumino/coreutils';
   ): Promise<KernelMessage.IExecuteReplyMsg | void> {
     const model = cell.model;
     const code = model.value.text;
-    const canChangeHiddenState = !cell?.outputArea?.widgets?.[0]?.widgets?.[1].editor_type;  // <--- modified here
+    const canChangeHiddenState = !cell?.outputArea?.widgets?.[0]?.children()?.[1]?.editor_type;  // <--- modified here
     if (!code.trim() || !sessionContext.session?.kernel) {
       model.clearExecution();
       return;
@@ -124,6 +124,7 @@ import {JSONObject} from '@lumino/coreutils';
     }
   }
 
+    // @ts-ignore
     CodeCell.old_execute = CodeCell.execute;
     CodeCell.execute = execute;
 })(CodeCell);
