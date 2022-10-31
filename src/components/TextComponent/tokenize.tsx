@@ -7,7 +7,7 @@ type TextChunk = {
     end: number;
     label: string;
     token_annotations: TokenAnnotation[];
-    tokens: string[];
+    text: string,
 }
 
 export interface PreprocessedStyle {
@@ -39,11 +39,7 @@ function chunkText(spans: SpanData[], text: string): TextChunk[] {
             end: indices[indice_i],
             label: null,
             token_annotations: [],
-            tokens: text_slice.length > 0
-                ? text_slice
-                    .match(/\n|[^ \n]+|[ ]+/g)
-                    .filter(text => text.length > 0)
-                : [""]
+            text: text_slice,
         });
     }
     return text_chunks;
@@ -147,7 +143,11 @@ function tokenizeTextChunks(text_chunks: TextChunk[]): TokenData[][] {
         const text_chunk = text_chunks[i];
         const begin = text_chunk.begin;
         const token_annotations = text_chunk.token_annotations;
-        tokens = text_chunk.tokens;
+        tokens = text_chunk.text.length > 0// && token_annotations.length > 0
+                ? text_chunk.text
+                    .match(/\n|[^ \n]+|[ ]+/g)
+                    .filter(text => text.length > 0)
+                : [text_chunk.text];
 
         let offset_in_text_chunk = 0;
         for (let token_i = 0; token_i < tokens.length; token_i++) {
@@ -162,6 +162,7 @@ function tokenizeTextChunks(text_chunks: TextChunk[]): TokenData[][] {
                     key: `${span_begin}-${span_end}`,
                     begin: span_begin,
                     end: span_end,
+                    tokenIndexInChunk: token_i,
                     token_annotations: token_annotations,
                     isFirstTokenOfChunk: token_i === 0,
                     isLastTokenOfChunk: token_i === tokens.length - 1,

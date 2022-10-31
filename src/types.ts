@@ -36,6 +36,7 @@ export type TokenData = {
     text: string;
     isFirstTokenOfChunk: boolean,
     isLastTokenOfChunk: boolean,
+    tokenIndexInChunk: number,
     key: string;
     token_annotations: TokenAnnotation[],
 } & TextRange;

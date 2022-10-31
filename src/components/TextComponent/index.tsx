@@ -1,4 +1,4 @@
-import React, {CSSProperties, useEffect, useRef, useState} from "react";
+import React, {CSSProperties, useRef} from "react";
 import {default as tokenize, PreprocessedStyle} from "./tokenize"
 import Color from 'color';
 import {cachedReconcile, getDocumentSelectedRanges, makeModKeys, memoize, replaceObject} from "../../utils";
@@ -68,22 +68,18 @@ const Token = React.memo((
         end,
         isFirstTokenOfChunk,
         isLastTokenOfChunk,
+        tokenIndexInChunk,
         token_annotations,
         refs,
         styles,
-        handleMouseEnterSpan,
-        handleMouseLeaveSpan,
-        handleClickSpan,
+        mouseElements,
     }: TokenData & {
         refs: { [key: string]: React.MutableRefObject<HTMLSpanElement> },
         styles: {[key: string]: PreprocessedStyle},
-        handleMouseEnterSpan: (event: React.MouseEvent<HTMLSpanElement>, id: string) => void,
-        handleMouseLeaveSpan: (event: React.MouseEvent<HTMLSpanElement>, id: string) => void,
-        handleClickSpan: (event: React.MouseEvent<HTMLSpanElement>, id: string) => void,
+        mouseElements: React.MutableRefObject<{[key: string]: HTMLElement}>,
     }) => {
 
-    const hoveredKeys = useRef(new Set<string>());
-    const elements = useRef<HTMLElement[]>([]);
+
     let lastAnnotation = token_annotations[0];
     const labelIdx = {box: 0, underline: 0};
     const nLabels = {
@@ -106,11 +102,6 @@ const Token = React.memo((
             }
         zIndices[a.id] = a.zIndex;
     });
-    let elementsCount = 0;
-    useEffect(() => {
-        if (elements)
-            elements.current.length = annotations.length * 2
-    });
 
     let annotations = []
     let verticalOffset = 0;
@@ -124,22 +115,23 @@ const Token = React.memo((
                     className={`mention_token mouse_selected`}/>
             );
         } else {
-            verticalOffset = 9 + annotation.depth * 2.5;
+            verticalOffset = annotation.depth * 2.5 - 2;
             annotations.push(
                 <span
                     key={`annotation-${annotation_i}`}
                     id={`span-${begin}-${end}`}
                     // @ts-ignore
                     span_key={annotation.id}
-                    ref={element => {if (elements)
-                        elements.current[elementsCount ++] = element;
+                    ref={element => {
+                        if (element) {
+                            mouseElements.current[`${annotation.id}-span-${annotation_i}-${tokenIndexInChunk}`] = element
+                        } else {
+                            delete mouseElements.current[`${annotation.id}-span-${annotation_i}-${tokenIndexInChunk}`];
+                        }
                         if (isFirstTokenOfChunk && refs[annotation.id]) {
                             refs[annotation.id].current = element;
                         }
                     }}
-                    /*onMouseEnter={(event) => handleMouseEnterSpan(event, annotation.id)}*/
-                    /*onMouseLeave={(event) => handleMouseLeaveSpan(event, annotation.id)}*/
-                    /*onMouseDown={(event) => handleClickSpan(event, annotation.id)}*/
                     className={`mention_token mention_${isUnderline && !annotation.highlighted ? 'underline' : 'box'}
                                ${annotation.highlighted ? 'highlighted' : ''}
                                ${annotation.selected ? 'selected' : ''}
@@ -155,61 +147,11 @@ const Token = React.memo((
             );
         }
     }
-    const component = (
+    return (
         <span
             className="text-chunk"
             // @ts-ignore
             span_begin={begin}
-            onMouseMove={token_annotations.length > 0 ? (e) => {
-                if (!elements || !hoveredKeys)
-                    return;
-                const newSet = new Set(
-                    elements.current.map(element => {
-                        if (!element)
-                            return;
-                        const rect = element.getBoundingClientRect();
-                        if (
-                            e.clientX >= rect.left && e.clientX <= rect.right &&
-                            (token_annotations.length === 1 ||
-                                (element.className.includes("underline")
-                                    ? (e.clientY <= rect.bottom)
-                                    : (e.clientY >= rect.top && e.clientY <= rect.bottom)
-                                )
-                            )
-                        ) {
-                            return element.getAttribute("span_key");
-                        }
-                    }).filter(key => !!key)
-                );
-                // @ts-ignore
-                hoveredKeys.current.forEach(x => !newSet.has(x) && handleMouseLeaveSpan(e, x));
-                // @ts-ignore
-                newSet.forEach(x => !hoveredKeys.current.has(x) && handleMouseEnterSpan(e, x));
-                hoveredKeys.current = newSet;
-            } : null}
-            /*onMouseEnter={(event) => token_annotations.map(annotation => handleMouseEnterSpan(event, annotation.id))}*/
-            onMouseLeave={token_annotations.length > 0 ? (event) => {
-                if (!hoveredKeys)
-                    return;
-                // @ts-ignore
-                hoveredKeys.current.forEach(x => handleMouseLeaveSpan(event, x));
-                hoveredKeys.current.clear();
-            } : null}
-            onMouseUp={token_annotations.length > 0 ? (e) => {
-                const hits = elements.current.map(element => {
-                    if (!element)
-                        return;
-                    const rect = element.getBoundingClientRect();
-                    if (e.clientX >= rect.left && e.clientX <= rect.right &&
-                        (token_annotations.length === 1 || (e.clientY >= rect.top && e.clientY <= rect.bottom))) {
-                        return element.getAttribute("span_key");
-                    }
-                }).filter(key => !!key).sort((a, b) => zIndices[b] - zIndices[a]);
-                if (hits.length > 0) {
-                    handleClickSpan(e, hits[0]);
-                }
-            } : null}
-
             /*style={{color: styles?.[token_annotations?.[token_annotations.length - 1]?.style]?.color}}*/
         >{
             annotations
@@ -227,19 +169,20 @@ const Token = React.memo((
                 labelIdx[shape] += 1;
                 return (
                     <span
-                        /*onMouseEnter={(event) => handleMouseEnterSpan(event, annotation.id)}*/
-                        /*onMouseLeave={(event) => handleMouseLeaveSpan(event, annotation.id)}*/
-                        /*onMouseDown={(event) => {handleClickSpan(event, annotation.id);}}*/
                         className={`label ${(annotation.highlighted || annotation.selected) ? 'highlighted' : ''}`}
                         ref={element => {
-                            elements.current[elementsCount ++] = element;
+                            if (element) {
+                                mouseElements.current[`${annotation.id}-label-${annotation_i}`] = element
+                            } else {
+                                delete mouseElements.current[`${annotation.id}-label-${annotation_i}`];
+                            }
                         }}
                         key={annotation.id}
                         // @ts-ignore
                         span_key={annotation.id}
                         style={{
                             borderColor: styles?.[annotation?.style]?.[annotation?.highlighted ? 'highlighted' : 'base']?.borderColor,
-                            [isUnderline ? 'bottom': 'top']: 0,
+                            [isUnderline ? 'bottom' : 'top']: -9,
                             left: (nLabels[shape] - labelIdx[shape]) * 6 + (shape === 'box' ? -1 : 2),
                             // Labels are above every text entity overlay, except when this entity is highlighted
                             zIndex: 50 + annotation.zIndex + (annotation.highlighted ? 50 : 0)
@@ -249,8 +192,6 @@ const Token = React.memo((
         })}
         </span>
     );
-    elements.current.length = elementsCount;
-    return component;
 });
 
 const Line = React.memo(<StyleRest extends object>({index, styles, tokens, spansRef, handleMouseEnterSpan, handleMouseLeaveSpan, handleClickSpan, divRef}: {
@@ -263,16 +204,81 @@ const Line = React.memo(<StyleRest extends object>({index, styles, tokens, spans
     spansRef: { [key: string]: React.MutableRefObject<HTMLSpanElement> };
     divRef: React.RefObject<HTMLDivElement>;
 }) => {
+    const hoveredKeys = useRef(new Set<string>());
+    const elements = useRef<{[key: string]: HTMLElement}>({});
+
+    const onMouseMove = (e) => {
+        if (!elements || !hoveredKeys)
+            return;
+        let hitElements = Object.values(elements.current).map(element => {
+            if (!element)
+                return;
+            const rect = element.getBoundingClientRect();
+            if (
+                e.clientX >= rect.left && e.clientX <= rect.right &&
+                (e.clientY >= rect.top && e.clientY <= rect.bottom)
+            ) {
+                return element;//.getAttribute("span_key");
+            }
+        }).filter(e => !!e);
+        let newSet = new Set(hitElements.map(e => e.getAttribute("span_key")));
+        // @ts-ignore
+        hoveredKeys.current.forEach(x => !newSet.has(x) && handleMouseLeaveSpan(e, x));
+        // @ts-ignore
+        newSet.forEach(x => !hoveredKeys.current.has(x) && handleMouseEnterSpan(e, x));
+        hoveredKeys.current = newSet;
+    }
+    /*onMouseEnter={(event) => token_annotations.map(annotation => handleMouseEnterSpan(event, annotation.id))}*/
+    const onMouseLeave = (event) => {
+        if (!hoveredKeys)
+            return;
+        // @ts-ignore
+        hoveredKeys.current.forEach(x => handleMouseLeaveSpan(event, x));
+        hoveredKeys.current.clear();
+    }
+    const onMouseUp = (e) => {
+        let hitElements = Object.values(elements.current).map(element => {
+            if (!element)
+                return;
+            const rect = element.getBoundingClientRect();
+            if (
+                e.clientX >= rect.left && e.clientX <= rect.right &&
+                (e.clientY >= rect.top && e.clientY <= rect.bottom)
+                //&& (e.className.includes("underline")
+                //    ? (e.clientY <= rect.bottom)
+                //    : (e.clientY >= rect.top && e.clientY <= rect.bottom))
+            ) {
+                return element;//.getAttribute("span_key");
+            }
+        }).filter(e => !!e);
+        if (hitElements.length > 1) {
+            hitElements = hitElements.filter(element => {
+                const rect = element.getBoundingClientRect();
+                return element.className.includes("underline")
+                    ? (e.clientY <= rect.bottom)
+                    : (e.clientY >= rect.top && e.clientY <= rect.bottom);
+            }).sort((a, b) => Number.parseInt(a.style.zIndex) - Number.parseInt(b.style.zIndex))
+        }
+
+        if (hitElements.length > 0) {
+            handleClickSpan(e, hitElements[0].getAttribute("span_key"));
+        }
+    }
+
     return (
-        <div ref={divRef} className="line">
+        <div
+            ref={divRef}
+            className="line"
+            onMouseMove={onMouseMove}
+            onMouseLeave={onMouseLeave}
+            onMouseUp={onMouseUp}
+        >
             <span className="line-number" key="line-number">{index}</span>
             {tokens.map(token => <Token
                 {...token}
                 refs={spansRef}
                 styles={styles}
-                handleMouseEnterSpan={handleMouseEnterSpan}
-                handleMouseLeaveSpan={handleMouseLeaveSpan}
-                handleClickSpan={handleClickSpan}
+                mouseElements={elements}
             />)}
         </div>
     );

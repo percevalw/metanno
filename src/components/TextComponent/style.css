@@ -72,14 +72,15 @@
 
 .text-chunk {
     word-break: break-word;
-    white-space: pre-wrap;
-    display: inline-block;
+    white-space: nowrap;
+    display: inline;
     position: relative;
 }
 
 .text-chunk-content {
     position: relative;
     z-index: 1001;
+    white-space: pre-wrap;
 }
 
 .mention_token {
@@ -163,12 +164,19 @@
 }
 
 .mouse_selected {
-    line-height: 2.2em;
     background: rgba(137, 188, 250, 0.6); /*#b2d7ff88;*/
     border: none;
+    min-height: 2.8em;
+    z-index: 1000;
+}
+
+/* Style only for Mozilla Firefox */
+@-moz-document url-prefix() {
+  .mouse_selected {
     top: 0;
     bottom: 0;
-    z-index: 1000;
+    min-height: unset;
+  }
 }
 
 @keyframes blink {
