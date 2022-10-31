@@ -154,22 +154,21 @@ export function getDocumentSelectedRanges(): TextRange[] {
                 10
             );
             if (!isNaN(startContainerBegin)) {
-                begin = range.startOffset + startContainerBegin;
+                if (!isNaN(begin) && begin !== null) {
+                    begin = Math.min(begin, range.startOffset + startContainerBegin);
+                } else {
+                    begin = range.startOffset + startContainerBegin;
+                }
             }
             if (!isNaN(endContainerBegin)) {
-                end = range.endOffset + endContainerBegin;
-            }
-            if (isNaN(startContainerBegin) || isNaN(endContainerBegin)) {
-                continue;
-            }
-            if (begin !== end) {
-                ranges.push({
-                    begin: begin,
-                    end: end,
-                });
+                if (!isNaN(begin) && begin !== null) {
+                    end = Math.max(end, range.endOffset + endContainerBegin);
+                } else {
+                    end = range.endOffset + endContainerBegin;
+                }
             }
         }
-        if (ranges.length === 0 && !isNaN(begin) && begin !== null && !isNaN(end) && end !== null && begin !== end) {
+        if (!isNaN(begin) && begin !== null && !isNaN(end) && end !== null && begin !== end) {
             ranges.push({
                 begin: begin,
                 end: end,
