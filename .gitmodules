@@ -1,3 +1,10 @@
 [submodule "submodules/Transcrypt"]
 	path = submodules/Transcrypt
 	url = https://github.com/QQuick/Transcrypt.git
+[submodule "submodules/react-data-grid"]
+	path = submodules/react-data-grid
+	url = https://github.com/adazzle/react-data-grid.git
+[submodule "Transcrypt"]
+	shallow = true
+[submodule "react-data-grid"]
+	shallow = true
