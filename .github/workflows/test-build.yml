@@ -35,4 +35,4 @@ jobs:
         run: pip install -e .
 
       - name: Test import
-        run: python -c "from metanno.recipes.ner import NERApp; print("ok")"
+        run: python -c "from metanno.recipes.ner import NERApp; print('ok')"
