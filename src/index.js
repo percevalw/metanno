@@ -3,8 +3,8 @@ import './index.css';
 import {createStore} from 'redux';
 import * as ReactDOM from "react-dom";
 import {Provider} from "react-redux";
-import TableEditor from './containers/TableView';
-import SpanEditor from './containers/TextView';
+import TableEditor from './containers/TableContainer';
+import SpanEditor from './containers/TextContainer';
 
 import produce, {enablePatches, applyPatches} from "immer";
 import {useStore} from "react-redux";

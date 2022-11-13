@@ -4,10 +4,12 @@ import TextComponent from "../../components/TextComponent";
 import Toolbar from "../../components/Toolbar";
 import Loading from "../../components/Loading";
 import {cachedReconcile} from "../../utils";
-import {TextData, TextMethods, ToolbarData, ToolbarMethods} from "../../types";
+import {PyTextData, TextMethods, ToolbarData, ToolbarMethods} from "../../types";
 
-const TextView = ({
+const TextContainer = ({
     id,
+    stateId,
+
     onButtonPress,
     onKeyPress,
     onClickSpan,
@@ -15,11 +17,12 @@ const TextView = ({
     onMouseLeaveSpan,
     onMouseSelect,
     registerActions,
-    selectEditorState,
+    selectState,
 }: {
     id: string;
+    stateId: string;
     className?: string,
-    selectEditorState: (state: object, id: string) => TextData;
+    selectState: (/*state: object, id: string*/) => PyTextData;
 } & ToolbarMethods & TextMethods) => {
     const {
         spans,
@@ -29,10 +32,10 @@ const TextView = ({
         styles,
         loading,
     } = useSelector(useCallback(cachedReconcile(
-        (state: object): TextData & ToolbarData & {loading: boolean} => {
+        (state: object): PyTextData & ToolbarData & {loading: boolean} => {
             let derived = null;
-            if (selectEditorState && state) {
-                derived = selectEditorState(state, id)
+            if (selectState && state && state[stateId]) {
+                derived = selectState()
             }
             return (derived
                 ? {
@@ -46,7 +49,7 @@ const TextView = ({
                 }
                 : {loading: true})
         }),
-        [id, selectEditorState],
+        [id, selectState],
     ));
 
 
@@ -68,7 +71,7 @@ const TextView = ({
                 spans={spans}
                 text={text}
                 styles={styles}
-                mouse_selection={mouse_selection}
+                mouseSelection={mouse_selection}
 
                 onKeyPress={onKeyPress}
                 onClickSpan={onClickSpan}
@@ -81,4 +84,4 @@ const TextView = ({
     )
 };
 
-export default TextView;
+export default TextContainer;

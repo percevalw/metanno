@@ -14,6 +14,8 @@ import {RowData, TableData, TableMethods} from "../../types";
 import {getCurrentEvent} from "../../current_event";
 
 
+const ROW_HEIGHT = 25;
+
 function inputStopPropagation(event: React.KeyboardEvent<HTMLInputElement>) {
     if (['ArrowLeft', 'ArrowRight'].includes(event.key)) {
         event.stopPropagation();
@@ -336,10 +338,6 @@ class TableComponent extends React.Component<{ id: string; } & TableData & Table
         this.setState(state => ({...state, columnsOrder: reorderedColumns}));
     };
 
-    onSelectedRowsChange = (row_ids: Set<string>) => {
-        this.props.onSelectedRowsChange?.(Array.from(row_ids));
-    };
-
     renderRow = (props: RowRendererProps<RowData, RowData>) => {
         return <Row
             {...props}
@@ -353,9 +351,9 @@ class TableComponent extends React.Component<{ id: string; } & TableData & Table
     onBlur = (event) => {
         if (event.currentTarget.contains(event.relatedTarget))
             return
-        if (this.props.selectedPosition?.mode === "EDIT")
+        if (this.props.position?.mode === "EDIT")
             return
-        this.props.onSelectedPositionChange(
+        this.props.onPositionChange(
             null,
             null,
             "SELECT",
@@ -363,8 +361,8 @@ class TableComponent extends React.Component<{ id: string; } & TableData & Table
         );
     }
 
-    handleSelectedPositionChange = ({idx, rowIdx, mode, cause="key"}) => {
-        this.props.onSelectedPositionChange(
+    handlePositionChange = ({idx, rowIdx, mode, cause="key"}) => {
+        this.props.onPositionChange(
             rowIdx >= 0 ? this.props.rows[rowIdx][this.props.rowKey] : null,
             idx >= 0 ? this.state.columnsOrder[idx] : null,
             mode,
@@ -372,8 +370,8 @@ class TableComponent extends React.Component<{ id: string; } & TableData & Table
         )
     }
 
-    getSelectedPositionIndices = cachedReconcile((selectedPosition) => {
-        const {row_id, col, mode} = selectedPosition || {row_id: null, col: null, mode: 'SELECT'};
+    getPositionIndices = cachedReconcile((position) => {
+        const {row_id, col, mode} = position || {row_id: null, col: null, mode: 'SELECT'};
         const row_idx = row_id === null ? -1 : row_id ? this.props.rows.findIndex(row => row[this.props.rowKey] === row_id) : -2;
         const col_idx = col ? this.state.columnsOrder.findIndex(name => col === name) : -2;
         return {
@@ -386,21 +384,24 @@ class TableComponent extends React.Component<{ id: string; } & TableData & Table
     render() {
         (this.inputRef.current?.input || this.inputRef.current)?.focus();
 
+        const tableHeight = Math.min(
+            Math.max(ROW_HEIGHT * (1 + this.props.rows.length), ROW_HEIGHT * 2 + 2),
+            300,
+        );
+
         return (
-            <div className={"metanno-table"} onBlur={this.onBlur}>
+            <div className={"metanno-table"} style={{minHeight: tableHeight}} onBlur={this.onBlur}>
                 <DndProvider backend={HTML5Backend}>
                     <DataGrid
                         ref={this.gridRef}
                         rowKeyGetter={this.rowKeyGetter}
-                        rowHeight={25}
-                        selectedPosition={this.getSelectedPositionIndices(this.props.selectedPosition)}
-                        onSelectedPositionChange={this.handleSelectedPositionChange}
+                        rowHeight={ROW_HEIGHT}
+                        selectedPosition={this.getPositionIndices(this.props.position)}
+                        onSelectedPositionChange={this.handlePositionChange}
                         columns={this.buildColumns()}
                         rows={this.props.rows}
                         rowRenderer={this.renderRow}
                         headerRowHeight={this.props.columns.some(col => col.filterable) ? 65 : undefined}
-                        // selectedRows={new Set(this.props.selectedRows)}
-                        // onSelectedRowsChange={this.onSelectedRowsChange}
                         onRowsChange={this.onRowsChange}
                     />
                 </DndProvider>

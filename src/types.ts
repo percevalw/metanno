@@ -52,6 +52,13 @@ export type QuickStyle = {
 export type TextData = {
     text: string;
     spans: SpanData[];
+    mouseSelection: TextRange[];
+    styles: { [style_name: string]: QuickStyle };
+}
+
+export type PyTextData = {
+    text: string;
+    spans: SpanData[];
     mouse_selection: TextRange[];
     styles: { [style_name: string]: QuickStyle };
 }
@@ -88,14 +95,26 @@ export type ToolbarData = {
 export type TableData = {
     rows: RowData[];
     rowKey: string;
-    selectedRows: string[];
     highlightedRows: string[];
     columns: ColumnData[];
     suggestions?: (Hyperlink | string)[],
     filters: Filters;
     inputValue: any;
-    selectedPosition: {row_id: string, col: string, mode: "EDIT" | "SELECT"};
+    position: {row_id: string, col: string, mode: "EDIT" | "SELECT"};
 }
+
+
+export type PyTableData = {
+    rows: RowData[];
+    row_key: string;
+    highlighted_rows: string[];
+    columns: ColumnData[];
+    suggestions?: (Hyperlink | string)[],
+    filters: Filters;
+    input_value: any;
+    position: {row_id: string, col: string, mode: "EDIT" | "SELECT"};
+}
+
 
 export type TableMethods = {
     registerActions: ({
@@ -105,8 +124,7 @@ export type TableMethods = {
         scroll_to_row: (number) => void,
         focus: () => void,
     }) => void;
-    onSelectedPositionChange?: (row_id: string, name: string, mode: string, cause: string) => void;
-    onSelectedRowsChange?: (row_ids: string[]) => void;
+    onPositionChange?: (row_id: string, name: string, mode: string, cause: string) => void;
     onFiltersChange?: (name: string, value: any) => void;
     onClickCellContent?: (row_id: string, name: string, value?: any) => void;
     onKeyPress?: () => void;

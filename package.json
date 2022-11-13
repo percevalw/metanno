@@ -1,6 +1,6 @@
 {
   "name": "metanno",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "description": "Jupyter widgets collection to setup a modular annotation environment",
   "keywords": [
     "jupyter",
@@ -118,6 +118,7 @@
     "@babel/preset-react": "7.16.0",
     "@babel/preset-typescript": "7.16.0",
     "@jupyterlab/builder": "^3.4.1",
+    "@jupyterlab/galata": "^4.4.0",
     "@svgr/webpack": "4.3.3",
     "@testing-library/jest-dom": "4.2.4",
     "@testing-library/react": "9.5.0",

@@ -4,46 +4,46 @@ import TableComponent from "../../components/TableComponent";
 import Toolbar from "../../components/Toolbar";
 import Loading from "../../components/Loading";
 import {cachedReconcile} from "../../utils";
-import {TableData, TableMethods, ToolbarData, ToolbarMethods} from "../../types";
+import {PyTableData, TableMethods, ToolbarData, ToolbarMethods} from "../../types";
 
-const TableView = ({
+const TableContainer = ({
      id,
+     stateId,
      className,
 
      onKeyPress,
      onClickCellContent,
-     onSelectedPositionChange,
+     onPositionChange,
      registerActions,
      onFiltersChange,
-     onSelectedRowsChange,
      onMouseEnterRow,
      onMouseLeaveRow,
      onButtonPress,
      onCellChange,
      onInputChange,
-     selectEditorState,
+     selectState,
  }: {
     id: string;
+    stateId: string;
     className?: string,
-    selectEditorState: (state: object, id: string) => TableData;
+    selectState: (/*state: object, id: string*/) => PyTableData;
 } & TableMethods & ToolbarMethods) => {
     const {
         rows,
-        rowKey,
+        row_key,
         columns,
         buttons,
         loading,
-        inputValue,
+        input_value,
         filters,
         suggestions,
-        selectedRows,
-        selectedPosition,
-        highlightedRows,
+        position,
+        highlighted_rows,
     } = useSelector(useCallback(cachedReconcile(
-        (state: object): TableData & ToolbarData & {loading: boolean}  => {
+        (state: object): PyTableData & ToolbarData & {loading: boolean}  => {
             let derived = null;
-            if (selectEditorState && state) {
-                derived = selectEditorState(state, id)
+            if (selectState && state && state[stateId]) {
+                derived = selectState()
             }
 
             return (derived
@@ -52,20 +52,18 @@ const TableView = ({
                     columns: [],
                     rowKey: '',
                     buttons: [],
-                    selectedCells: [],
                     styles: [],
                     filters: {},
                     suggestions: [],
-                    selectedRows: [],
-                    selectedPosition: {},
-                    highlightedRows: [],
-                    inputValue: undefined,
+                    position: {},
+                    highlighted_rows: [],
+                    input_value: undefined,
 
                     ...derived, loading: false
                 }
                 : {loading: true})
         }),
-        [id, selectEditorState],
+        [id, selectState],
     ));
 
     if (loading) {
@@ -85,21 +83,19 @@ const TableView = ({
             <TableComponent
                 id={id}
                 rows={rows}
-                selectedRows={selectedRows}
-                highlightedRows={highlightedRows}
+                highlightedRows={highlighted_rows}
                 columns={columns}
                 filters={filters}
-                rowKey={rowKey}
-                inputValue={inputValue}
+                rowKey={row_key}
+                inputValue={input_value}
                 suggestions={suggestions}
-                selectedPosition={selectedPosition}
+                position={position}
 
                 onKeyPress={onKeyPress}
                 onMouseEnterRow={onMouseEnterRow}
                 onMouseLeaveRow={onMouseLeaveRow}
                 onFiltersChange={onFiltersChange}
-                onSelectedRowsChange={onSelectedRowsChange}
-                onSelectedPositionChange={onSelectedPositionChange}
+                onPositionChange={onPositionChange}
                 onClickCellContent={onClickCellContent}
                 onCellChange={onCellChange}
                 onInputChange={onInputChange}
@@ -109,4 +105,4 @@ const TableView = ({
     )
 };
 
-export default TableView;
+export default TableContainer;

@@ -1,0 +1,79 @@
+site_name: Metanno
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      toggle:
+        icon: material/brightness-4
+        name: Switch to dark mode
+    - scheme: slate
+      toggle:
+        icon: material/brightness-7
+        name: Switch to light mode
+
+  logo: assets/images/icon.svg
+  favicon: assets/images/icon.svg
+  features:
+    - navigation.tracking
+    - navigation.instant
+    - navigation.indexes
+    # - navigation.tabs
+    - navigation.top
+    - content.code.annotate
+
+
+extra_css:
+  - assets/stylesheets/extra.css
+
+
+nav:
+  - index.md
+  - Demo: https://mybinder.org/v2/gh/percevalw/metanno/HEAD?urlpath=lab%2Ftree%2Fexamples%2FAnnotator.ipynb" target="_blank
+  - Tutorials:
+    - tutorials/index.md
+    - tutorials/spacy101.md
+    - tutorials/matching-a-terminology.md
+    - tutorials/qualifying-entities.md
+    - tutorials/detecting-dates.md
+    - tutorials/multiple-texts.md
+    - tutorials/endlines.md
+    - tutorials/reason.md
+  - Advanced tutorials:
+    - advanced-tutorials/index.md
+    - advanced-tutorials/word-vectors.md
+    - advanced-tutorials/fastapi.md
+    - Creating a pipeline: https://spacy.io/usage/processing-pipelines#custom-components" target="_blank
+  - Pipelines:
+    - pipelines/index.md
+    - pipelines/architecture.md
+    - Core Pipelines:
+      - pipelines/core/index.md
+      - pipelines/core/matcher.md
+      - pipelines/core/normalisation.md
+      - pipelines/core/endlines.md
+      - pipelines/core/sentences.md
+    - Qualifiers:
+      - pipelines/qualifiers/index.md
+      - pipelines/qualifiers/negation.md
+      - pipelines/qualifiers/family.md
+      - pipelines/qualifiers/hypothesis.md
+      - pipelines/qualifiers/reported-speech.md
+      - pipelines/qualifiers/history.md
+    - Miscellaneous:
+      - pipelines/misc/index.md
+      - pipelines/misc/dates.md
+      - pipelines/misc/consultation-dates.md
+      - pipelines/misc/sections.md
+      - pipelines/misc/reason.md
+    - Named Entity Recognition:
+      - pipelines/ner/index.md
+      - pipelines/ner/score.md
+      - pipelines/ner/covid.md
+  - Connectors:
+    - utilities/connectors/index.md
+    - utilities/connectors/brat.md
+    - utilities/connectors/omop.md
+  - Code Reference: reference/
+  - contributing.md
+  - changelog.md
