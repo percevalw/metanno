@@ -98,13 +98,13 @@ function styleTextChunks_(text_chunks: TextChunk[], spans: SpanData[], styles: {
                     let missingZIndices = [undefined];
                     for (const {depth, zIndex, mouseSelected, style: tokenStyle} of text_chunks[text_chunk_i].token_annotations) {
                         if (!mouseSelected) {
-                            (styles[tokenStyle].shape === 'underline' ? missingUnderlineDepths : missingBoxDepths)[depth] = true;
+                            (styles[tokenStyle]?.shape === 'underline' ? missingUnderlineDepths : missingBoxDepths)[depth] = true;
                             missingZIndices[zIndex] = true;
                         }
                     }
-                    newDepth = (styles[style].shape === 'underline' ? missingUnderlineDepths : missingBoxDepths).findIndex(isNot);
+                    newDepth = (styles[style]?.shape === 'underline' ? missingUnderlineDepths : missingBoxDepths).findIndex(isNot);
                     if (newDepth === -1) {
-                        newDepth = (styles[style].shape === 'underline' ? missingUnderlineDepths : missingBoxDepths).length;
+                        newDepth = (styles[style]?.shape === 'underline' ? missingUnderlineDepths : missingBoxDepths).length;
                     }
                     newZIndex = missingZIndices.findIndex(isNot);
                     if (newZIndex === -1) {

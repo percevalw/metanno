@@ -1,3 +1,5 @@
+from __future__ import annotations
+import weakref
 from copy import copy as shallow_copy
 from dataclasses import dataclass, field
 
@@ -5,8 +7,9 @@ import collections.abc
 import functools
 import inspect
 from contextlib import contextmanager
+from enum import Enum
 from itertools import count
-from typing import TypeVar, Generic, Optional, List, Tuple, Sequence, Iterable, Iterator, Any, Callable, Dict
+from typing import TypeVar, Generic, Optional, List, Tuple, Sequence, Iterable, Iterator, Any, Callable, Dict, TypedDict
 
 
 def get_class_that_defined_method(meth):
@@ -44,15 +47,36 @@ def get_closest_non_derived_parent(state):
     return state
 
 
-def maybe_on_change(proxy):
+def maybe_on_change(proxy: 'Proxy'):
     if proxy._state.on_change is not None:
+        old = proxy._state.base
         res, patches = commit(proxy, do_patches=True)
-        proxy._state.on_change(res, patches)
+        proxy._state.on_change(old, res, patches)
+
+
+@contextmanager
+def disable_on_change(proxy: 'Proxy'):
+    on_change = proxy._state.on_change
+    proxy._state.on_change = None
+    yield
+    proxy._state.on_change = on_change
 
 
 T = TypeVar('T')
 S = TypeVar('S')
 K = TypeVar('K')
+
+
+class PatchOp(str, Enum):
+    add = "add"
+    replace = "replace"
+    delete = "remove"
+
+
+class Patch(TypedDict):
+    path: str
+    op: PatchOp
+    value: Any
 
 
 @dataclass
@@ -61,7 +85,7 @@ class Scope:
     # inverse_patches: Optional[List[Patch]]
     parent: Optional['Scope'] = None
     unfinalized_drafts: int = 0
-    proxies: ['Proxy'] = field(default_factory=lambda: [])
+    proxies: [weakref.ReferenceType['Proxy']] = field(default_factory=lambda: [])
     on_change: Optional[Callable[[Any], None]] = None
 
 
@@ -244,6 +268,13 @@ class SequenceProxy(Proxy[T], collections.abc.Sequence):
         set_on_parent(state)
         maybe_on_change(self)
 
+    def __delitem__(self, indexer):
+        state = self._state
+        ensure_copy(state)
+        del state.copy[indexer]
+        set_on_parent(state)
+        maybe_on_change(self)
+
     def extend(self, values):
         state = self._state
         ensure_copy(state)
@@ -350,6 +381,13 @@ class MapProxy(Proxy[T], collections.abc.Mapping):
         state = self._state
         ensure_copy(state)
         state.copy[key] = value
+        set_on_parent(state)
+        maybe_on_change(self)
+
+    def __delitem__(self, key):
+        state = self._state
+        ensure_copy(state)
+        del state.copy[key]
         set_on_parent(state)
         maybe_on_change(self)
 

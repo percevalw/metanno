@@ -1,18 +1,4 @@
-from ..types import *
-
-from metanno import App, kernel_only, frontend_only, produce, get_idx
-
-colors = [
-    "rgb(255,200,206)",
-    "rgb(210,236,247)",
-    "rgb(211,242,206)",
-    "rgb(242,242,206)",
-    "rgb(231,210,247)",
-    "rgb(252,215,216)",
-    "rgb(251,243,219)",
-    "rgb(250,231,212)",
-    "rgb(250,212,229)",
-]
+from metanno import App, kernel_only, frontend_only, produce, chain_map, chain_list, get_idx
 
 
 class NERApp(App):
@@ -25,19 +11,20 @@ class NERApp(App):
         if data is not None:
             self.data = data
             docs = [
-                {
-                    **doc,
+                chain_map(doc, {
                     "entities": {
-                        ent["id"]: {
-                            **ent,
-                            **({att["label"]: att["value"] for att in ent["attributes"]}),
-                        }
+                        ent["id"]: chain_map(ent, {
+                            # "attributes": {
+                            #     att["name"]: att["value"]
+                            #     for att in ent["attributes"]
+                            # }
+                        })
                         for ent in doc["entities"]
                     }
-                }
+                })
                 for doc in self.data.load()
             ]
-            self.state: NERState = {
+            self.state = {
                 # Data specific state
                 "doc_id": 0,
                 "docs": docs,
@@ -49,75 +36,62 @@ class NERApp(App):
                 "mouse_selection": [],
                 "highlighted": [],
                 "selected": [],
-                "entities_filters": {},
-                "aliases": {
-                    field["name"]: field["alias"]  # chain_map(){"color": field["color"], "alpha": 0.8}
-                    for field in scheme["labels"]
-                },
-                "table_position": {
-                    "id": "",
-                    "row_id": "",
-                    "col": "",
-                    "mode": "SELECT",
-                },
                 "scheme": scheme,
+                "entities_filters": {},
+                "suggestions": [],
                 # "entities_subset": list(range(len(docs[0]["entities"]))),
                 "styles": {
-                    field["name"]: field  # chain_map(){"color": field["color"], "alpha": 0.8}
-                    for field in scheme["labels"]
+                    field["name"]: chain_map({"alpha": 0.8}, field)  # chain_map(){"color": field["color"], "alpha": 0.8}
+                    for field in chain_list(scheme["labels"])
                 },
                 "buttons": [
-                    *([
-                        {
-                            "type": "button",
-                            # "key": "suggest",
-                            "label": "Suggest",
-                            "annotation_kind": None,
-                            # "secondary": None,
-                            "color": "white",
-                        }
-                    ] if suggester is not None else []),
-                    *(
-                        {
-                            "type": "button",
-                            # "key": field["key"],
-                            "label": field["name"],
-                            "annotation_kind": anno_type,
-                            "secondary": field["key"],
-                            **(
-                                {"color": field["color"]}
-                                if field.get("color", None) else {}),
-                        }
-                        for anno_type in ("labels", "attributes")
-                        for field in scheme[anno_type]
-                        if field.get("key", None) is not None
-                    )
+                    {
+                        "type": "button",
+                        "key": "suggest",
+                        "label": "Suggest",
+                        "annotation_kind": None,
+                        # "secondary": None,
+                        "color": "white",
+                    }
+                ] + [
+                    chain_map({
+                        "type": "button",
+                        "key": field["key"],
+                        "label": field["name"],
+                        "annotation_kind": anno_type,
+                        "secondary": field["key"]}, {
+                        "color": field["color"],
+                    } if field.get("color", None) else {})
+                    for anno_type in ("labels", "attributes")
+                    for field in scheme[anno_type]
+                    if field.get("key", None) is not None
                 ],
             }
         else:
-            self.state: NERState = {
+            self.state = {
                 "doc_id": "",
                 "docs": {},
                 "mouse_selection": [],
                 "highlighted": [],
                 "selected": [],
-                "aliases": {},
                 "scheme": {},
                 "styles": {},
                 "buttons": [],
                 "entities_filters": {},
                 "entities_subset": [],
+                "suggestions": [],
             }
 
-    def select_editor_state(self, state: NERState, editor_id: str) -> Union[TextViewProps, TableViewProps]:
+    def select_editor_state(self, state, editor_id):
         doc = state["docs"][state["doc_id"]]
         if not doc:
             return
         hyperlinks = {
-            ent['id']: {"key": ent["id"], "text": doc["text"][ent["begin"]:ent["end"]]}
+            ent['id']: {"key": ent["id"], "text": doc["text"][ent["begin"]:ent["end"]], "is_scope": ent["label"] == "scope"}
             for ent in doc["entities"].values()
         }
         if editor_id == "text":
+            scopes_to_show = [doc["entities"][entity_id]["scope"] for entity_id in state["highlighted"] if "scope" in doc["entities"][entity_id]]
             return dict(
                 # Currently displayed text
                 text=doc["text"],
@@ -127,20 +101,18 @@ class NERApp(App):
                     {
                         "begin": entity["begin"],
                         "end": entity["end"],
-                        "label": "".join([
-                            state["aliases"][entity["label"]],
-                            *(
-                                f'[{entity["attributes"][attribute["name"]]}]'
-                                for attribute in state["scheme"]["attributes"]
-                                if attribute["name"] in entity
-                            )
-                        ]),
+                        "label": "".join(chain_list([entity["label"]], [
+                            "["+entity[attribute["name"]] + "]"
+                            for attribute in state["scheme"]["attributes"]
+                            if attribute["name"] in entity
+                        ])) if entity["label"] != "scope" else None,
                         "style": entity["label"],
                         "id": entity["id"],
                         "highlighted": entity["id"] in state["highlighted"],
                         "selected": entity["id"] in state["selected"],
                     }
                     for entity in doc["entities"].values()
+                    if entity["label"] != "scope" or entity["id"] in scopes_to_show
                 ],
 
                 # Styles map to lookup span attributes
@@ -171,63 +143,59 @@ class NERApp(App):
                 ],
                 selectedRows=[],
                 highlightedRows=[state["docs"][state["doc_id"]]["id"]],
-                selectedPosition=(state["table_position"] if state["table_position"] and state["table_position"]["editor_id"] == "docs" else None),
             )
         elif editor_id == "entities":
             return dict(
                 rows=[
-                    {
+                    chain_map({
                         "visible": True,
 
                         # Span specific columns
                         "id": entity["id"],
                         "offsets": str(entity["begin"]) + "-" + str(entity["end"]),
                         "mention": hyperlinks.get(entity["id"], None),
-                        "label": state["aliases"][entity["label"]],
-                        **{
-                            attribute["name"]: entity[attribute["name"]] if attribute["name"] in entity else None
-                            for attribute in state["scheme"]["attributes"]
-                        }
-                    }
+                        "scope": hyperlinks.get(entity["scope"], None),
+                        "label": entity["label"],
+                    }, {
+                        attribute["name"]: entity[attribute["name"]] if attribute["name"] in entity else None
+                        for attribute in state["scheme"]["attributes"]
+                    })
                     for entity in self.filter_and_sort_entities(doc, doc["entities"], state["entities_filters"])
+                    if entity["label"] != "scope"
                 ],
                 rowKey="id",
-                columns=[
-                    {"name": "offsets", "type": "text"},
-                    {"name": "delete", "type": "button"},
+                columns=chain_list([
+
                     {"name": "mention", "type": "hyperlink", "mutable": True, "filterable": True},
+                    {"name": "scope", "type": "hyperlink", "mutable": True, "filterable": False},
+                    {"name": "offsets", "type": "text"},
                     {"name": "label", "type": "text", "mutable": True, "filterable": True, "choices": [
                         label["name"] for label in state["scheme"]["labels"]
                     ]},
-                    *(
-                        {
-                            "name": attribute["name"],
-                            "type": attribute["type"],
-                            "mutable": True,
-                            "filterable": True,
-                            **({"choices": attribute["choices"]} if "choices" in attribute else {}),
-                        }
-                        for attribute in state["scheme"]["attributes"]
+                ], [
+                    chain_map(
+                        {"name": attribute["name"], "type": attribute["kind"], "mutable": True, "filterable": True},
+                        {"choices": attribute["choices"]} if "choices" in attribute else {},
                     )
-                ],
+                    for attribute in state["scheme"]["attributes"]
+                ]),
                 filters=state["entities_filters"],
                 selectedRows=state["selected"],
                 highlightedRows=state["highlighted"],
                 inputValue=state["inputValue"],
-                # suggestions=state["suggestions"],
-                selectedPosition=(state["table_position"] if state["table_position"] and state["table_position"]["editor_id"] == "entities" else None),
+                suggestions=state["suggestions"],
             )
 
-    def filter_and_sort_entities(self, doc: Doc, entities: Dict[str, Entity], filters: Filters):
+    def filter_and_sort_entities(self, doc, entities, filters):
         return sorted([
             entity
             for entity in entities.values()
             if (
                   ("mention" not in filters or filters["mention"] in doc["text"][entity["begin"]:entity["end"]].lower()) and
                   all(
-                    key in entity and entity[key] and column_filter in entity[key].lower()
+                    column_filter in entity[key].lower()
                     for key, column_filter in filters.items()
-                    if key != "mention" and len(column_filter) > 0)
+                    if key != "mention" and key != "scope")
             )
         ], key=lambda ent: ent["begin"] + (1. - ent["end"]/10000))
 
@@ -247,14 +215,13 @@ class NERApp(App):
     @produce
     def suggest(self):
         doc = self.state["docs"][self.state["doc_id"]]
-        doc = self.suggester({**doc, "entities": list(doc["entities"].values())})
-        doc = {
-            **doc,
+        doc = self.suggester(chain_map(doc, {"entities": list(doc["entities"].values())}))
+        doc = chain_map(doc, {
             "entities": {
                 ent["id"]: ent
                 for ent in doc["entities"]
-            },
-        }
+            }
+        })
         self.state["docs"][self.state["doc_id"]] = doc
 
     def annotate(self, key, spans):
@@ -263,7 +230,6 @@ class NERApp(App):
 
         doc = self.state["docs"][self.state["doc_id"]]
         has_new_spans = False
-        new_id = None
 
         if key == " ":
             first_selection = self.state["mouse_selection"][0]
@@ -273,20 +239,19 @@ class NERApp(App):
                 self.state["mouse_selection"].append({"begin": next_occurrence, "end": next_occurrence + len(term)})
         elif key == "Backspace":
             self.delete_entities([
-                ent_id
-                for ent_id, ent in doc["entities"].items()
-                if any(has_overlap(ent, mouse_span) for mouse_span in spans)
+                span_id
+                for span_id, span in doc["entities"].items()
+                if any(has_overlap(span, mouse_span) for mouse_span in spans) and not span["label"] == "scope"
             ])
         elif key == "suggest":
             self.suggest()
             self.state["mouse_selection"] = []
         elif len(spans):
-            entities_to_delete = []
             for button in self.state["buttons"]:
                 if button['type'] == 'button' and button["key"] == key:
                     if button["annotation_kind"] == "labels":
                         for span in spans:
-                            new_id = f"metanno-{doc['id']}-{span['begin']}-{span['end']}-{button['label']}"
+                            new_id = f"metanno-{doc['id']}-{len(doc['entities'])}"
                             doc['entities'][new_id] = {
                                 "begin": span["begin"],
                                 "end": span["end"],
@@ -294,11 +259,6 @@ class NERApp(App):
                                 "id": new_id,
                             }
                             has_new_spans = True
-                            entities_to_delete.extend([
-                                ent_id
-                                for ent_id, ent in doc["entities"].items()
-                                if has_overlap(ent, span) and ent["label"] == button["label"] and ent_id != new_id
-                            ])
                     if button["annotation_kind"] == "attributes" and button["key"] == key:
                         is_true = None
                         for span in doc["entities"].values():
@@ -310,37 +270,23 @@ class NERApp(App):
                     pass
             if not has_new_spans:
                 return
-            self.delete_entities(entities_to_delete)
             self.state["mouse_selection"] = []
-
-            if new_id is not None:
-                self.state["table_position"] = {"editor_id": "entities", "row_id": new_id, "col": "mention", "mode": "SELECT"}
-                self.focus("entities")
 
     def delete_entities(self, entities_id):
         for entity_id in entities_id:
+            scope_id = self.state["docs"][self.state["doc_id"]]["entities"][entity_id]["scope"]
             del self.state["docs"][self.state["doc_id"]]["entities"][entity_id]
-        self.state["highlighted"] = [span_id for span_id in self.state["highlighted"] if span_id not in entities_id]
-        self.state["selected"] = [span_id for span_id in self.state["selected"] if span_id not in entities_id]
+            if scope_id:
+                del self.state["docs"][self.state["doc_id"]]["entities"][scope_id]
+            self.state["highlighted"] = [span_id for span_id in self.state["highlighted"] if span_id not in entities_id]
+            self.state["selected"] = [span_id for span_id in self.state["selected"] if span_id not in entities_id]
 
     def on_state_change(self, state, old_state):
         if "docs" in old_state and not (state["docs"] is old_state.get("docs", None)):
             self.manager.save_state()
             docs = [
-                {
-                    **doc,
-                    "entities": [{
-                        **ent,
-                        "attributes": [
-                            {"label": attribute["name"], "value": ent[attribute["name"]]}
-                            for attribute in state["scheme"]["attributes"]
-                            if attribute["name"] in ent
-                        ]
-                        } for ent in list(doc["entities"].values())
-                    ]
-                }
-                for doc, old_doc in zip(state["docs"], old_state["docs"])
-                if doc is not old_doc
+                chain_map(doc, {"entities": list(doc["entities"].values())})
+                for doc in state["docs"]
             ]
             self.data.save(docs)
 
@@ -372,10 +318,10 @@ class NERApp(App):
 
     @produce
     def handle_mouse_select(self, editor_id, modkeys, spans):
-        if len(spans) and self.state["table_position"]["mode"] == "EDIT":
+        if len(spans):
             text = self.state["docs"][self.state["doc_id"]]["text"]
             self.state["inputValue"] = {"text": text[spans[0]["begin"]:spans[0]["end"]], "key": "", "begin": spans[0]["begin"], "end": spans[0]["end"]}
-            self.focus("entities")
+            self.focus_input("entities")
         if "Shift" in modkeys:
             self.state["mouse_selection"].extend(spans)
         else:
@@ -383,16 +329,19 @@ class NERApp(App):
 
     @produce
     def handle_click_span(self, editor_id, span_id, modkeys):
-        if "Shift" in modkeys: # we are not editing
-            self.state["table_position"] = {"editor_id": "entities", "row_id": span_id, "col": "mention", "mode": "SELECT"}
-            #self.focus("entities")
+        if "Shift" in modkeys:
+            if span_id in self.state['selected']:
+                self.state['selected'].remove(span_id)
+            else:
+                self.state['selected'].append(span_id)
+        if "Meta" in modkeys:
             self.scroll_to_row("entities", span_id)
 
     @frontend_only
     @produce
     def handle_mouse_enter_span(self, editor_id, span_id, modkeys):
-        if span_id not in self.state["highlighted"]:
-            self.state["highlighted"].append(span_id)
+        if self.state["docs"][self.state["doc_id"]]["entities"][span_id]["label"] != "scope":
+            self.state["highlighted"].extend([span_id])
 
     @frontend_only
     @produce
@@ -421,36 +370,20 @@ class NERApp(App):
 
     @frontend_only
     @produce
-    def handle_input_change(self, editor_id, row_id, col, value, cause):
+    def handle_input_change(self, editor_id, row_id, col, value):
         self.state['inputValue'] = value
         # entity_suggestions = self.state["docs"][self.state["doc_id"]]["entities"][row_id]["suggestions"]
         # self.state['suggestions'] = entity_suggestions[col] if col in entity_suggestions else []
-        if cause == "up" or cause == "down":
-            return
         if col == "label":
             self.state["suggestions"] = [label["name"] for label in self.state["scheme"]["labels"]]
-        elif col == "mention":
-            self.state["suggestions"] = []
         else:
-            self.state["suggestions"] = [
-                suggestion
-                for suggestion in self.state["scheme"]["attributes"][get_idx(self.state["scheme"]["attributes"], col, "name")]["choices"]
-                if (not value or value is None) or value.lower() in suggestion.lower()
-            ][:100]
+            self.state["suggestions"] = self.state["scheme"]["attributes"][get_idx(self.state["scheme"]["attributes"], col, "name")]["choices"]
 
-    @produce
-    def delete_annotation(self, id):
-        del self.state["docs"][self.state["doc_id"]]["entities"][id]
-
-    def handle_click_cell_content(self, editor_id, row_id, col, value):
+    def handle_click_cell_content(self, editor_id, key):
         if editor_id == "docs":
-            if col == "id":
-                self.change_doc(value)
+            self.change_doc(key)
         else:
-            if col == "mention":
-                self.scroll_to_span("text", value)
-            if col == "delete":
-                self.delete_annotation(row_id)
+            self.scroll_to_span("text", key)
 
     @produce
     def handle_select_rows(self, editor_id, span_ids):
@@ -458,16 +391,9 @@ class NERApp(App):
 
     @produce
     def handle_filters_change(self, editor_id, col, value):
+        print(str((col, value)))
         if editor_id == "entities":
             self.state["entities_filters"][col] = value
-
-    @frontend_only
-    @produce
-    def handle_selected_position_change(self, editor_id, row_id, col, mode, cause=None):
-        self.state["table_position"] = {"editor_id": editor_id, "row_id": row_id, "col": col, "mode": mode}
-        if editor_id == "entities":
-            self.state["highlighted"] = [row_id]
-            self.scroll_to_span("text", row_id)
 
     @produce
     def handle_cell_change(self, editor_id, row_id, col, value):
@@ -475,9 +401,17 @@ class NERApp(App):
             if col == "mention":
                 self.state["docs"][self.state["doc_id"]]["entities"][row_id]["begin"] = value["begin"]
                 self.state["docs"][self.state["doc_id"]]["entities"][row_id]["end"] = value["end"]
+            if col == "scope":
+                scope_id = self.state["docs"][self.state["doc_id"]]["entities"][row_id]["scope"]
+                if not scope_id:
+                    scope_id = f"{row_id}-scope"
+                    self.state["docs"][self.state["doc_id"]]["entities"][scope_id] = {"id": scope_id, "label": "scope", "begin": value["begin"], "end": value["end"]}
+                    self.state["docs"][self.state["doc_id"]]["entities"][row_id]["scope"] = scope_id
+                else:
+                    self.state["docs"][self.state["doc_id"]]["entities"][scope_id]["begin"] = value["begin"]
+                    self.state["docs"][self.state["doc_id"]]["entities"][scope_id]["end"] = value["end"]
             elif col:
                 self.state["docs"][self.state["doc_id"]]["entities"][row_id][col] = value
             self.state["mouse_selection"] = []
-        if editor_id == "docs" and col == "seen":
-            self.state["docs"][get_idx(self.state["docs"], row_id, "id")]["seen"] = value
-        self.state["inputValue"] = None
+        if editor_id == "docs" and col == "checked":
+            self.state["docs"][self.state["doc_id"]]["seen"] = value

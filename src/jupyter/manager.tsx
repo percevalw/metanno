@@ -2,10 +2,9 @@ import "regenerator-runtime/runtime";
 import React from "react";
 
 import {applyMiddleware, compose, createStore, Store} from "redux";
-import {eval_code} from "./loadTranscypt";
-import {applyPatches, enablePatches} from "immer";
+import {applyPatches, createDraft, enablePatches, finishDraft, Patch} from "immer";
 // @ts-ignore
-import {JSONObject, JSONValue} from "@lumino/coreutils";
+import {JSONObject, JSONValue, UUID} from "@lumino/coreutils";
 // @ts-ignore
 import {DocumentRegistry} from "@jupyterlab/docregistry";
 // @ts-ignore
@@ -19,18 +18,17 @@ import {ISessionContext} from "@jupyterlab/apputils/lib/sessioncontext";
 import {INotification} from 'jupyterlab_toastify';
 // @ts-ignore
 import * as KernelMessage from "@jupyterlab/services/lib/kernel/messages";
-import {UUID} from "@lumino/coreutils";
-import {decode, SourceMapMappings} from 'sourcemap-codec';
 import "./metanno.css";
+import {arrayEquals} from "../utils";
 
 enablePatches();
 
-export default class metannoManager {
-    public actions: { [editor_id: string]: { [action_name: string]: Function } };
-    public app: any;
+export default class MetannoManager {
+    public actions: { [widget_id: string]: { [action_name: string]: Function } };
     public store: Store;
-    public views: Set<any>;
+    public widgets: { [widget_id: string]: any }; // Transpiled python widgets code
     public id: string;
+    public lock: Promise<void>;
 
     private context: DocumentRegistry.IContext<DocumentRegistry.IModel>;
     private isDisposed: boolean;
@@ -39,29 +37,24 @@ export default class metannoManager {
 
     //modelsSync: Map<any>;
     private comm: IComm;
-    private source_code_py: string;
-    private sourcemap: SourceMapMappings;
     private readonly callbacks: { [callbackId: string]: (any) => void };
 
     // Lock promise to chain events, and avoid concurrent state access
     // Each event calls .then on this promise and replaces it to queue itself
-    private lock: Promise<void>;
+    private unsyncPaths: { [state_id: string]: string[][] };
 
     constructor(context: DocumentRegistry.IContext<DocumentRegistry.IModel>, settings: { saveState: boolean }) {
-        this.store = this.createStore();
         this.actions = {};
-        this.app = null;
         this.id = UUID.uuid4();
         this.callbacks = {};
 
         this.comm_target_name = 'metanno';
         this.context = context;
         this.comm = null;
-        this.views = new Set();
+        this.widgets = {};
         this.lock = Promise.resolve();
-
-        this.source_code_py = '';
-        this.sourcemap = null;
+        this.store = this.createStore();
+        this.unsyncPaths = {}
 
         // this.modelsSync = new Map();
         // this.onUnhandledIOPubMessage = new Signal(this);
@@ -90,7 +83,7 @@ export default class metannoManager {
             });
         }
 
-        this.connectToAnyKernel().then();//() => {});
+        this.connectToAnyKernel().then();
 
         this.settings = settings;
         /*context.saveState.connect((sender, saveState) => {
@@ -100,18 +93,17 @@ export default class metannoManager {
         });*/
     }
 
-
     _handleCommOpen = (comm: IComm, msg?: KernelMessage.ICommOpenMsg) => {
         // const data = (msg.content.data);
         // hydrate state ?
+        console.log("New comm !")
         this.comm = comm;
-
-        this.comm.onMsg = this.onMsg;
-
+        this.comm.onMsg = this.handleMessage;
+        console.log("SEND SYNC MESSAGE");
         this.comm.send({
             "method": "sync_request",
             "data": {}
-        })
+        });
     };
 
     /**
@@ -154,11 +146,14 @@ export default class metannoManager {
 
     connectToAnyKernel = async () => {
         if (!this.context?.sessionContext) {
+            console.log("No session context")
             return;
         }
+        console.log("Awaiting session ready")
         await this.context.sessionContext.ready;
 
         if (this.context?.sessionContext.session.kernel.handleComms === false) {
+            console.log("handleComms === false")
             return;
         }
         const all_comm_ids = await this._get_comm_info();
@@ -187,10 +182,12 @@ export default class metannoManager {
      * Remotely calls a method and returns a Promise that awaits for the call to end
      * on the kernel and the return value to be sent back, to be resolved
      *
+     * @param state_id - id of the state the widget is linked to
+     * @param widget_id - id of the widget on which to call the method
      * @param func_name - the name of the method to call remotely
      * @param args - the arguments of the call
      */
-    remoteCall = (func_name, args) => {
+    remoteCall = (state_id, widget_id, func_name, args) => {
         const callbackId = UUID.uuid4()
         this.comm.send({
             'method': 'method_call',
@@ -198,6 +195,8 @@ export default class metannoManager {
                 'method_name': func_name,
                 'args': args,
                 'callback_id': callbackId,
+                'widget_id': widget_id,
+                'state_id': state_id,
             }
         });
         return new Promise((resolve, reject) => {
@@ -205,94 +204,74 @@ export default class metannoManager {
         });
     }
 
-    onMsg = (msg: KernelMessage.ICommMsgMsg) => {
+    getState = (stateId) => {
+        return this.store.getState()[stateId] || {}
+    }
+
+    handleMessage = (msg: KernelMessage.ICommMsgMsg) => {
         try {
             const {method, data} = msg.content.data as { method: string, data: any };
             const exceptId = msg?.metadata?.exceptId;
             if (this.id === exceptId) {
                 return;
             }
-            if (method === "action") {
-                this.store.dispatch(data);
-            } else if (method === "method_call") {
-                this.app[data.method_name](...data.args);
-            } else if (method === "method_return") {
-                this.callbacks[data.callback_id](data.value);
-                delete this.callbacks[data.callback_id];
-            } else if (method === "patch") {
-                try {
-                    const newState = applyPatches(this.store.getState(), data.patches);
+            console.log("RECEIVED", msg.content.data);
+            switch (method) {
+                case "error":
+                    // @ts-ignore
+                    this.toastError(...data.args, data.autoClose)
+                    break
+                case "info":
+                    // @ts-ignore
+                    this.toastInfo(...data.args, data.autoClose)
+                    break
+                case "method_call":
+                    this.widgets[data.state_id]?.[data.widget_id]?.[data.method_name]?.(...data.args);
+                    break
+                case "method_return":
+                    this.callbacks[data.callback_id](data.value);
+                    delete this.callbacks[data.callback_id];
+                    break
+                case "set_state":
                     this.store.dispatch({
                         'type': 'SET_STATE',
-                        'payload': newState,
+                        'state': data.state,
+                        'state_id': data.state_id,
                     })
-                } catch (error) {
-                    console.error("ERROR DURING PATCHING")
-                    console.error(error);
-                }
-            } else if (method === "set_app_code") {
-                this.app = eval_code(data.code)();
-                this.sourcemap = decode(data.sourcemap);
-                this.source_code_py = data.py_code;
-                this.app.manager = this;
-                this.views.forEach(view => view.showContent())
-            } else if (method === "sync") {
-                this.store.dispatch({
-                    'type': 'SET_STATE',
-                    'payload': data.state,
-                })
+                    this.unsyncPaths[data.state_id] = data.unsync
+                    break;
+                case "patch_state":
+                    const newState = applyPatches(
+                        this.store.getState()[data.state_id],
+                        data.patches
+                    );
+                    try {
+                        this.store.dispatch({
+                            'type': 'SET_STATE',
+                            'state': newState,
+                            'state_id': data.state_id,
+                        })
+                    } catch (error) {
+                        console.error("ERROR DURING PATCHING")
+                        console.error(error);
+                    }
+                    break;
+                case "delete_state":
+                    this.store.dispatch({
+                        'type': 'DELETE_STATE',
+                        'state_id': data.state_id,
+                    })
+                    if (data.state_id in this.unsyncPaths) {
+                        delete this.unsyncPaths[data.state_id]
+                    }
+                    break
+                default:
+                    break;
             }
         } catch (e) {
             console.error("Error during comm message reception", e);
         }
     };
-
-    handle_exception = (e: Error) => {
-        console.log("Got an error !");
-        console.log(e);
-        const py_lines = [...e.stack.matchAll(/<anonymous>:(\d+):(\d+)/gm)];
-        if (py_lines.length > 0 && this.sourcemap !== null) {
-            const [_, lineStr, columnStr] = py_lines[0];
-            const source_line_str = this.source_code_py.split("\n")[this.sourcemap[parseInt(lineStr) - 1][0][2]].trim();
-            this.toastError(`Error: ${e.message} at \n${source_line_str}`);
-        } else { // @ts-ignore
-            if (e.__args__) {
-                // @ts-ignore
-                this.toastError(`Error: ${e.__args__[0]}`);
-            } else {
-                this.toastError(`Error: ${e.message}`);
-            }
-        }
-    };
-
-    /**
-     * Queue the execution of a function, to avoid concurrent access to the state
-     *
-     * @param fn: Function to execute
-     * @param args: Call arguments
-     */
-    queue_try_catch_exec = (fn: Function, ...args: any[]): void => {
-        this.lock = this.lock.then(() => {
-            return this.try_catch_exec(fn, ...args);
-        }).catch(this.handle_exception);
-    };
-
-    /**
-     * Executes a function and display any error using custom components
-     *
-     * @param fn: Function to execute
-     * @param args: Call arguments
-     */
-    try_catch_exec = (fn: Function, ...args: any[]): any => {
-        try {
-            if (fn) {
-                return fn(...args);
-            }
-        } catch (e) {
-            this.handle_exception(e)
-        }
-    };
-
 
     toastError = (message, autoClose = 10000) => {
         //INotification.error(`Message: ${e.message} at ${parseInt(lineStr)-1}:${parseInt(columnStr)-1}`);
@@ -340,6 +319,8 @@ export default class metannoManager {
             oldValue,
             newValue
         }: { name: string, oldValue: IKernelConnection | null, newValue: IKernelConnection | null }) => {
+        console.debug("handleKernelChanged", oldValue, newValue);
+        console.log("handleKernelChanged", oldValue, newValue);
         if (oldValue) {
             this.comm = null;
             oldValue.removeCommTarget(this.comm_target_name, this._handleCommOpen);
@@ -361,94 +342,23 @@ export default class metannoManager {
         }
     };
 
-    /**
-     * Disconnect the widget manager from the kernel, setting each model's comm
-     * as dead.
-     */
-    /*disconnect() {
-        // super.disconnect();
-    }*/
-
-    /**
-     * Dispose the resources held by the manager.
-     */
-    dispose = () => {
-        if (this.isDisposed) {
-            return;
-        }
-        this.isDisposed = true;
-
-        // TODO do something with the comm ?
-    };
-
-    /**
-     * A signal emitted when state is restored to the widget manager.
-     *
-     * #### Notes
-     * This indicates that previously-unavailable widget models might be available now.
-     */
-
-    /**
-     * Whether the state has been restored yet or not.
-     */
-
-    /**
-     * A signal emitted for unhandled iopub kernel messages.
-     *
-     */
-
-    /**
-     * Synchronously get the state of the live widgets in the widget manager.
-     *
-     * This includes all of the live widget models, and follows the format given in
-     * the @jupyter-widgets/schema package.
-     *
-     * @param options - The options for what state to return.
-     * @returns A state dictionary
-     */
-    /*get_state_sync(options = {}) {
-        const models = [];
-        for (const model of this.modelsSync.values()) {
-            if (model.comm_live) {
-                models.push(model);
-            }
-        }
-        return serialize_state(models, options);
-    }*/
-
-    /* **************************
-     *       REDUX STUFF        *
-     * ************************** /
-
-    /*reduxMiddleware = store => next => action => {
-        (action.meta?.executors || []).map(executor => {
-            if (executor === "kernel") {
-                this.comm.send({
-                    "method": "action",
-                    "data": {
-                        ...action,
-                        "meta": {"executors": [executor]}
-                    }
-                });
-            } else if (executor === "frontend") {
-                next(action);
-            }
-        });
-    };*/
-
     reduce = (state = null, action) => {
-        if (action.type === 'SET_STATE') {
-            return action.payload;
+        switch (action.type) {
+            case 'SET_STATE':
+                return {
+                    ...state,
+                    [action.state_id]: action.state
+                };
+            case 'DELETE_STATE':
+                const newState = {
+                    ...state,
+                }
+                delete newState[action.state_id]
+                return newState
+            default:
+                return state;
         }
-        if (this.app?.reduce) {
-            return this.app.reduce(state, action);
-        }
-        return state;
-    };
-
-    getState = () => this.store.getState();
-
-    dispatch = (action: any) => this.store.dispatch(action);
+    }
 
     createStore = (): Store => {
         const composeEnhancers =
@@ -471,4 +381,74 @@ export default class metannoManager {
             )
         );
     };
+
+    produce = (fn, app, stateId) => {
+        const new_fn = async (...args) => {
+            let recordedPatches: Patch[] = [];
+            // Create a new immer draft for the state and make it available to the app instance
+            app.state = createDraft(this.getState(stateId));
+
+            // Await the function result (in case it is async, when it queries the backend)
+            await fn(...args);
+
+            // Finish the draft and if the state has changed, update the redux state and send the patches to the backend
+            finishDraft(app.state, (patches, inversePatches) => recordedPatches = patches);
+
+            if (recordedPatches.length > 0) {
+                const newState = applyPatches(this.getState(stateId), recordedPatches);
+
+                this.store.dispatch({
+                    type: 'SET_STATE',
+                    state_id: stateId,
+                    state: newState
+                });
+
+                // Trim down the list of patches to send over to the kernel
+                recordedPatches = recordedPatches.filter((patch: Patch) => {
+                    // Keep any patch for which not any skip path matched its path
+                    return !this.unsyncPaths[stateId].some(skipPath =>
+                        arrayEquals(patch.path.slice(0, skipPath.length), skipPath)
+                    )
+                })
+
+                if (recordedPatches.length > 0) {
+                    // @ts-ignore
+                    if (new_fn.frontend_only || fn.frontend_only)
+                        return;
+                    this.comm.send({
+                        'method': 'patch_state',
+                        'data': {
+                            'state_id': stateId,
+                            'patches': ((recordedPatches as unknown) as JSONValue[]),
+                        }
+                    }, {
+                        id: this.id,
+                    })
+                }
+            }
+            delete app.state;
+        }
+        return new_fn;
+    }
+
+    get_widget = (stateId, widgetId) => {
+        return this.widgets?.[stateId]?.[widgetId]
+    }
+
+    register_widget(widget_state_id: string, widget_id: string, app: any) {
+        if (!this.widgets[widget_state_id])
+            this.widgets[widget_state_id] = {}
+        this.widgets[widget_state_id][widget_id] = app
+    }
+
+    unregister_widget(widget_state_id: string, widget_id: string, app: any=null) {
+        if (!this.widgets[widget_state_id])
+            return
+        // Only unregister the widget if the widget instance was not specified or
+        // if it is the same as the one registered (in case a new instance of the same
+        // widget was registered after the first one, like when hitting the 'Detach' btn
+        if (!app || this.widgets[widget_state_id][widget_id] == app) {
+            delete this.widgets[widget_state_id][widget_id]
+        }
+    }
 }

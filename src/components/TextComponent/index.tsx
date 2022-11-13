@@ -25,7 +25,12 @@ const toLuminance = (color: Color, y: number=0.6) => {
 }
 
 const processStyle = ({color, shape, autoNestingLayout, labelPosition, ...rest}: QuickStyle): PreprocessedStyle => {
-    let colorObject = Color(color).alpha(0.8);
+    let colorObject;
+    try {
+        colorObject = Color(color).alpha(0.8);
+    } catch (e) {
+        colorObject = Color('lightgray')
+    }
     let highlightedColor, highlightedTextColor, backgroundColor, textColor;
     highlightedColor = toLuminance(colorObject.saturate(1.), 0.6).toString()
     if (true || colorObject.isLight() || shape === 'underline') {
@@ -141,7 +146,7 @@ const Token = React.memo((
                         top: (isUnderline && !annotation.highlighted) ? 22 : verticalOffset,
                         bottom: verticalOffset,
                         zIndex: annotation.zIndex + 2 + (annotation.highlighted ? 50 : 0),
-                        ...styles[annotation.style][annotation.highlighted ? 'highlighted' : 'base'],
+                        ...styles?.[annotation.style]?.[annotation.highlighted ? 'highlighted' : 'base'],
                     } as CSSProperties}
                 />
             );
@@ -288,7 +293,7 @@ const Line = React.memo(<StyleRest extends object>({index, styles, tokens, spans
 class TextComponent extends React.Component<{ id: string; } & TextData & TextMethods> {
     public static defaultProps = {
         spans: [],
-        mouse_selection: [],
+        mouseSelection: [],
         text: "",
         styles: {},
     };
@@ -304,7 +309,7 @@ class TextComponent extends React.Component<{ id: string; } & TextData & TextMet
         super(props);
         props.registerActions({
             scroll_to_line: (line) => {
-                if (line >= 0 && line < this.linesRef.length) {
+                if (line >= 0 && line < this.linesRef.length && this.linesRef[line]) {
                     this.linesRef[line].current?.scrollIntoView({behavior: 'smooth', block: 'center'})
                 }
             },
@@ -339,7 +344,7 @@ class TextComponent extends React.Component<{ id: string; } & TextData & TextMet
         this.props.onKeyPress(
             key,
             makeModKeys(event),
-            [...this.props.mouse_selection, ...spans],
+            [...this.props.mouseSelection, ...spans],
         );
     };
 
@@ -389,7 +394,7 @@ class TextComponent extends React.Component<{ id: string; } & TextData & TextMet
             this.previousSelectedSpans = newSelectedSpans;
         }
         const {lines, ids} = this.tokenize([
-            ...this.props.mouse_selection.map(span => ({...span, 'mouseSelected': true})),
+            ...this.props.mouseSelection.map(span => ({...span, 'mouseSelected': true})),
             ...this.props.spans], text, styles);
 
         // Define the right number of references

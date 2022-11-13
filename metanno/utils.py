@@ -1,17 +1,9 @@
 from collections import ChainMap
 from itertools import chain
 
-__all__ = ['chain_list', 'chain_map', 'frontend_only', 'kernel_only', 'produce']
+__all__ = ['frontend_only', 'kernel_only', 'produce']
 
 from metanno.immutable import scope
-
-
-def chain_map(*args):
-    return dict(ChainMap(*reversed(args)))
-
-
-def chain_list(*args):
-    return list(chain.from_iterable(args))
 
 
 def get_idx(items, value, field="id"):
@@ -38,6 +30,8 @@ def frontend_only(fn):
             'method': 'method_call',
             'data': {
                 'method_name': fn.__name__,
+                'widget_id': self.widget_id,
+                'state_id': self._state_id,
                 'args': args,
             }
         })

@@ -1,6 +1,6 @@
 import "regenerator-runtime/runtime";
 // @ts-ignore
-import {filter, toArray} from '@lumino/algorithm';
+import {ArrayExt, filter, toArray} from '@lumino/algorithm';
 // @ts-ignore
 import {AttachedProperty} from '@lumino/properties';
 // @ts-ignore
@@ -16,15 +16,19 @@ import {ILoggerRegistry, LogLevel} from '@jupyterlab/logconsole';
 // @ts-ignore
 import {IOutputModel, IRenderMimeRegistry} from '@jupyterlab/rendermime';
 // @ts-ignore
-import {MainAreaWidget, WidgetTracker,} from '@jupyterlab/apputils';
+import {IWidgetTracker, MainAreaWidget, WidgetTracker,} from '@jupyterlab/apputils';
 // @ts-ignore
-import {INotebookTracker, NotebookPanel, NotebookTracker} from '@jupyterlab/notebook';
+import {INotebookTracker, Notebook, NotebookPanel, NotebookTracker} from '@jupyterlab/notebook';
 // @ts-ignore
 import {ISettingRegistry} from '@jupyterlab/settingregistry';
 // @ts-ignore
 import {ILayoutRestorer, JupyterFrontEnd} from '@jupyterlab/application';
 // @ts-ignore
 import {OutputArea, SimplifiedOutputArea} from '@jupyterlab/outputarea';
+// @ts-ignore
+import {IObservableUndoableList} from '@jupyterlab/observables';
+// @ts-ignore
+import {ICellModel, ICodeCellModel} from '@jupyterlab/cells';
 // @ts-ignore
 import {LabIcon} from '@jupyterlab/ui-components';
 // @ts-ignore
@@ -33,14 +37,16 @@ import {CodeCell} from '@jupyterlab/cells';
 import {Panel, Widget} from "@lumino/widgets";
 // @ts-ignore
 import {UUID} from "@lumino/coreutils";
+// @ts-ignore
+import {CommandRegistry} from "@lumino/commands";
 
 import MetannoManager from "./manager";
-import MetannoRenderer from "./renderer";
+import MetannoWidget, {WidgetCode, MetannoWidgetOptions} from "./widget";
 // @ts-ignore
 import metannoSvgstr from '../icon.svg';
 import "./dontDisplayHiddenOutput";
 
-const MIMETYPE = 'application/vnd.jupyter.annotator+json';
+const MIMETYPE = 'application/vnd.metanno+json';
 export const notebookIcon = new LabIcon({name: 'ui-components:metanno', svgstr: metannoSvgstr});
 
 export const contextToMetannoManagerRegistry = new AttachedProperty({
@@ -50,15 +56,37 @@ export const contextToMetannoManagerRegistry = new AttachedProperty({
 const SETTINGS = {saveState: false};
 
 /**
- * Iterate through all widget renderers in a notebook.
+ * Iterate through all output areas that contain metanno renderers in a notebook.
  */
-function* getEditorsFromNotebook(notebook: MainAreaWidget) {
+function* getMetannoContainers(notebook: Notebook) : Generator<CodeCell> {
     // @ts-ignore
     for (const cell of notebook.widgets) {
         if (cell.model.type === 'code') {
+            // @ts-ignore
+            for (const codecell of cell.outputArea.widgets as Generator<CodeCell>) {
+                for (const output of toArray(codecell.children())) {
+                    if (output instanceof MetannoWidget) {
+                        yield codecell;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+/**
+ * Iterate through all metanno renderers in a notebook.
+ */
+function* getWidgetsFromNotebook(notebook: Notebook) {
+    // @ts-ignore
+    for (const cell of notebook.widgets) {
+        if (cell.model.type === 'code') {
+            // @ts-ignore
             for (const codecell of cell.outputArea.widgets) {
                 for (const output of toArray(codecell.children())) {
-                    if (output instanceof MetannoRenderer) {
+                    if (output instanceof MetannoWidget) {
                         yield output;
                     }
                 }
@@ -77,7 +105,7 @@ function* chain(...args) {
 /**
  * Iterate through all matching linked output views
  */
-function* getLinkedEditorsFromApp(
+function* getLinkedWidgetsFromApp(
     jupyterApp: JupyterFrontEnd,
     path: string,
 ) {
@@ -88,7 +116,7 @@ function* getLinkedEditorsFromApp(
     for (const view of toArray(linkedViews)) {
         for (const outputs of toArray(view.children())) {
             for (const output of toArray(outputs.children())) {
-                if (output instanceof MetannoRenderer) {
+                if (output instanceof MetannoWidget) {
                     yield output;
                 }
             }
@@ -101,54 +129,78 @@ function* getLinkedEditorsFromApp(
  */
 export class MetannoArea extends Panel {
     private _notebook: NotebookPanel;
-    private _editor_id: string;
-    private _editor_type: string;
-    private _path: string;
+    private _widget_state_id: string;
+    private _widget_id: string;
+    private _widget_type: string;
+    private _widget_code: {
+        'code': string,
+        'py_code': string,
+        'sourcemap': string,
+    };
     private _cell: CodeCell | null = null;
 
-    constructor(options: { notebook?: NotebookPanel, editor_id?: string, editor_type?: string, cell?: CodeCell }) {
+    constructor(options: MetannoWidgetOptions & {
+        notebook?: NotebookPanel,
+        cell?: CodeCell,
+    }) {
         super();
         this._notebook = options.notebook;
-        this._editor_id = options.editor_id;
-        this._editor_type = options.editor_type;
+        this._widget_id = options.widget_id;
+        this._widget_type = options.widget_type;
+        this._widget_code = options.widget_code;
+        this._widget_state_id = options.widget_state_id;
         this._cell = options.cell || null;
 
-        if (!this._editor_id || !this._editor_type) {
-            // @ts-ignore
-            const widget = this._cell.outputArea.widgets[0].widgets[1] as MetannoRenderer;
-            this._editor_id = widget.editor_id;
-            this._editor_type = widget.editor_type;
-        }
-
-        this.id = `MetannoArea-${UUID.uuid4()}`;
-        this.title.label = this._editor_id;
-        this.title.icon = notebookIcon;
-        this.title.caption = this._notebook.title.label ? `For Notebook: ${this._notebook.title.label || ''}` : '';
         this.addClass('jp-LinkedOutputView');
-
 
         // Wait for the notebook to be loaded before
         // cloning the output area.
         void this._notebook.context.ready.then(() => {
-            if (!(this._editor_id && this._editor_type)) {
+
+            if (!this._widget_id) {
+                // @ts-ignore
+                const widget = this._cell.outputArea.widgets[0].widgets[1] as MetannoWidget;
+                this._widget_id = widget.widget_id;
+                this._widget_type = widget.widget_type;
+                this._widget_code = widget.widget_code;
+                this._widget_state_id = widget.widget_state_id;
+            }
+
+            this.id = `MetannoArea-${UUID.uuid4()}`;
+            this.title.label = this._widget_id;
+            this.title.icon = notebookIcon;
+            this.title.caption = this._notebook.title.label ? `For Notebook: ${this._notebook.title.label || ''}` : '';
+
+            if (!(this._widget_id && this._widget_type && this._widget_code && this.widget_state_id)) {
                 this.dispose();
                 return;
             }
-            const widget = new MetannoRenderer({
-                editor_id: this._editor_id,
-                editor_type: this._editor_type,
+            const widget = new MetannoWidget({
+                mimeType: null,
+                widget_id: this._widget_id,
+                widget_type: this._widget_type,
+                widget_code: this._widget_code,
+                widget_state_id: this._widget_state_id,
             }, contextToMetannoManagerRegistry.get(this._notebook.context));
             widget.addClass("jp-OutputArea-output");
             this.addWidget(widget);
         });
     }
 
-    get editor_id() {
-        return this._editor_id;
+    get widget_id() {
+        return this._widget_id;
     }
 
-    get editor_type() {
-        return this._editor_type;
+    get widget_type() {
+        return this._widget_type;
+    }
+
+    get widget_code() {
+        return this._widget_code;
+    }
+
+    get widget_state_id() {
+        return this._widget_state_id;
     }
 
     get path(): string {
@@ -156,13 +208,94 @@ export class MetannoArea extends Panel {
     }
 }
 
+type MetannoClonedAreaOptions = {
+    /**
+     * The notebook associated with the cloned output area.
+     */
+    notebook: NotebookPanel;
+
+    /**
+     * The cell for which to clone the output area.
+     */
+    cell?: CodeCell;
+
+    /**
+     * If the cell is not available, provide the index
+     * of the cell for when the notebook is loaded.
+     */
+    index?: number;
+
+    /**
+     * If the cell is not available, provide the index
+     * of the cell for when the notebook is loaded.
+     */
+}
+
+/**
+ * A widget hosting a cloned output area.
+ */
+export class MetannoClonedArea extends Panel {
+    constructor(options: MetannoClonedAreaOptions) {
+        super();
+
+        this._notebook = options.notebook;
+        this._index = options.index !== undefined ? options.index : -1;
+        this._cell = options.cell || null;
+
+        this.id = `MetannoArea-${UUID.uuid4()}`;
+        this.title.icon = notebookIcon;
+        this.title.caption = this._notebook.title.label ? `For Notebook: ${this._notebook.title.label || ''}` : '';
+        this.addClass('jp-LinkedOutputView');
+
+        // Wait for the notebook to be loaded before
+        // cloning the output area.
+        void this._notebook.context.ready.then(() => {
+            if (!this._cell) {
+                this._cell = this._notebook.content.widgets[this._index] as CodeCell;
+            }
+            if (!this._cell || this._cell.model.type !== 'code') {
+                this.dispose();
+                return;
+            }
+            // @ts-ignore
+            const widget = this._cell.outputArea.widgets?.[0]?.widgets?.[1] as MetannoWidget;
+            this.title.label = widget.widget_id;
+            const clone = this._cell.cloneOutputArea();
+            this.addWidget(clone);
+        });
+    }
+
+    /**
+     * The index of the cell in the notebook.
+     */
+    get index(): number {
+        return this._cell
+            ? ArrayExt.findFirstIndex(
+                this._notebook.content.widgets,
+                c => c === this._cell
+            )
+            : this._index;
+    }
+
+    /**
+     * The path of the notebook for the cloned output area.
+     */
+    get path(): string {
+        return this._notebook.context.path;
+    }
+
+    private _notebook: NotebookPanel;
+    private _index: number;
+    private _cell: CodeCell | null = null;
+}
+
 /*
 Here we add the singleton MetannoManager to the given editor (context)
  */
 export function registerMetannoManager(
     context,
-    rendermime,
-    renderers
+    rendermime: IRenderMimeRegistry,
+    renderers: Generator<MetannoWidget>,
 ) {
     let wManager = contextToMetannoManagerRegistry.get(context);
     if (!wManager) {
@@ -181,7 +314,7 @@ export function registerMetannoManager(
         {
             safe: true,
             mimeTypes: [MIMETYPE],
-            createRenderer: options => new MetannoRenderer(options, wManager)
+            createRenderer: options => new MetannoWidget(options, wManager)
         },
         0
     );
@@ -192,6 +325,53 @@ export function registerMetannoManager(
         }
         wManager.dispose();
     });
+}
+
+export function registerOutputListener(
+    notebook: Notebook,
+    listener
+) {
+    let callbacks = [];
+    notebook.model.cells.changed.connect((cells, changes) => {
+        changes.newValues.forEach((cell: ICodeCellModel) => {
+            const signal = cell.outputs.changed;
+            const callback = (outputArea, outputChanges) => {
+                for (let index = 0; index<notebook.model.cells.length; index++) {
+                    if (cell === notebook.model.cells.get(index)) {
+                        const detachMetanno = outputChanges.newValues.some(outputModel =>
+                            !!outputModel._rawData?.['application/vnd.metanno+json']?.['autodetach']
+                        );
+                        if (detachMetanno) {
+                            listener((notebook.parent as NotebookPanel).context.path, index);
+                        }
+                    }
+                }
+            };
+            callbacks.push({callback, signal})
+            signal.connect(callback)
+        })
+        changes.oldValues.forEach((cell: ICodeCellModel) => {
+            const oldSignal = cell.outputs.changed;
+            callbacks = callbacks.filter(({callback, signal}) => {
+                if (signal === oldSignal) {
+                    signal.disconnect(callback);
+                    return false;
+                }
+                return true;
+            });
+        })
+        //if (change.type == "remove") {
+        //
+        //}
+        // for (const cell of sender.widgets) {
+        //     if (cell.model.type === 'code' && (cell as CodeCell).outputArea) {
+        //         const signal = (cell as CodeCell).outputArea.outputTracker.widgetAdded;
+        //         signal.connect((...args) => {
+        //             return listener(cell, (cell as CodeCell).outputArea)
+        //         });
+        //     }
+        // }
+    })
 }
 
 /*
@@ -210,7 +390,7 @@ function activateMetannoExtension(
     //palette: ICommandPalette,
 ) {
     const {commands, shell, contextMenu} = app;
-    const metannoAreas = new WidgetTracker<MainAreaWidget<MetannoArea>>({
+    const metannoAreas = new WidgetTracker<MainAreaWidget<MetannoClonedArea>>({
         namespace: 'metanno-areas'
     });
 
@@ -218,11 +398,10 @@ function activateMetannoExtension(
         restorer.restore(metannoAreas, {
             command: 'metanno:create-view',
             args: widget => ({
-                editor_id: widget.content.editor_id,
-                editor_type: widget.content.editor_type,
                 path: widget.content.path,
+                index: widget.content.index,
             }),
-            name: widget => `${widget.content.path}:${widget.content.editor_type}:${widget.content.editor_id}`,
+            name: widget => `${widget.content.path}:${widget.content.index}`,
             when: notebookTracker.restored // After the notebook widgets (but not contents).
         });
     }
@@ -276,13 +455,13 @@ function activateMetannoExtension(
             mimeTypes: [MIMETYPE],
             // @ts-ignore
             createRenderer: (options => {
-                new MetannoRenderer(options, null);
+                new MetannoWidget(options, null);
             })
         },
         0
     );
 
-    // Adds the singleton MetannoManager to all existing editors in the labapp/notebook
+    // Adds the singleton MetannoManager to all existing widgets in the labapp/notebook
     if (notebookTracker !== null) {
         notebookTracker.forEach((panel) => {
             registerMetannoManager(
@@ -290,8 +469,8 @@ function activateMetannoExtension(
                 panel.content.rendermime,
                 chain(
                     // @ts-ignore
-                    getEditorsFromNotebook(panel.content),
-                    getLinkedEditorsFromApp(app, panel.sessionContext.path)
+                    getWidgetsFromNotebook(panel.content),
+                    getLinkedWidgetsFromApp(app, panel.sessionContext.path)
                 )
             );
 
@@ -302,14 +481,29 @@ function activateMetannoExtension(
                 panel.context,
                 panel.content.rendermime,
                 chain(
-                    // @ts-ignore
-                    getEditorsFromNotebook(panel.content),
-                    getLinkedEditorsFromApp(app, panel.sessionContext.path)
+                    getWidgetsFromNotebook(panel.content),
+                    getLinkedWidgetsFromApp(app, panel.sessionContext.path)
                 )
             );
-
             bindUnhandledIOPubMessageSignal(panel);
         });
+        notebookTracker.currentChanged.connect((sender, panel: NotebookPanel) => {
+            registerOutputListener(
+                panel.content,
+                (path, index) => {
+                    (commands as CommandRegistry).execute('metanno:create-view', {path, index});
+                    (panel.content.widgets[index] as CodeCell).outputHidden = true;
+                },
+            )
+        });
+    }
+
+    const widgetTracker = new WidgetTracker<OutputArea>({namespace: ''});
+
+    if (widgetTracker !== null) {
+        widgetTracker.widgetAdded.connect((sender, widget) => {
+            console.log(sender, widget);
+        })
     }
 
     // -----------------
@@ -348,7 +542,7 @@ function activateMetannoExtension(
     }
 
     /**
-     * Whether there is an notebook active, with a single selected cell.
+     * Whether there is a notebook active, with a single selected cell.
      */
     function isEnabledAndSingleSelected() {  // :boolean
         if (!isEnabled()) {
@@ -372,7 +566,6 @@ function activateMetannoExtension(
         selector: '.jp-Notebook .jp-CodeCell',
         rank: 10.5,
     });
-
     commands.addCommand('metanno:create-view', {
         label: 'Detach',
         execute: async args => {
@@ -380,10 +573,9 @@ function activateMetannoExtension(
             let current: NotebookPanel | undefined | null;
             // If we are given a notebook path and cell index, then
             // use that, otherwise use the current active cell.
-            const editor_id = args.editor_id as string | undefined | null;
-            const editor_type = args.editor_type as string | undefined | null;
             const path = args.path as string | undefined | null;
-            if (editor_id && editor_type && path) {
+            let index = args.index as number | undefined | null;
+            if (path && index !== undefined && index !== null) {
                 current = docManager.findWidget(path, 'Notebook') as NotebookPanel;
                 if (!current) {
                     return;
@@ -394,19 +586,37 @@ function activateMetannoExtension(
                     return;
                 }
                 cell = current.content.activeCell as CodeCell;
+                index = current.content.activeCellIndex;
             }
             // Create a MainAreaWidget
-            const content = new MetannoArea({
+            const content = new MetannoClonedArea({
                 notebook: current,
                 cell,
-                editor_id,
-                editor_type,
+                index,
             });
+
+            // Check if it already exists
+            const hasBeenDetached = !!metannoAreas.find(widget =>
+                (widget.content.path === path)
+                && (widget.content.index === index)
+            )
+
+            if (hasBeenDetached) {
+                return;
+            }
+
             const widget = new MainAreaWidget({content});
             current.context.addSibling(widget, {
                 ref: current.id,
                 mode: 'split-bottom'
             });
+
+            const updateCloned = () => {
+                void metannoAreas.save(widget);
+            };
+
+            current.context.pathChanged.connect(updateCloned);
+            current.context.model?.cells.changed.connect(updateCloned);
 
             // Add the cloned output to the output widget tracker.
             void metannoAreas.add(widget);
@@ -414,6 +624,8 @@ function activateMetannoExtension(
 
             // Remove the output view if the parent notebook is closed.
             current.content.disposed.connect(() => {
+                current!.context.pathChanged.disconnect(updateCloned);
+                current!.context.model?.cells.changed.disconnect(updateCloned);
                 widget.dispose();
             });
             await Promise.all([
@@ -432,7 +644,8 @@ const plugin = {
     id: 'metanno:plugin', // app
     requires: [
         IRenderMimeRegistry,  // rendermime
-        IDocumentManager], // docManager
+        IDocumentManager
+    ], // docManager
     optional: [
         INotebookTracker, // notebookTracker
         ISettingRegistry, // settingRegistry
