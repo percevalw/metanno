@@ -173,3 +173,4 @@ yarn.lock
 examples/__target__/
 
 docs/
+.venv

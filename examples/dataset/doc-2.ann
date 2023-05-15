@@ -1,7 +1,0 @@
-T1	CellType 391 396	hESCs
-T2	CellType 47 52	hESCs
-A1	experiencer T2 self
-T3	Anatomy 372 387	characteristics
-T4	Anatomy 229 238	expressed
-T5	Anatomy 172 188	characterization
-A2	experiencer T5 family

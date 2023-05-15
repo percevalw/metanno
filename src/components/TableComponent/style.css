@@ -1,11 +1,12 @@
 .jp-Notebook .metanno-table {
-    min-height: 300px;
+    min-height: var(--min-height);
 }
 
 .metanno-table {
     height: 100%;
     width: 100%;
     overflow: hidden;
+    min-height: 50px;
 }
 
 .metanno-table-filter {

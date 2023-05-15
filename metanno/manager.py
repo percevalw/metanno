@@ -2,7 +2,7 @@ import linecache
 import logging
 import sys
 import traceback
-from weakref import WeakValueDictionary, ref, finalize
+from weakref import WeakValueDictionary, WeakKeyDictionary, ref, finalize
 from typing import Dict, Callable, List
 
 from ipykernel.comm import Comm
@@ -13,15 +13,18 @@ val = None
 
 
 def get_formatted_exception():
-    global val
-    exc_type, exc_obj, tb = sys.exc_info()
-    f = tb.tb_frame
-    lineno = tb.tb_lineno
-    filename = f.f_code.co_filename
-    linecache.checkcache(filename)
-    line = linecache.getline(filename, lineno, f.f_globals)
-    val = traceback.format_exc()
-    return f'Exception: {exc_obj}\nin "{line.strip()}"\nat {filename}:{lineno}'
+    try:
+        global val
+        exc_type, exc_obj, tb = sys.exc_info()
+        f = tb.tb_frame
+        lineno = tb.tb_lineno
+        filename = f.f_code.co_filename
+        linecache.checkcache(filename)
+        line = linecache.getline(filename, lineno, f.f_globals)
+        val = traceback.format_exc()
+        return f'Exception: {exc_obj}\nin "{line.strip()}"\nat {filename}:{lineno}'
+    except Exception as e:
+        return f'Exception: {e}'
 
 
 class weakmethod:
@@ -62,8 +65,9 @@ else:
 class AppManager(metaclass=ManagerSingleton):
     def __init__(self):
         self.comm = None
-        self.widgets = {}
+        self.views = {}
         self.states: WeakValueDictionary[str, 'State'] = WeakValueDictionary()
+        self.callables = WeakValueDictionary()
 
         self.open()
 
@@ -79,7 +83,7 @@ class AppManager(metaclass=ManagerSingleton):
     def close(self):
         """Close method.
         Closes the underlying comm.
-        When the comm is closed, all the widget views are automatically
+        When the comm is closed, all the view views are automatically
         removed from the front-end."""
         if self.comm is not None:
             self.comm.close()
@@ -90,6 +94,20 @@ class AppManager(metaclass=ManagerSingleton):
             "method": method,
             "data": data,
         }, metadata)
+
+    def get_variable_name(self, variable):
+        variable_name = f"var_{id(variable)}"
+        return variable_name
+        # if variable not in self.variables_store:
+        #     try:
+        #         self.variables_store[variable] = f"var_{self.variables_offset}"
+        #     except TypeError:
+        #         pass
+        #     self.variables_offset += 1
+        # return self.variables_store[variable]
+
+    def register_callables(self, callables):
+        self.callables.update(callables)
 
     def create_state(self, state: Dict, state_id: str, unsync=()):
         """
@@ -199,9 +217,11 @@ class AppManager(metaclass=ManagerSingleton):
         data = msg_content['data']
 
         logging.warning(f"Received message {method} with data: {data}")
-        if method == "patch_state":
+
+        if method == "patch_states":
+            for patch_item in data:
+                self.apply_patches(patch_item["state_id"], patch_item['patches'])
             emitter_id = msg['metadata'].get('id', None)
-            self.apply_patches(data["state_id"], data['patches'])
             self.send_message(
                 method="patch_state",
                 data={
@@ -215,8 +235,8 @@ class AppManager(metaclass=ManagerSingleton):
 
         elif method == "method_call":
             try:
-                widget = self.widgets[data["state_id"]][data["widget_id"]]
-                result = getattr(widget, data["method_name"])(*data["args"])
+                fn = self.callables[data["method_name"]]
+                result = fn(*data["args"])
                 self.send_message(
                     method="method_return",
                     data={
@@ -230,6 +250,7 @@ class AppManager(metaclass=ManagerSingleton):
                     method="error",
                     data={
                         'args': [get_formatted_exception()],
+                        'callback_id': data["callback_id"],
                         'autoClose': False,
                     }
                 )
@@ -294,15 +315,10 @@ class AppManager(metaclass=ManagerSingleton):
         self._future = []
         self._past.append(self._state)
 
-    def register_widget(self, state_id, widget_id, widget):
-        if state_id not in self.widgets:
-            self.widgets[state_id] = WeakValueDictionary()
-        self.widgets[state_id][widget_id] = widget
-
-    def get_widget(self, state_id, widget_id):
-        if state_id not in self.widgets:
-            raise Exception(f"Missing state {state_id} (while looking for widget {widget_id})")
-        state_widgets = self.widgets[state_id]
-        if widget_id in state_widgets:
-            return self.widgets[widget_id]()
-        raise Exception(f"Missing widget {widget_id} for state {state_id}")
+    def get_view(self, state_id, view_id):
+        if state_id not in self.views:
+            raise Exception(f"Missing state {state_id} (while looking for view {view_id})")
+        state_views = self.views[state_id]
+        if view_id in state_views:
+            return self.views[view_id]()
+        raise Exception(f"Missing view {view_id} for state {state_id}")

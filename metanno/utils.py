@@ -1,18 +1,10 @@
-from collections import ChainMap
-from itertools import chain
-
-__all__ = ['frontend_only', 'kernel_only', 'produce']
+__all__ = ['frontend_only', 'produce']
 
 from metanno.immutable import scope
 
 
 def get_idx(items, value, field="id"):
     return next((i for i, doc in enumerate(items) if doc[field] == value), None)
-
-
-def kernel_only(fn):
-    fn._kernel_only = True
-    return fn
 
 
 def produce(fn):

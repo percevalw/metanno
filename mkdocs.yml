@@ -23,57 +23,81 @@ theme:
     - content.code.annotate
 
 
-extra_css:
-  - assets/stylesheets/extra.css
-
-
 nav:
   - index.md
-  - Demo: https://mybinder.org/v2/gh/percevalw/metanno/HEAD?urlpath=lab%2Ftree%2Fexamples%2FAnnotator.ipynb" target="_blank
-  - Tutorials:
-    - tutorials/index.md
-    - tutorials/spacy101.md
-    - tutorials/matching-a-terminology.md
-    - tutorials/qualifying-entities.md
-    - tutorials/detecting-dates.md
-    - tutorials/multiple-texts.md
-    - tutorials/endlines.md
-    - tutorials/reason.md
-  - Advanced tutorials:
-    - advanced-tutorials/index.md
-    - advanced-tutorials/word-vectors.md
-    - advanced-tutorials/fastapi.md
-    - Creating a pipeline: https://spacy.io/usage/processing-pipelines#custom-components" target="_blank
-  - Pipelines:
-    - pipelines/index.md
-    - pipelines/architecture.md
-    - Core Pipelines:
-      - pipelines/core/index.md
-      - pipelines/core/matcher.md
-      - pipelines/core/normalisation.md
-      - pipelines/core/endlines.md
-      - pipelines/core/sentences.md
-    - Qualifiers:
-      - pipelines/qualifiers/index.md
-      - pipelines/qualifiers/negation.md
-      - pipelines/qualifiers/family.md
-      - pipelines/qualifiers/hypothesis.md
-      - pipelines/qualifiers/reported-speech.md
-      - pipelines/qualifiers/history.md
-    - Miscellaneous:
-      - pipelines/misc/index.md
-      - pipelines/misc/dates.md
-      - pipelines/misc/consultation-dates.md
-      - pipelines/misc/sections.md
-      - pipelines/misc/reason.md
-    - Named Entity Recognition:
-      - pipelines/ner/index.md
-      - pipelines/ner/score.md
-      - pipelines/ner/covid.md
-  - Connectors:
-    - utilities/connectors/index.md
-    - utilities/connectors/brat.md
-    - utilities/connectors/omop.md
-  - Code Reference: reference/
-  - contributing.md
+  - installation.md
+  - first-app.md
+  - Concepts:
+    - state.md
+    - views.md
+  - Behind the scene:
+      - bts/overview.md
+      - bts/comms.md
+      - bts/immutability.md
+      - bts/jupyter.md
+      - bts/transpilation.md
+  - Reference:
+    - Widgets:
+      - reference/static-text-elements.md
+      - reference/buttons.md
+      - reference/text-annotator.md
+      - reference/table-annotator.md
+    # - Code Reference: reference/
+  #- contributing.md
   - changelog.md
+
+
+
+extra:
+  version:
+    provider: mike
+    default: latest
+
+extra_css:
+  - assets/stylesheets/extra.css
+  - assets/termynal/termynal.css
+
+extra_javascript:
+  - https://cdn.jsdelivr.net/npm/vega@5
+  - https://cdn.jsdelivr.net/npm/vega-lite@5
+  - https://cdn.jsdelivr.net/npm/vega-embed@6
+  - assets/termynal/termynal.js
+
+plugins:
+  - search
+  - autorefs
+  - bibtex:
+      bib_file: "docs/references.bib"
+  #- gen-files:
+  #    scripts:
+  #      - docs/generate_reference.py
+  #      - docs/generate_development.py
+  - mkdocstrings:
+      handlers:
+        python:
+          selection:
+            docstring_style: numpy
+          rendering:
+            docstring_section_style: spacy
+            heading_level: 3
+            members_order: source
+            show_root_toc_entry: false
+            show_if_no_docstring: yes
+      watch:
+        - "metanno"
+  - literate-nav:
+      nav_file: SUMMARY.md
+  - mike
+
+markdown_extensions:
+  - admonition
+  - pymdownx.superfences
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - footnotes
+  - md_in_html
+  - attr_list
+  - pymdownx.details

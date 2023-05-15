@@ -300,13 +300,16 @@ export var py_metatype = {
     }
 }
 py_metatype.__metaclass__ = py_metatype;
-export var object = {
+export var object = Object.assign(Object.create(Function.prototype), {
     __init__: function (self) {},
     __metaclass__: py_metatype,
     __name__: 'object',
     __bases__: [],
     __new__: function (cls, ...args) {
-        let instance = Object.create(this, {__class__: {value: this, enumerable: true}});
+
+        let instance = (...args) => instance.__call__.apply(instance, args);
+        Object.setPrototypeOf(instance, this);
+        Object.defineProperties(instance, {__class__: {value: this, enumerable: true}});
         if ('__getattr__' in this || '__setattr__' in this) {
             instance = new Proxy (instance, {
                 get: function (target, name) {
@@ -326,12 +329,12 @@ export var object = {
                         target [name] = value;
                     }
                     return true;
-                }
+                },
             })
         }
         return instance;
     }
-};
+});
 
 export function __class__ (name, bases, attribs, meta) {
     if (meta === undefined) {
