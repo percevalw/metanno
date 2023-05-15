@@ -1,0 +1,41 @@
+.metanno-layout-container {
+    height: 100%;
+    position: relative;
+    box-sizing: border-box;
+    display: flex;
+    align-items: stretch;
+    flex-direction: column;
+
+    color: var(--jp-content-font-color1);
+    font-family: var(--jp-content-font-family);
+}
+
+.metanno-layout-container-middle {
+    /*font-family: sans-serif;*/
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+    overflow-y: scroll;
+    overflow-x: hidden;
+    box-sizing: border-box;
+    height: 100%;
+    width: 100%;
+    padding: 0;
+}
+
+.metanno-layout-row {
+    display: flex;
+    margin-bottom: 1em;
+}
+
+.metanno-layout-container-middle > h1,
+.metanno-layout-container-middle > h2,
+.metanno-layout-container-middle > p,
+.metanno-layout-container-middle > .metanno-layout-row {
+    padding-left: var(--jp-code-padding);
+    padding-right: 20px;
+}
+
+.jp-RenderedHTMLCommon.metanno-layout-container-middle > *:last-child {
+    margin-bottom: 0;
+}

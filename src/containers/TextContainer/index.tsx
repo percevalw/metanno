@@ -1,7 +1,7 @@
 import React, {useCallback} from "react";
 import {useSelector} from "react-redux";
 import TextComponent from "../../components/TextComponent";
-import Toolbar from "../../components/Toolbar";
+import Toolbar from "../../components/ToolBar";
 import Loading from "../../components/Loading";
 import {cachedReconcile} from "../../utils";
 import {PyTextData, TextMethods, ToolbarData, ToolbarMethods} from "../../types";
@@ -16,7 +16,6 @@ const TextContainer = ({
     onMouseEnterSpan,
     onMouseLeaveSpan,
     onMouseSelect,
-    registerActions,
     selectState,
 }: {
     id: string;
@@ -67,7 +66,6 @@ const TextContainer = ({
                     onButtonPress={idx => onButtonPress(idx, mouse_selection)}/>
                 : null}
             <TextComponent
-                id={id}
                 spans={spans}
                 text={text}
                 styles={styles}
@@ -78,7 +76,7 @@ const TextContainer = ({
                 onMouseEnterSpan={onMouseEnterSpan}
                 onMouseLeaveSpan={onMouseLeaveSpan}
                 onMouseSelect={onMouseSelect}//mouse_selection => this.setState(state => ({...state, mouse_selection}))}
-                registerActions={registerActions}
+                actions={{}}
             />
         </div>
     )

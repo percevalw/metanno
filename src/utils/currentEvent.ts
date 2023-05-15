@@ -1,4 +1,4 @@
-const current_event: {current: Event} = {
+const currentEvent: {current: Event} = {
     current: null,
 };
 
@@ -6,10 +6,10 @@ document.addEventListener("click", setCurrentEvent, {capture: true});
 document.addEventListener("mousedown", setCurrentEvent, {capture: true});
 document.addEventListener("mouseup", setCurrentEvent, {capture: true});
 
-export function getCurrentEvent() {
-    return current_event.current;
+function setCurrentEvent(event: Event) {
+    currentEvent.current = event;
 }
 
-export function setCurrentEvent(event: Event) {
-    current_event.current = event;
+export function getCurrentEvent() {
+    return currentEvent.current;
 }

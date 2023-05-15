@@ -290,7 +290,7 @@ const Line = React.memo(<StyleRest extends object>({index, styles, tokens, spans
 });
 
 
-class TextComponent extends React.Component<{ id: string; } & TextData & TextMethods> {
+class TextComponent extends React.Component<TextData & TextMethods> {
     public static defaultProps = {
         spans: [],
         mouseSelection: [],
@@ -304,26 +304,23 @@ class TextComponent extends React.Component<{ id: string; } & TextData & TextMet
     private linesRef: React.RefObject<HTMLDivElement>[];
     private previousSelectedSpans: string;
     private processStyles: ((style: {[style_name: string]: QuickStyle}) => {[style_name: string]: PreprocessedStyle});
-
     constructor(props) {
         super(props);
-        props.registerActions({
-            scroll_to_line: (line) => {
-                if (line >= 0 && line < this.linesRef.length && this.linesRef[line]) {
-                    this.linesRef[line].current?.scrollIntoView({behavior: 'smooth', block: 'center'})
-                }
-            },
-            scroll_to_span: (span_id) => {
-                setTimeout(() => {
-                    if (this.spansRef[span_id]) {
-                        this.spansRef[span_id].current?.scrollIntoView({behavior: 'smooth', block: 'center'})
-                    }
-                }, 10)
-            },
-            clear_current_mouse_selection: () => {
-                window.getSelection().removeAllRanges();
+        props.actions.scroll_to_line = (line) => {
+            if (line >= 0 && line < this.linesRef.length && this.linesRef[line]) {
+                this.linesRef[line].current?.scrollIntoView({behavior: 'smooth', block: 'center'})
             }
-        });
+        };
+        props.actions.scroll_to_span = (span_id) => {
+            setTimeout(() => {
+                if (this.spansRef[span_id]) {
+                    this.spansRef[span_id].current?.scrollIntoView({behavior: 'smooth', block: 'center'})
+                }
+            }, 10)
+        };
+        props.actions.clear_current_mouse_selection = () => {
+            window.getSelection().removeAllRanges();
+        };
         this.linesRef = [];
         this.spansRef = {};
         this.containerRef = React.createRef();
@@ -341,7 +338,7 @@ class TextComponent extends React.Component<{ id: string; } & TextData & TextMet
             key = " ";
         }
         const spans = getDocumentSelectedRanges();
-        this.props.onKeyPress(
+        this.props.onKeyPress?.(
             key,
             makeModKeys(event),
             [...this.props.mouseSelection, ...spans],
@@ -361,25 +358,25 @@ class TextComponent extends React.Component<{ id: string; } & TextData & TextMet
             window.getSelection().removeAllRanges();
             if (spans.length > 0) {
                 //this.props.onMouseSelect([...this.props.mouse_selection, ...spans]);
-                this.props.onMouseSelect(makeModKeys(event), spans);
+                this.props.onMouseSelect?.(makeModKeys(event), spans);
             } else {
-                this.props.onMouseSelect(makeModKeys(event), []);
+                this.props.onMouseSelect?.(makeModKeys(event), []);
             }
         }
     };
 
     handleClickSpan = (event, span_id) => {
-        this.props.onClickSpan && this.props.onClickSpan(span_id, makeModKeys(event));
+        this.props.onClickSpan?.(span_id, makeModKeys(event));
         /*event.stopPropagation();
         event.preventDefault();*/
     };
 
     handleMouseEnterSpan = (event: React.MouseEvent<HTMLElement>, span_id: any) => {
-        this.props.onMouseEnterSpan && this.props.onMouseEnterSpan(span_id, makeModKeys(event));
+        this.props.onMouseEnterSpan?.(span_id, makeModKeys(event));
     };
 
     handleMouseLeaveSpan = (event: React.MouseEvent<HTMLElement>, span_id: any) => {
-        this.props.onMouseLeaveSpan && this.props.onMouseLeaveSpan(span_id, makeModKeys(event));
+        this.props.onMouseLeaveSpan?.(span_id, makeModKeys(event));
     };
 
     render() {

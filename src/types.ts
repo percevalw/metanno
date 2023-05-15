@@ -82,14 +82,15 @@ export type Filters = {
 
 export type ButtonData = {
     type?: string;
-    label: string;
+    text: string;
     secondary?: string;
     color?: string;
-    onMouseDown: (event: React.MouseEvent<HTMLSpanElement>) => void;
+    onClick: (event: React.MouseEvent<HTMLSpanElement>) => void;
 };
 
 export type ToolbarData = {
     buttons: ButtonData[],
+
 }
 
 export type TableData = {
@@ -100,7 +101,7 @@ export type TableData = {
     suggestions?: (Hyperlink | string)[],
     filters: Filters;
     inputValue: any;
-    position: {row_id: string, col: string, mode: "EDIT" | "SELECT"};
+    position?: {row_id: string, col: string, mode: "EDIT" | "SELECT"};
 }
 
 
@@ -117,13 +118,10 @@ export type PyTableData = {
 
 
 export type TableMethods = {
-    registerActions: ({
-        scroll_to_row,
-        focus,
-    }: {
-        scroll_to_row: (number) => void,
-        focus: () => void,
-    }) => void;
+    actions: {
+        scroll_to_row?: (number) => void,
+        focus?: () => void,
+    };
     onPositionChange?: (row_id: string, name: string, mode: string, cause: string) => void;
     onFiltersChange?: (name: string, value: any) => void;
     onClickCellContent?: (row_id: string, name: string, value?: any) => void;
@@ -135,16 +133,11 @@ export type TableMethods = {
 }
 
 export type TextMethods = {
-    registerActions: ({
-                          scroll_to_line,
-                          scroll_to_span,
-                          clear_current_mouse_selection,
-                      }: {
-        scroll_to_line: (number) => void,
-        scroll_to_span: () => void,
-        clear_current_mouse_selection: () => void,
-    }) => void;
-
+    actions: {
+        scroll_to_line?: (number) => void,
+        scroll_to_span?: () => void,
+        clear_current_mouse_selection?: () => void,
+    };
     onKeyPress?: (key: string, modkeys: string[], ranges: TextRange[]) => void;
     onClickSpan?: (span_id: any, modkeys: string[]) => void;
     onMouseEnterSpan?: (span_id: any, modkeys: string[]) => void;
@@ -155,3 +148,11 @@ export type TextMethods = {
 export type ToolbarMethods = {
     onButtonPress?: (idx: number, ranges?: TextRange[]) => void;
 }
+
+
+export type MetannoViewData = {
+    js_code: string,
+    py_code: string,
+    sourcemap: string,
+    view_id?: string,
+};

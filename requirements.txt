@@ -1,2 +1,0 @@
-transcrypt==3.7.16
-ipykernel

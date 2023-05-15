@@ -11,10 +11,17 @@
     color: var(--jp-ui-font-color1);
     overflow: auto;
 
-    border-bottom: var(--jp-border-width) solid var(--jp-toolbar-border-color);
     box-shadow: var(--jp-toolbar-box-shadow);
     padding: var(--metanno-toolbar-spacing);
     z-index: 1;
+}
+
+.toolbar-top {
+    border-bottom: var(--jp-border-width) solid var(--jp-toolbar-border-color);
+}
+
+.toolbar-bottom {
+    border-top: var(--jp-border-width) solid var(--jp-toolbar-border-color);
 }
 
 .toolbar-content {
@@ -38,7 +45,7 @@
     background: #dadada;*/
 }
 
-.toolbar div.toolbar-button {
+.toolbar-button {
     display: flex;
     flex-direction: row;
     align-items: stretch;
@@ -85,15 +92,6 @@
     font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", YuGothic, "ヒラギノ角ゴ ProN W3", Hiragino Kaku Gothic ProN, Arial, "メイリオ", Meiryo, sans-serif;
 }
 
-.container {
-    height: 100%;
-    position: relative;
-    box-sizing: border-box;
-    display: flex;
-    align-items: stretch;
-    flex-direction: column;
-}
-
 .toolbar-button > .toolbar-button-component > .toolbar-button-text,
 .toolbar-button > .toolbar-button-component > .toolbar-button-secondary {
     display: flex;
@@ -102,8 +100,8 @@
     padding: 0 6px;
     margin: 0;
     white-space: nowrap;
-
-    font-weight: 700;
+    user-select: none;
+    font-weight: 500;
 }
 
 .toolbar-button > .toolbar-button-component > .toolbar-button-text {

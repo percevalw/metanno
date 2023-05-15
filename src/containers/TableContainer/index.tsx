@@ -1,7 +1,7 @@
 import React, {useCallback} from "react";
 import {useSelector} from "react-redux";
 import TableComponent from "../../components/TableComponent";
-import Toolbar from "../../components/Toolbar";
+import Toolbar from "../../components/ToolBar";
 import Loading from "../../components/Loading";
 import {cachedReconcile} from "../../utils";
 import {PyTableData, TableMethods, ToolbarData, ToolbarMethods} from "../../types";

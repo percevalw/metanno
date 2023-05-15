@@ -1,3 +1,4 @@
+from typing import TypeVar
 from uuid import uuid4
 
 from .immutable import MapProxy
@@ -10,10 +11,13 @@ def as_state(state):
     return state
 
 
-class State(MapProxy):
+T = TypeVar('T')
+
+
+class State(MapProxy[T]):
     uuid: str
 
-    def __init__(self, obj, on_change=None, unsync=(), *args, **kwargs):
+    def __init__(self, obj: T, on_change=None, unsync=(), *args, **kwargs):
         manager = AppManager()
         state_id = str(uuid4())
 

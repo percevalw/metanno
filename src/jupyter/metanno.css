@@ -1,3 +1,8 @@
 .jp-toastContainer .Toastify__toast-body {
     display: flex;
+    overflow-x: scroll;
+}
+
+.jp-toastContainer .Toastify__toast-body pre {
+    margin: 0
 }

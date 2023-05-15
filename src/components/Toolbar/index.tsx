@@ -3,13 +3,13 @@ import "./style.css";
 import Color from "color";
 import {ButtonData, ToolbarData} from '../../types'
 
-const Button = ({label, secondary, color, onMouseDown}: ButtonData) => {
+export const Button = ({text, secondary, color, onClick}: ButtonData) => {
     const hsl = Color(color).hsl();
     // hsl.color[2] = Math.max(hsl.color[2], 60);
     return (<div className="toolbar-button">
-        <div className="bp3-button bp3-minimal toolbar-button-component button" onMouseDown={onMouseDown}>
+        <div className="bp3-button bp3-minimal toolbar-button-component button" onMouseDown={onClick}>
             <div style={{background: hsl.toString(), color: hsl.isLight() ? '#464646' : 'white' }} className="toolbar-button-text">
-                <span>{label}</span>
+                <span>{text}</span>
             </div>
             {secondary
                 ? <div style={{background: 'white', color: "#464646"}} className="toolbar-button-secondary"><span>{secondary}</span></div>
@@ -17,28 +17,26 @@ const Button = ({label, secondary, color, onMouseDown}: ButtonData) => {
         </div>
     </div>);
 };
-const Spacer = () => {
+
+export const Spacer = () => {
     return <div className="toolbar-spacer" />;
 };
 
 export default class Toolbar extends React.Component<{
-    onButtonPress?: (idx: number) => void;
-} & ToolbarData> {
-    static defaultProps = {
-        buttons: [],
-    };
+    side: 'top' | 'bottom',
+}> {
 
     constructor(props) {
         super(props);
     }
 
-    renderComponent = ({type, ...props}: ButtonData, idx) => {
+    /*renderComponent = ({type, ...props}: ButtonData, idx) => {
         if (type === "button")
             return <Button
-                label={props.label}
+                text={props.text}
                 color={props.color}
                 secondary={props.secondary}
-                onMouseDown={() => this.props.onButtonPress(idx)}
+                onClick={() => this.props.onButtonPress(idx)}
             />;
         else if (type === "spacer") {
             return <Spacer />
@@ -46,13 +44,13 @@ export default class Toolbar extends React.Component<{
         else {
             throw Error(`Unkown toolbar component type "${type}"`)
         }
-    };
+    };*/
 
     render() {
         return (
-            <div className="toolbar toolbar-wrap">
+            <div className={`toolbar toolbar-wrap toolbar-${this.props.side}`}>
                 <div className="toolbar-content">
-                    {this.props.buttons.map(this.renderComponent)}
+                    {this.props.children}
                 </div>
             </div>
         );

@@ -1,15 +1,6 @@
 @import url('//fonts.googleapis.com/css?family=Roboto+Mono&display=swap');
 @import url("//cdn.jsdelivr.net/npm/hack-font@3/build/web/hack.css");
 
-.span-editor {
-    font-family: sans-serif;
-    text-align: left;
-    overflow-y: scroll;
-    overflow-x: hidden;
-    height: 100%;
-    width: 100%;
-}
-
 .text {
     font-family: Verdana, Arial, sans-serif;
     /*font-family: 'Menlo', 'Hack', 'DejaVu Sans Mono', 'Roboto Mono', monospace;*/
