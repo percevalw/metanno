@@ -1,6 +1,7 @@
 <img src="https://github.com/percevalw/metanno/raw/master/doc/logo.png" width=120px />
 
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/percevalw/metanno/HEAD?urlpath=lab%2Ftree%2Fexamples%2FAnnotator.ipynb)
+[![DOI](https://zenodo.org/badge/244972164.svg)](https://zenodo.org/doi/10.5281/zenodo.10689826)
 
 --------------------------------------------------------------------------------
 
@@ -22,6 +23,23 @@ Its main objectives are:
 - 🚀 fast: the client side is written in React, and every action is processed in the browser directly by default
 - 🌐 websocket communication: you do not need to open any port
 - ⏮️ immutable state management, any state mutation is recorded and undoable
+
+## Citation
+
+If you use Metanno, consider citing this work as below.
+
+```bibtex
+@software{wajsburt_metanno,
+  author       = {Wajsbürt, Perceval},
+  title        = {Metanno: a modular annotator building framework},
+  month        = feb,
+  year         = 2024,
+  publisher    = {Zenodo},
+  version      = {0.0.9},
+  doi          = {10.5281/zenodo.10689827},
+  url          = {https://doi.org/10.5281/zenodo.10689827}
+}
+```
 
 ## Installation
 
