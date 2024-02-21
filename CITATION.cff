@@ -11,10 +11,11 @@ authors:
     family-names: Wajsbürt
 repository-code: "https://github.com/percevalw/metanno"
 abstract: >-
-  Metanno is a Python package designed for creating custom annotation interfaces. Key features include:
-  - Modularity: Flexibility in determining the number of data views.
-  - Customization: Straightforward adjustments and instant updates.
-  - Interactivity: Immediate access to annotations as Python objects upon modification.
+  Metanno is a Python package designed for creating custom annotation interfaces in JupyterLab.
+  Key features include:
+  - modularity: configurable number of views of the data
+  - customization: easy customization of the software behavior in Python
+  - interactivity: live access to the annotations from Python
 keywords:
   - nlp
   - framework
