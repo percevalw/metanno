@@ -1,0 +1,27 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: >-
+  Metanno: a modular annotator building framework
+message: If you use Metanno, please cite us as below.
+type: software
+authors:
+  - given-names: Perceval
+    family-names: Wajsbürt
+repository-code: "https://github.com/percevalw/metanno"
+abstract: >-
+  Metanno is a Python package designed for creating custom annotation interfaces. Key features include:
+  - Modularity: Flexibility in determining the number of data views.
+  - Customization: Straightforward adjustments and instant updates.
+  - Interactivity: Immediate access to annotations as Python objects upon modification.
+keywords:
+  - nlp
+  - framework
+  - modular
+  - jupyter
+  - annotation
+  - ner
+  - tabular
+license: MIT
+year: 2023
