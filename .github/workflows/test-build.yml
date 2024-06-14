@@ -1,0 +1,38 @@
+# This tries to build packages, and tests the packages.
+# It runs on every push to branches following the pattern v*.*.*.
+# It makes sure that everything will run when the version is released.
+
+name: Test Build
+
+on:
+  push:
+    branches:
+      - v*.*.*
+      - build-*
+
+jobs:
+  build_wheels:
+    name: Build wheels on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-20.04]
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: 'true'
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Build package
+        run: pip install -e .
+
+      - name: Test import
+        run: python -c "from metanno.recipes.ner import NERApp; print('ok')"
