@@ -1,4 +1,4 @@
-from metanno import App, kernel_only, frontend_only, produce, get_idx
+from metanno import App, kernel_only, frontend_only, produce, chain_map, chain_list, get_idx
 
 colors = [
     "rgb(255,200,206)",
@@ -23,19 +23,17 @@ class NERApp(App):
         if data is not None:
             self.data = data
             docs = [
-                {
-                    **doc,
+                chain_map(doc, {
                     "entities": {
-                        ent["id"]: {
-                            **ent,
-                            **({att["label"]: att["value"] for att in ent["attributes"]}),
-                        }
+                        ent["id"]: chain_map(ent, {
+                                att["label"]: att["value"]
+                                for att in ent["attributes"]
+                        })
                         for ent in doc["entities"]
                     }
-                }
+                })
                 for doc in self.data.load()
             ]
-            # noinspection PyTypeChecker
             self.state = {
                 # Data specific state
                 "doc_id": 0,
@@ -76,16 +74,14 @@ class NERApp(App):
                         "color": "white",
                     }
                 ] if suggester is not None else []) + [
-                    {
+                    chain_map({
                         "type": "button",
                         "key": field["key"],
                         "label": field["name"],
                         "annotation_kind": anno_type,
-                        "secondary": field["key"],
-                        **(
-                            {"color": field["color"]}
-                            if field.get("color", None) else {}),
-                    }
+                        "secondary": field["key"]}, {
+                        "color": field["color"],
+                    } if field.get("color", None) else {})
                     for anno_type in ("labels", "attributes")
                     for field in scheme[anno_type]
                     if field.get("key", None) is not None
@@ -125,14 +121,11 @@ class NERApp(App):
                     {
                         "begin": entity["begin"],
                         "end": entity["end"],
-                        "label": "".join([
-                            state["aliases"][entity["label"]],
-                            *(
-                                "["+entity[attribute["name"]] + "]"
-                                for attribute in state["scheme"]["attributes"]
-                                if attribute["name"] in entity
-                            )
-                        ]),
+                        "label": "".join(chain_list([state["aliases"][entity["label"]]], [
+                            "["+entity[attribute["name"]] + "]"
+                            for attribute in state["scheme"]["attributes"]
+                            if attribute["name"] in entity
+                        ])),
                         "style": entity["label"],
                         "id": entity["id"],
                         "highlighted": entity["id"] in state["highlighted"],
@@ -174,7 +167,7 @@ class NERApp(App):
         elif editor_id == "entities":
             return dict(
                 rows=[
-                    {
+                    chain_map({
                         "visible": True,
 
                         # Span specific columns
@@ -182,32 +175,27 @@ class NERApp(App):
                         "offsets": str(entity["begin"]) + "-" + str(entity["end"]),
                         "mention": hyperlinks.get(entity["id"], None),
                         "label": state["aliases"][entity["label"]],
-                        **{
-                            attribute["name"]: entity[attribute["name"]] if attribute["name"] in entity else None
-                            for attribute in state["scheme"]["attributes"]
-                        }
-                    }
+                    }, {
+                        attribute["name"]: entity[attribute["name"]] if attribute["name"] in entity else None
+                        for attribute in state["scheme"]["attributes"]
+                    })
                     for entity in self.filter_and_sort_entities(doc, doc["entities"], state["entities_filters"])
                 ],
                 rowKey="id",
-                columns=[
+                columns=chain_list([
                     {"name": "offsets", "type": "text"},
                     {"name": "delete", "type": "button"},
                     {"name": "mention", "type": "hyperlink", "mutable": True, "filterable": True},
                     {"name": "label", "type": "text", "mutable": True, "filterable": True, "choices": [
                         label["name"] for label in state["scheme"]["labels"]
                     ]},
-                    *(
-                        {
-                            "name": attribute["name"],
-                            "type": attribute["kind"],
-                            "mutable": True,
-                            "filterable": True,
-                            **({"choices": attribute["choices"]} if "choices" in attribute else {}),
-                        }
-                        for attribute in state["scheme"]["attributes"]
+                ], [
+                    chain_map(
+                        {"name": attribute["name"], "type": attribute["kind"], "mutable": True, "filterable": True},
+                        {"choices": attribute["choices"]} if "choices" in attribute else {},
                     )
-                ],
+                    for attribute in state["scheme"]["attributes"]
+                ]),
                 filters=state["entities_filters"],
                 selectedRows=state["selected"],
                 highlightedRows=state["highlighted"],
@@ -245,14 +233,13 @@ class NERApp(App):
     @produce
     def suggest(self):
         doc = self.state["docs"][self.state["doc_id"]]
-        doc = self.suggester({**doc, "entities": list(doc["entities"].values())})
-        doc = {
-            **doc,
+        doc = self.suggester(chain_map(doc, {"entities": list(doc["entities"].values())}))
+        doc = chain_map(doc, {
             "entities": {
                 ent["id"]: ent
                 for ent in doc["entities"]
-            },
-        }
+            }
+        })
         self.state["docs"][self.state["doc_id"]] = doc
 
     def annotate(self, key, spans):
@@ -325,18 +312,17 @@ class NERApp(App):
         if "docs" in old_state and not (state["docs"] is old_state.get("docs", None)):
             self.manager.save_state()
             docs = [
-                {
-                    **doc,
-                    "entities": [{
-                        **ent,
-                        "attributes": [
-                            {"label": attribute["name"], "value": ent[attribute["name"]]}
-                            for attribute in state["scheme"]["attributes"]
-                            if attribute["name"] in ent
-                        ]
-                        } for ent in list(doc["entities"].values())
+                chain_map(doc, {
+                    "entities": [
+                        chain_map(ent, {
+                            "attributes": [
+                                {"label": attribute["name"], "value": ent[attribute["name"]]}
+                                for attribute in state["scheme"]["attributes"]
+                                if attribute["name"] in ent
+                            ]
+                        }) for ent in list(doc["entities"].values())
                     ]
-                }
+                })
                 for doc, old_doc in zip(state["docs"], old_state["docs"])
                 if doc is not old_doc
             ]
