@@ -356,14 +356,27 @@ class NERApp(App):
 
     @produce
     def handle_mouse_select(self, editor_id, modkeys, spans):
-        if len(spans) and self.state["table_position"]["mode"] == "EDIT":
-            text = self.state["docs"][self.state["doc_id"]]["text"]
-            self.state["inputValue"] = {"text": text[spans[0]["begin"]:spans[0]["end"]], "key": "", "begin": spans[0]["begin"], "end": spans[0]["end"]}
-            self.focus("entities")
-        if "Shift" in modkeys:
-            self.state["mouse_selection"].extend(spans)
+        text = self.state["docs"][self.state["doc_id"]]["text"]
+
+        # If "Control" is held down, we append the spans, otherwise we replace the selection
+        if "Control" in modkeys:
+            # Add each new span to mouse_selection without duplicates
+            for span in spans:
+                if span not in self.state["mouse_selection"]:
+                    self.state["mouse_selection"].append(span)
         else:
+            # Default behavior
             self.state["mouse_selection"] = spans
+        
+        # If "Shift" is held down, set inputValue and focus on entities
+        if len(spans) and self.state["table_position"]["mode"] == "EDIT" and "Shift" in modkeys:
+            self.state["inputValue"] = {
+                "text": text[spans[0]["begin"]:spans[0]["end"]],
+                "key": "",
+                "begin": spans[0]["begin"],
+                "end": spans[0]["end"]
+            }
+            self.focus("entities")
 
     @produce
     def handle_click_span(self, editor_id, span_id, modkeys):
