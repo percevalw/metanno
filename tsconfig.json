@@ -1,21 +1,25 @@
 {
-  "include": ["src"],
+  "include": ["client"],
   "compilerOptions": {
     "module": "esnext",
-    "target": "es2020",
+    "target": "es5",
     "lib": [
       "es2020",
       "dom",
-      "es2021.weakref"
+      "es2021"
     ],
     "moduleResolution": "node",
     "sourceMap": true,
-    "rootDirs": ["src"],
+    "rootDirs": ["client"],
     "allowJs": true,
     "outDir": "lib",
     "strict": false,
     "allowSyntheticDefaultImports": true,
     "jsx": "react-jsx",
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "downlevelIteration": true,
+    "paths": {
+      "react": [ "./node_modules/@types/react" ]
+    }
   }
 }

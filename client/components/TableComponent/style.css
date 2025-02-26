@@ -1,0 +1,201 @@
+.jp-Notebook .metanno-table {
+    min-height: 100px;
+}
+
+.metanno-table {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    min-height: 50px;
+}
+
+.metanno-table, .metanno-table input {
+    font-family: var(--metanno-font-family);
+    font-size: var(--metanno-font-size);
+}
+
+.metanno-table-filter {
+    inline-size: 100%;
+    padding: 4px;
+    font-size: var(--metanno-font-size);
+    background: var(--background-color);
+    color: var(--color);
+    border: 1px solid var(--border-color);
+}
+
+.metanno-table-header-filter {
+    line-height: 30px;
+    padding: 0;
+}
+
+.metanno-table-header-filter > div > div {
+    padding-block: 0;
+    padding-inline: 4px;
+}
+
+.metanno-table-header-filter > div > div:first-child {
+    border-block-end: 1px solid var(--border-color);
+    padding-inline: 8px;
+}
+
+.metanno-table > div.rdg {
+    --font-size: var(--metanno-font-size); /* more specific than react-data-grid's .rnvodz5700-beta7 selector to override */
+    height: 100%;
+    border: none;
+}
+
+.metanno-table a {
+    color: #106ba3;
+}
+
+.metanno-table a:hover {
+    text-decoration: underline;
+}
+
+.metanno-table .rdg-cell-mask:focus {
+    outline: none;
+}
+
+.metanno-table .react-tagsinput {
+    background: transparent;
+    border: none;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
+.metanno-table .react-tagsinput > span {
+    line-height: 14px;
+}
+
+.metanno-table .react-tagsinput-tag, .metanno-table .react-tagsinput-input {
+    padding-top: 0;
+    padding-bottom: 0;
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+.metanno-table .react-tagsinput-tag {
+    background-color: #ffffff;
+    border-radius: 2px;
+    border: 1px solid #4a9bd2;
+    color: #000000;
+}
+
+.metanno-table .react-tagsinput-input:focus {
+    outline: none;
+}
+
+.metanno-table .react-tagsinput.disabled .react-tagsinput-input {
+    display: none;
+}
+
+
+.metanno-tagscell-container {
+
+}
+
+.rdg-row.metanno-row--highlighted {
+    background-color: var(--row-hover-background-color);
+}
+
+.metanno-table .rdg-row, .metanno-table .rdg-cell {
+    contain: initial;
+    overflow: visible;
+}
+
+.metanno-table .rdg-cell {
+    position: relative;
+}
+
+/* TAGS INPUT */
+.react-tagsinput {
+    background-color: #fff;
+    border: 1px solid #ccc;
+    overflow: hidden;
+    padding-left: 5px;
+    padding-top: 5px;
+}
+
+.react-tagsinput--focused {
+    border-color: #a5d24a;
+}
+
+.react-tagsinput-tag {
+    background-color: #cde69c;
+    border-radius: 2px;
+    border: 1px solid #a5d24a;
+    color: #638421;
+    display: inline-block;
+    font-family: sans-serif;
+    font-size: 13px;
+    font-weight: 400;
+    margin-bottom: 5px;
+    margin-right: 5px;
+    padding: 5px;
+}
+
+.react-tagsinput-remove {
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.react-tagsinput-tag a::before {
+    content: " ×";
+}
+
+.react-tagsinput-input {
+    background: transparent;
+    border: 0;
+    color: #777;
+    font-family: sans-serif;
+    font-size: 13px;
+    font-weight: 400;
+    margin-bottom: 6px;
+    margin-top: 1px;
+    outline: none;
+    padding: 5px;
+    width: 80px;
+}
+
+.rdg-cell > button {
+    width: 100%;
+    cursor: pointer;
+    outline: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    color: black;
+    padding: 0;
+    background: #f8f8f8;
+    border: none;
+    box-shadow: var(--metanno-box-shadow);
+    border-radius: 2px 2px 2px 2px;
+}
+
+.rdg-cell-editing {
+    padding: 0
+}
+
+.rdg-cell:focus, .rdg-cell[aria-selected=true] {
+    outline: 0
+}
+
+.metanno-table > div {
+    overflow-y: scroll;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none;  /* Internet Explorer 10+ */
+}
+.metanno-table > div::-webkit-scrollbar { /* WebKit */
+    width: 0;
+    height: 0;
+}
+
+.rdg-cell a, .rdg-cell span {
+    width: 100%;
+    display: inline-block;
+    text-overflow: ellipsis;
+    overflow: hidden;
+}
+
+.rdg-cell:last-child {
+    border-right: none;
+}
