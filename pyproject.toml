@@ -1,3 +1,77 @@
+[project]
+name = "metanno"
+description = "Modular annotator building framework in Python"
+authors = [
+    { name = "Perceval Wajsburt", email = "perceval.wajsburt@gmail.com" }
+]
+readme = "README.md"
+license = { file = "LICENSE" }
+urls.homepage = "https://github.com/perceval/metanno/"
+urls.repository = "https://github.com/perceval/metanno/"
+urls.documentation = "https://perceval.github.io/metanno/"
+dynamic = ["version"]
+requires-python = ">3.7.6,<4.0,!=3.8.1"
+dependencies = [
+    "pret"
+]
+
+# ----- Development configuration -----
+[project.optional-dependencies]
+dev = [
+    "hatchling",
+    "hatch-jupyter-builder",
+]
+
+# ----- Linting & Testing -----
+[tool.ruff]
+fix = true
+exclude = [
+    ".git",
+    "__pycache__",
+    "__init__.py",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".venv",
+    "build",
+    "ui/__init__.py",
+]
+line-length = 88
+lint.select = [
+    "E",
+    "F",
+    "W",
+    "I001"
+]
+lint.fixable = ["E", "F", "W", "I"]
+
+[tool.ruff.lint.extend-per-file-ignores]
+# Also ignore `E402` in all `__init__.py` files.
+"__init__.py" = ["E402", "F401"]
+
+# ----- Build configuration -----
+[tool.hatch.version]
+path = "metanno/__init__.py"
+
 [build-system]
-requires = ["jupyter_packaging~=0.7.0", "jupyterlab>=3.0.0rc2,==3.*", "setuptools>=40.8.0", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling", "jupyterlab<4.0.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.hooks.jupyter-builder]
+dependencies = ["hatch-jupyter-builder"]
+build-function = "hatch_jupyter_builder.npm_builder"
+ensured-targets = ["metanno/ui/js-extension/package.json"]
+install-pre-commit-hook = true
+optional-editable-build = true
+build-kwargs = { "build_cmd" = "build", "npm" = ["jlpm"] }
+editable-build-kwargs = { "build_cmd" = "build:dev", "npm" = ["jlpm"] }
+
+[tool.hatch.build]
+artifacts = [
+    "metanno",
+    "pret",
+]
+
+[tool.hatch.build.targets.wheel]
+
+[tool.hatch.build.targets.wheel.shared-data]
+"metanno/ui/js-extension" = "share/jupyter/labextensions/metanno"

@@ -145,8 +145,6 @@ $RECYCLE.BIN/
 # ----
 
 **/node_modules/
-metanno/nbextension/static/index.*
-metanno/labextension/*.tgz
 package-lock.json
 
 # Coverage data
@@ -154,10 +152,9 @@ package-lock.json
 **/coverage/
 
 # Compiled JS
-metanno/ui/js-extension
-metanno/ui/js-base
-client/**/*.js
-client/**/*.js.map
+*.js
+*.js.map
+
 
 .vscode
 
@@ -165,14 +162,12 @@ client/**/*.js.map
 # -------
 .idea
 
-.vscode
-
 # YARN
 # -------
+.yarn/
 yarn.lock
-
-# Transkrypt output
-examples/__target__/
+.yarnrc.yml
+yarn-error.log
 
 docs/
 .venv

@@ -1,0 +1,166 @@
+@import url('//fonts.googleapis.com/css?family=Roboto+Mono&display=swap');
+@import url("//cdn.jsdelivr.net/npm/hack-font@3/build/web/hack.css");
+
+.metanno-text-view:focus-visible {
+    outline: none;
+}
+
+.metanno-text-view .text {
+    background: var(--metanno-background-color);
+    font-family: var(--metanno-font-family);
+    font-size: var(--metanno-font-size);
+    margin-top: 10px;
+    margin-bottom: 5px;
+    line-height: 2.8em;
+    color: var(--metanno-color);
+    position: relative;
+
+    width: 100%;
+    overflow-x: hidden;
+}
+
+.metanno-text-view .line {
+    padding-left: 41px;
+    box-sizing: border-box;
+    width: 100%;
+}
+
+.metanno-text-view .line-number {
+    margin-left: -41px;
+    width: 0;
+    display: inline-block;
+    padding: 0 30px 0 11px;
+    color: #959da5;
+}
+
+.metanno-text-view .line-number,
+.metanno-text-view .label {
+    -webkit-touch-callout: none; /* iOS Safari */
+    -webkit-user-select: none; /* Safari */
+    -khtml-user-select: none; /* Konqueror HTML */
+    -moz-user-select: none; /* Old versions of Firefox */
+    -ms-user-select: none; /* Internet Explorer/Edge */
+    user-select: none; /* Non-prefixed version, currently supported by Chrome, Opera and Firefox */
+}
+
+.metanno-text-view .text-chunk {
+    word-break: break-word;
+    white-space: nowrap;
+    display: inline;
+    position: relative;
+}
+
+.metanno-text-view .text-chunk-content {
+    position: relative;
+    z-index: 1001;
+    white-space: pre-wrap;
+}
+
+.metanno-text-view .mention_token {
+    box-sizing: content-box;
+    border-radius: 0.0000001em;
+    display: inline-block;
+
+    pointer-events: none;
+    position: absolute;
+    background-color: var(--metanno-background-color);
+    border-color: var(--metanno-border-color);
+    left: 0px;
+    right: 0px;
+    border-width: 2px;
+    border-style: solid;
+    border-right-width: 0;
+    border-left-width: 0;
+}
+
+.metanno-text-view .label {
+    box-sizing: content-box;
+    position: absolute;
+    white-space: pre;
+    border-radius: 0.2em;
+    font-size: 0.65em;
+    padding: 0.5em 0.1em 0em;
+    background: var(--metanno-background-color);
+    line-height: 0em;
+    height: 0.4em;
+    pointer-events: none;
+    color: var(--metanno-color);
+    border: 2px solid;
+    border-color: var(--metanno-color);
+}
+
+.metanno-text-view .label.highlighted {
+    box-shadow: 0px 0px 4px 4px #e7c600;
+}
+
+.metanno-text-view .mention_token.mention_underline, .metanno-text-view .mention_token.mention_underline.closed_left, .metanno-text-view .mention_token.mention_underline.closed_right {
+    top: unset;
+    border-top: 0;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+}
+
+.metanno-text-view .mention_token.closedleft {
+    left: -1px;
+    border-left-width: 2px;
+    border-top-left-radius: 2px;
+    border-bottom-left-radius: 2px;
+}
+
+.metanno-text-view .mention_token.closedright {
+    right: -1px;
+    border-right-width: 2px;
+    border-top-right-radius: 2px;
+    border-bottom-right-radius: 2px;
+}
+
+.metanno-text-view .mention_token.highlighted {
+    border-top-width: 4px;
+    border-bottom-width: 4px;
+}
+
+.metanno-text-view .mention_token.mention_underline, .metanno-text-view .mention_token.closedright.mention_underline, .metanno-text-view .mention_token.closedleft.mention_underline {
+    right: -2px;
+    border-top: 0;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+}
+
+.metanno-text-view .mention_token.closedleft.highlighted {
+    border-left-width: 4px;
+    left: -2px;
+}
+
+.metanno-text-view .mention_token.closedright.highlighted {
+    border-right-width: 4px;
+    right: -2px;
+}
+
+.metanno-text-view .mouse_selected {
+    background: rgba(137, 188, 250, 0.6); /*#b2d7ff88;*/
+    border: none;
+    min-height: 2.8em;
+    z-index: 1000;
+}
+
+/* Style only for Mozilla Firefox */
+@-moz-document url-prefix() {
+    .metanno-text-view .mouse_selected {
+        top: 0;
+        bottom: 0;
+        min-height: unset;
+    }
+}
+
+@keyframes blink {
+    from, to {
+        border-color: white
+    }
+    50% {
+        border-color: black
+    }
+}
+
+.metanno-text-view .mention_token.selected {
+    animation: var(--blink-animation);
+}
