@@ -308,22 +308,24 @@ export class TextComponent extends React.Component<TextData & TextMethods> {
     private processStyles: ((style: {[style_name: string]: TextAnnotationStyle}) => {[style_name: string]: PreprocessedStyle});
     constructor(props) {
         super(props);
-        // Problem: props.actions may be an object OR a mapping, I don't know when it is which
-        props.actions.set("scroll_to_line", (line) => {
-            if (line >= 0 && line < this.linesRef.length && this.linesRef[line]) {
-                this.linesRef[line].current?.scrollIntoView({behavior: 'smooth', block: 'center'})
-            }
-        });
-        props.actions.set("scroll_to_span", (span_id) => {
-            setTimeout(() => {
-                if (this.spansRef[span_id]) {
-                    this.spansRef[span_id].current?.scrollIntoView({behavior: 'smooth', block: 'center'})
+        if (props.actions) {
+            // Problem: props.actions may be an object OR a mapping, I don't know when it is which
+            props.actions.set("scroll_to_line", (line) => {
+                if (line >= 0 && line < this.linesRef.length && this.linesRef[line]) {
+                    this.linesRef[line].current?.scrollIntoView({behavior: 'smooth', block: 'center'})
                 }
-            }, 10)
-        });
-        props.actions.set("clear_current_mouse_selection", () => {
-            window.getSelection().removeAllRanges();
-        });
+            });
+            props.actions.set("scroll_to_span", (span_id) => {
+                setTimeout(() => {
+                    if (this.spansRef[span_id]) {
+                        this.spansRef[span_id].current?.scrollIntoView({behavior: 'smooth', block: 'center'})
+                    }
+                }, 10)
+            });
+            props.actions.set("clear_current_mouse_selection", () => {
+                window.getSelection().removeAllRanges();
+            });
+        }
         this.linesRef = [];
         this.spansRef = {};
         this.containerRef = React.createRef();
