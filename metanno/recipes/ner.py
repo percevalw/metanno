@@ -330,11 +330,17 @@ class NERApp(App):
 
     @produce
     def handle_key_press(self, editor_id, key, modkeys, spans):
-        if (key.lower() == "z") and "Control" in modkeys:
-            if "Shift" not in modkeys:
-                self.undo()
-            else:
-                self.redo()
+        if "Control" in modkeys:
+            if key.lower() == "z":
+                if "Shift" not in modkeys:
+                    self.undo()
+                else:
+                    self.redo()
+                return
+            elif key.lower() == "c":
+                text = self.state["docs"][self.state["doc_id"]]["text"]              
+                navigator.clipboard.writeText(text[spans[0]["begin"]:spans[0]["end"]])
+            return
         if key == "ArrowRight":
             self.state["doc_id"] = (self.state["doc_id"] + 1) % len(self.state["docs"])
         elif key == "ArrowLeft":
