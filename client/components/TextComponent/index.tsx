@@ -394,7 +394,7 @@ export class TextComponent extends React.Component<TextData & TextMethods> {
     };
 
     render() {
-        const styles = this.processStyles(this.props.spanStyles);
+        const styles = this.processStyles(this.props.annotationStyles);
         const text = this.props.text || "";
         const newSelectedSpans = JSON.stringify(this.props.spans.filter(span => span.selected).map(span => span.id));
         if (newSelectedSpans != this.previousSelectedSpans) {

@@ -123,7 +123,7 @@ export const ImageComponent: React.FC<ImageData & ImageMethods> = (props) => {
             ...(
                 (typeof annotation.style !== 'string'
                         ? annotation.style
-                        : props.annotation_styles[annotation.style]
+                        : props.annotationStyles[annotation.style]
                 ) || {}
             ),
         }
@@ -284,5 +284,5 @@ export const ImageComponent: React.FC<ImageData & ImageMethods> = (props) => {
 ImageComponent.defaultProps = {
     annotations: [],
     mouseSelection: [],
-    annotation_styles: {},
+    annotationStyles: {},
 }
