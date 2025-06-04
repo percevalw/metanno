@@ -123,7 +123,7 @@ export const ImageComponent: React.FC<ImageData & ImageMethods> = (props) => {
             ...(
                 (typeof annotation.style !== 'string'
                         ? annotation.style
-                        : props.styles[annotation.style]
+                        : props.annotation_styles[annotation.style]
                 ) || {}
             ),
         }
@@ -241,7 +241,7 @@ export const ImageComponent: React.FC<ImageData & ImageMethods> = (props) => {
         // A focusable container so that key events are captured
         <div tabIndex={0}
              onKeyDown={handleKeyPress}
-             style={{width: '100%', height: '100%', overflow: 'hidden', outline: 'none'}}
+             style={{width: '100%', height: '100%', overflow: 'hidden', outline: 'none', ...props.style}}
              ref={containerRef}
         >
             <Stage
@@ -284,5 +284,5 @@ export const ImageComponent: React.FC<ImageData & ImageMethods> = (props) => {
 ImageComponent.defaultProps = {
     annotations: [],
     mouseSelection: [],
-    styles: {},
+    annotation_styles: {},
 }
