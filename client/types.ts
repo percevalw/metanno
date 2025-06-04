@@ -54,7 +54,8 @@ export type TextData = {
     text: string;
     spans: TextAnnotation[];
     mouseSelection: TextRange[];
-    styles: { [style_name: string]: TextAnnotationStyle };
+    spanStyles: { [styleName: string]: TextAnnotationStyle };
+    style: CSSProperties;
 }
 
 export type TextMethods = {
@@ -62,12 +63,12 @@ export type TextMethods = {
         scroll_to_line?: (number) => void,
         scroll_to_span?: () => void,
         clear_current_mouse_selection?: () => void,
-    };
-    onKeyPress?: (key: string, modkeys: string[], ranges: TextRange[]) => void;
+    } | any;
+    onKeyPress?: (key: string, ranges: TextRange[], modkeys: string[]) => void;
     onClickSpan?: (span_id: any, modkeys: string[]) => void;
     onMouseEnterSpan?: (span_id: any, modkeys: string[]) => void;
     onMouseLeaveSpan?: (span_id: any, modkeys: string[]) => void;
-    onMouseSelect?: (modkeys: string[], ranges: TextRange[]) => void
+    onMouseSelect?: (ranges: TextRange[], modkeys: string[]) => void
 }
 
 // Image types

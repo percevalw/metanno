@@ -77,6 +77,7 @@ function styleTextChunks_(text_chunks: TextChunk[], spans: TextAnnotation[], sty
     };
 
     spans.forEach(({begin, end, label, style, ...rest}, span_i) => {
+        style = style || label;
         let newDepth = null, newZIndex = null;
 
         if (begin >= rightMostOffset) {
