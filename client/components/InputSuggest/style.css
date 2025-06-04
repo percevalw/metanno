@@ -7,36 +7,45 @@
     align-items: center;
 }
 
-.rdg-editor-container > div > .react-autosuggest__container {
+.rdg-cell .rdg-editor-container > div > .react-autosuggest__container {
     padding-left: 8px;
     padding-right: 8px;
-    margin-right: 1px;
-    background: white;
+    background: transparent;
     /*border-bottom: 1px solid #dddddd;*/
+    margin-right: 0px;
+    /*border-right: 1px solid #dddddd;*/
     box-sizing: border-box;
 }
 
-.react-autosuggest__input {
+.rdg-cell .react-autosuggest__input {
+    font-family: inherit;
+    border: none;
+    padding-left: 8px;
+    font-size: var(--font-size);
+    width: 100%;
+    height: 100%;
+    color: var(--color);
+    background: transparent;
 }
 
-.react-autosuggest__input::-ms-clear {
+.rdg-cell .react-autosuggest__input::-ms-clear {
     display: none;
 }
 
-.react-autosuggest__input--open {
+.rdg-cell .react-autosuggest__input--open {
     border-bottom-left-radius: 0;
     border-bottom-right-radius: 0;
 }
 
-.react-autosuggest__input--focused {
+.rdg-cell .react-autosuggest__input--focused {
     outline: none;
 }
 
-.react-autosuggest__suggestions-container {
+.rdg-cell .react-autosuggest__suggestions-container {
     display: none;
 }
 
-.rdg-editor-container > div {
+.rdg-cell .rdg-editor-container > div {
     /*background: white;*/
 }
 
@@ -49,7 +58,8 @@
     left: -1px;
     right: 0px;
 }
-.react-autosuggest__suggestions-container--open {
+
+.rdg-cell .react-autosuggest__suggestions-container--open {
     display: block;
     position: absolute;
     top: 100%;
@@ -57,40 +67,49 @@
     box-sizing: border-box;
     border: 1px solid #aaa;
     background-color: #fff;
-    font-family: 'Open Sans', sans-serif;
+    /* font-family: 'Open Sans', sans-serif;
     font-weight: 300;
-    font-size: 14px;
+    font-size: 14px;*/
     border-bottom-left-radius: 4PX;
     border-bottom-right-radius: 4PX;
     z-index: 2;
     max-height: 200px;
     overflow-y: auto;
+
+    overflow-y: scroll;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* Internet Explorer 10+ */
 }
 
-.react-autosuggest__suggestions-list {
+.rdg-cell .react-autosuggest__suggestions-container--open::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+}
+
+.rdg-cell .react-autosuggest__suggestions-list {
     margin: 0;
     padding: 0;
     list-style-type: none;
 }
 
-.react-autosuggest__suggestion {
+.rdg-cell .react-autosuggest__suggestion {
     cursor: pointer;
-    padding: 5px 5px;
+    padding: 0 8px;
 }
 
-.react-autosuggest__suggestion--highlighted {
+.rdg-cell .react-autosuggest__suggestion--highlighted {
     background-color: #ddd;
 }
 
-.react-autosuggest__section-container {
+.rdg-cell .react-autosuggest__section-container {
     border-top: 1px dashed #ccc;
 }
 
-.react-autosuggest__section-container-first {
+.rdg-cell .react-autosuggest__section-container-first {
     border-top: 0;
 }
 
-.react-autosuggest__section-title {
+.rdg-cell .react-autosuggest__section-title {
     padding: 10px 0 0 10px;
     font-size: 12px;
     color: #777;
@@ -115,9 +134,9 @@
 
     /*height: 30px;
     padding: 10px 20px;*/
-    font-family: 'Open Sans', sans-serif;
+    /*font-family: 'Open Sans', sans-serif;
     font-weight: 300;
-    font-size: 14px;
+    font-size: 14px;*/
     border-radius: 4PX;
     -webkit-appearance: none;
 }

@@ -116,9 +116,10 @@ export type ImageMethods = {
 export type ColumnData = {
     key: string;
     name: string;
-    type: string;
+    kind: string;
     editable: boolean;
     filterable: boolean;
+    choices?: any[];
 };
 
 export type RowData = {
@@ -137,7 +138,10 @@ export type TableData = {
     suggestions?: (Hyperlink | string)[],
     filters: Filters;
     inputValue: any;
-    position?: {row_id: string, col: string, mode: "EDIT" | "SELECT"};
+    position?: {row_idx: number, col: string, mode: "EDIT" | "SELECT"};
+    autoFilter?: boolean;
+    subset?: number[];
+    style: CSSProperties;
 }
 
 
@@ -145,14 +149,15 @@ export type TableMethods = {
     actions?: {
         scroll_to_row?: (number) => void,
         focus?: () => void,
-    };
-    onPositionChange?: (row_id: string, name: string, mode: string, cause: string) => void;
+    } | any;
+    onPositionChange?: (row_idx: number, name: string, mode: string, cause: string) => void;
     onFiltersChange?: (values: {[key: string]: string}, column: string) => void;
-    onClickCellContent?: (row_id: string, name: string, value?: any) => void;
+    onClickCellContent?: (row_idx: number, name: string, value?: any) => boolean | void;
     onKeyPress?: () => void;
-    onMouseEnterRow?: (row_id: any, mod_keys: string[]) => void;
-    onMouseLeaveRow?: (row_id: any, mod_keys: string[]) => void;
-    onCellChange?: (row_id: any, name: string, value: any) => void;
-    onInputChange: (row_id: any, name: string, value: any, cause: string) => void;
+    onMouseEnterRow?: (row_idx: number, mod_keys: string[]) => void;
+    onMouseLeaveRow?: (row_idx: number, mod_keys: string[]) => void;
+    onCellChange?: (row_idx: number, name: string, value: any) => void;
+    onInputChange: (row_idx: number, name: string, value: any, cause: string) => void;
     onScrollBottom: (event: React.UIEvent<HTMLDivElement> | { isAtBottom: boolean }) => any;
+    onSubsetChange?: (subset: number[]) => void;
 }
