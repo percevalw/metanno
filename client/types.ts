@@ -54,7 +54,7 @@ export type TextData = {
     text: string;
     spans: TextAnnotation[];
     mouseSelection: TextRange[];
-    spanStyles: { [styleName: string]: TextAnnotationStyle };
+    annotationStyles: { [styleName: string]: TextAnnotationStyle };
     style: CSSProperties;
 }
 
@@ -99,7 +99,8 @@ export type ImageData = {
     image: string;
     annotations: ImageAnnotation[];
     mouseSelection: Shape[];
-    styles: { [style_name: string]: ImageAnnotationStyle };
+    annotationStyles: { [styleName: string]: ImageAnnotationStyle };
+    style: CSSProperties;
 }
 
 export type ImageMethods = {

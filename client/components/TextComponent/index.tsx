@@ -306,7 +306,7 @@ export class TextComponent extends React.Component<TextData & TextMethods> {
         spans: [],
         mouseSelection: [],
         text: "",
-        spanStyles: {},
+        annotationStyles: {},
     };
 
     private readonly tokenize: (spans: TextAnnotation[], text: string, styles: {[key: string]: PreprocessedStyle}) => { ids: any[]; lines: TokenData[][] };
