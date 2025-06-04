@@ -154,8 +154,8 @@ package-lock.json
 **/coverage/
 
 # Compiled JS
-metanno/ui/js-extension
-metanno/ui/js-base
+pret/ui/metanno/js-extension
+pret/ui/metanno/js-base
 client/**/*.js
 client/**/*.js.map
 
@@ -170,9 +170,19 @@ client/**/*.js.map
 # YARN
 # -------
 yarn.lock
+.yarn/
 
 # Transkrypt output
 examples/__target__/
 
 docs/
 .venv
+
+# Tests
+playwright-report
+test-results
+blob-report
+
+# Misc
+*.back
+*.tmp
