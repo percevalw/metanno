@@ -1,5 +1,5 @@
 
-function internalReconcile(a, b) {
+export function internalReconcile(a, b) {
     // 7.1. All identical values are equivalent, as determined by ===.
     if (a === b) {
         return true;

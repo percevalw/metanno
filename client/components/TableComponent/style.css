@@ -190,7 +190,7 @@
 }
 
 .rdg-cell a, .rdg-cell span {
-    width: 100%;
+    max-width: 100%;
     display: inline-block;
     text-overflow: ellipsis;
     overflow: hidden;
