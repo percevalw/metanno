@@ -292,12 +292,21 @@ const Line = React.memo(<StyleRest extends object>({index, styles, tokens, spans
 });
 
 
+const setOnMapping = (mapping: Map<string, any>|{[key: string]: any}, key: string, value: any) => {
+    if (mapping instanceof Map) {
+        mapping.set(key, value);
+    } else {
+        mapping[key] = value;
+    }
+}
+
+
 export class TextComponent extends React.Component<TextData & TextMethods> {
     public static defaultProps = {
         spans: [],
         mouseSelection: [],
         text: "",
-        styles: {},
+        spanStyles: {},
     };
 
     private readonly tokenize: (spans: TextAnnotation[], text: string, styles: {[key: string]: PreprocessedStyle}) => { ids: any[]; lines: TokenData[][] };
@@ -310,19 +319,19 @@ export class TextComponent extends React.Component<TextData & TextMethods> {
         super(props);
         if (props.actions) {
             // Problem: props.actions may be an object OR a mapping, I don't know when it is which
-            props.actions.set("scroll_to_line", (line) => {
+            setOnMapping(props.actions, "scroll_to_line", (line, behavior: ScrollBehavior = 'smooth') => {
                 if (line >= 0 && line < this.linesRef.length && this.linesRef[line]) {
-                    this.linesRef[line].current?.scrollIntoView({behavior: 'smooth', block: 'center'})
+                    this.linesRef[line].current?.scrollIntoView({behavior: behavior, block: 'center'})
                 }
             });
-            props.actions.set("scroll_to_span", (span_id) => {
+            setOnMapping(props.actions, "scroll_to_span", (span_id, behavior: ScrollBehavior = 'smooth') => {
                 setTimeout(() => {
                     if (this.spansRef[span_id]) {
-                        this.spansRef[span_id].current?.scrollIntoView({behavior: 'smooth', block: 'center'})
+                        this.spansRef[span_id].current?.scrollIntoView({behavior: behavior, block: 'center'});
                     }
                 }, 10)
             });
-            props.actions.set("clear_current_mouse_selection", () => {
+            setOnMapping(props.actions, "clear_current_mouse_selection", () => {
                 window.getSelection().removeAllRanges();
             });
         }
@@ -331,7 +340,7 @@ export class TextComponent extends React.Component<TextData & TextMethods> {
         this.containerRef = React.createRef();
         this.previousSelectedSpans = "";
         this.tokenize = cachedReconcile(tokenize);
-        this.processStyles = memoize(styles => Object.assign({}, ...Object.keys(styles).map(key => ({...styles[key], [key]: processStyle(styles[key])}))));
+        this.processStyles = memoize(styles => Object.assign({}, ...Object.keys(styles).map(key => ({[key]: processStyle(styles[key])}))));
     }
 
     handleKeyUp = (event: React.KeyboardEvent) => {
@@ -345,8 +354,8 @@ export class TextComponent extends React.Component<TextData & TextMethods> {
         const spans = getDocumentSelectedRanges();
         this.props.onKeyPress?.(
             key,
-            makeModKeys(event),
             [...this.props.mouseSelection, ...spans],
+            makeModKeys(event),
         );
     };
 
@@ -363,9 +372,9 @@ export class TextComponent extends React.Component<TextData & TextMethods> {
             window.getSelection().removeAllRanges();
             if (spans.length > 0) {
                 //this.props.onMouseSelect([...this.props.mouse_selection, ...spans]);
-                this.props.onMouseSelect?.(makeModKeys(event), spans);
+                this.props.onMouseSelect?.(spans, makeModKeys(event));
             } else {
-                this.props.onMouseSelect?.(makeModKeys(event), []);
+                this.props.onMouseSelect?.([], makeModKeys(event));
             }
         }
     };
@@ -385,8 +394,8 @@ export class TextComponent extends React.Component<TextData & TextMethods> {
     };
 
     render() {
-        const styles = this.processStyles(this.props.styles);
-        const text = this.props.text;
+        const styles = this.processStyles(this.props.spanStyles);
+        const text = this.props.text || "";
         const newSelectedSpans = JSON.stringify(this.props.spans.filter(span => span.selected).map(span => span.id));
         if (newSelectedSpans != this.previousSelectedSpans) {
             document.documentElement.style.setProperty("--blink-animation", '');
@@ -417,6 +426,7 @@ export class TextComponent extends React.Component<TextData & TextMethods> {
                  onKeyDown={this.handleKeyDown}
                  onKeyUp={this.handleKeyUp}
                  tabIndex={0}
+                 style={this.props.style}
             >
                 <div className={`text`}>
                     {lines.map((tokens, lineIndex) =>

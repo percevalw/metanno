@@ -9,8 +9,8 @@
     background: var(--metanno-background-color);
     font-family: var(--metanno-font-family);
     font-size: var(--metanno-font-size);
-    margin-top: 10px;
-    margin-bottom: 5px;
+    padding-top: 10px;
+    padding-bottom: 5px;
     line-height: 2.8em;
     color: var(--metanno-color);
     position: relative;
