@@ -175,7 +175,6 @@ yarn.lock
 # Transkrypt output
 examples/__target__/
 
-docs/
 .venv
 
 # Tests
