@@ -361,7 +361,7 @@ export const TableComponent = React.memo(function TableComponent(props: TableDat
     });
     const nameToCol = Object.assign({}, ...columnObjects);
     return columnsOrder.map((name) => nameToCol[name]);
-  }, [props.columns, columnsOrder, props.filters, props.inputValue]);
+  }, [props.columns, columnsOrder, effectiveFilters, props.inputValue]);
 
   const onRowsChange = useEventCallback((newRows: RowData[]) => {
     const updatedRows = newRows
