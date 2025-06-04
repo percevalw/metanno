@@ -10,10 +10,39 @@ urls.homepage = "https://github.com/perceval/metanno/"
 urls.repository = "https://github.com/perceval/metanno/"
 urls.documentation = "https://perceval.github.io/metanno/"
 dynamic = ["version"]
-requires-python = ">3.7.6,<4.0,!=3.8.1"
+requires-python = ">=3.7,<4.0,!=3.8.1"
 dependencies = [
-    "pret"
+    "pret",
+    "pret-joy",
 ]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Software Development :: Widget Sets",
+    "Topic :: Software Development :: User Interfaces",
+    "Topic :: Scientific/Engineering :: Visualization",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+    "Framework :: Jupyter",
+    "Framework :: Jupyter :: JupyterLab",
+    "Framework :: Jupyter :: JupyterLab :: 3",
+    "Framework :: Jupyter :: JupyterLab :: 4",
+    "Framework :: Jupyter :: JupyterLab :: Extensions :: Prebuilt",
+    "Framework :: Jupyter :: JupyterLab :: Extensions :: Mime Renderers",
+]
+
+# ----- CLI configuration -----
+[project.scripts]
+pret = "pret.cli:app"
 
 # ----- Development configuration -----
 [project.optional-dependencies]
@@ -21,6 +50,31 @@ dev = [
     "hatchling",
     "hatch-jupyter-builder",
 ]
+docs = [
+    "mike~=1.1.2",
+    "mkdocs-charts-plugin==0.0.8",
+    "mkdocs-img2fig-plugin==0.9.3",
+    "mkdocs-material~=9.2.0",
+    "mkdocs-section-index==0.3.4",
+    "mkdocs~=1.5.2",
+    "mkdocstrings>=0.20,<0.28.0",
+    "mkdocstrings-python~=1.1",
+    "mkdocs-minify-plugin",
+    "mkdocs-redirects>=1.2.1;python_version>='3.8'",
+    "pybtex~=0.24.0",
+    "pathspec>=0.11.1", # required by vendored mkdocs-autorefs PR
+    "astunparse",
+    "griffe<0.39",
+    "beautifulsoup4",
+    "jedi",
+    "html5lib",
+]
+
+[project.entry-points."mkdocs.plugins"]
+"bibtex" = "docs.scripts.bibtex:BibTexPlugin"
+"autorefs" = "docs.scripts.autorefs.plugin:AutorefsPlugin"
+"clickable_snippets" = "docs.scripts.clickable_snippets:ClickableSnippetsPlugin"
+"pret_snippet_renderer" = "docs.scripts.pret_snippet_renderer:PretSnippetRendererPlugin"
 
 # ----- Linting & Testing -----
 [tool.ruff]
@@ -33,7 +87,7 @@ exclude = [
     ".pytest_cache",
     ".venv",
     "build",
-    "ui/__init__.py",
+    "pret/ui/metanno/__init__.py"
 ]
 line-length = 88
 lint.select = [
@@ -48,30 +102,72 @@ lint.fixable = ["E", "F", "W", "I"]
 # Also ignore `E402` in all `__init__.py` files.
 "__init__.py" = ["E402", "F401"]
 
+
 # ----- Build configuration -----
 [tool.hatch.version]
 path = "metanno/__init__.py"
 
 [build-system]
-requires = ["hatchling", "jupyterlab<4.0.0"]
+requires = ["hatchling", "jupyterlab<4.0.0", "pip<=24.0"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.hooks.jupyter-builder]
 dependencies = ["hatch-jupyter-builder"]
 build-function = "hatch_jupyter_builder.npm_builder"
-ensured-targets = ["metanno/ui/js-extension/package.json"]
+ensured-targets = ["pret/ui/metanno/js-extension/package.json"]
 install-pre-commit-hook = true
-optional-editable-build = true
+optional-editable-build = false
 build-kwargs = { "build_cmd" = "build", "npm" = ["jlpm"] }
 editable-build-kwargs = { "build_cmd" = "build:dev", "npm" = ["jlpm"] }
 
 [tool.hatch.build]
 artifacts = [
     "metanno",
-    "pret",
+    "pret"
 ]
 
 [tool.hatch.build.targets.wheel]
+packages = [
+    "pret",
+    "metanno"
+]
 
 [tool.hatch.build.targets.wheel.shared-data]
-"metanno/ui/js-extension" = "share/jupyter/labextensions/metanno"
+"pret/ui/metanno/js-extension" = "share/jupyter/labextensions/metanno"
+
+# ----- Documentation -----
+[tool.hatch.envs.docs]
+python = "3.10"
+features = ["docs", "dev", "joy"]
+
+# ----- Testing -----
+[tool.hatch.envs.test]
+features = ["dev"]
+
+[[tool.hatch.envs.test.matrix]]
+jupyterlab = ["jupyterlab3", "jupyterlab4"]
+python = ["3.7", "3.8", "3.9", "3.10"]
+
+[tool.hatch.envs.test.overrides]
+matrix.jupyterlab.dependencies = [
+    { value = "jupyterlab>=4", if = ["jupyterlab4"] },
+    { value = "jupyterlab<4", if = ["jupyterlab3"] },
+]
+
+[tool.hatch.envs.test.scripts]
+jupyter = "sh tests/jupyter/run.sh"
+# Don't run this via hatch since it would run with all py versions
+# playwright-combine = "npx playwright merge-reports --reporter html ./blob-report"
+
+[tool.hatch.envs.ci]
+detached = true
+
+# TODO: if and when hatch allow, put this as a post-run script after test:jupyter
+[tool.hatch.envs.ci.scripts]
+combine-reports = [
+    "npx playwright merge-reports --reporter html ./blob-report",
+    "rm -rf ./blob-report"
+]
+
+[tool.hatch.metadata]
+allow-direct-references = true

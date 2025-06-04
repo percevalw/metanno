@@ -1,18 +1,21 @@
 {
   "name": "metanno",
-  "version": "0.10.0",
-  "files": [
-    "client/**/*"
-  ],
+  "version": "1.0.0-beta.1",
+  "description": "Modular annotator building framework in Python",
   "main": "client/index.ts",
+  "repository": "https://github.com/percevalw/metanno",
+  "author": "Perceval Wajsbürt <perceval.wajsburt@gmail.com>",
   "scripts": {
-    "build": "jlpm clean && jupyter labextension build .",
-    "build:dev": "jlpm clean && jupyter labextension build --development True .",
-    "clean": "rm -rf metanno/ui/js-extension lib"
+    "build": "jlpm clean && jlpm build:jupyter",
+    "build:dev": "jlpm clean && jlpm build:jupyter:dev",
+    "build:jupyter": "jupyter labextension build .",
+    "build:jupyter:dev": "jupyter labextension build --development True .",
+    "clean": "rm -rf pret/ui/metanno/js-extension"
   },
+  "license": "Apache-2.0",
   "peerDependencies": {
-    "react": ">=17.0.2",
-    "react-dom": ">=17.0.2"
+    "react": "^17.0.0",
+    "react-dom": "^17.0.0"
   },
   "dependencies": {
     "color": "^4.2.3",
@@ -22,30 +25,30 @@
     "react-dnd": "^16.0.1",
     "react-dnd-html5-backend": "^16.0.1",
     "react-fast-compare": "^3.2.2",
-    "react-konva": "^17.0.1-3",
-    "use-image": "^1.1.1"
-  },
+    "react-konva": "^17.0.1-3"
+   },
   "devDependencies": {
-    "@jupyterlab/builder": "^3.4.1",
-    "@jupyterlab/galata": "^5.0.0",
-    "@types/react": "<18",
+    "@jupyterlab/builder": "^3.6.5",
+    "@types/react": "^17.0.0",
+    "@types/react-dom": "^17.0.0",
     "file-loader": "^6.2.0",
+    "@jupyterlab/galata": "5",
+    "old-galata": "npm:@jupyterlab/galata@4.5.8",
+    "husky": ">=6",
+    "lint-staged": ">=10",
     "prettier": "^2.8.8",
     "react": "^17.0.2",
     "react-dom": "^17.0.2",
     "ts-loader": "^9.4.2",
-    "typescript": "4.5.5",
-    "webpack": "^5.83.1"
+    "typescript": "^5.8.2"
   },
   "jupyterlab": {
     "extension": "client/plugin.ts",
     "schemaDir": "client/schema",
-    "outputDir": "metanno/ui/js-extension",
-    "webpackConfig": "./webpack/webpack.jupyter.js"
+    "outputDir": "pret/ui/metanno/js-extension",
+    "webpackConfig": "./webpack.jupyter.js"
   },
-  "prettier": {
-    "printWidth": 120
-  },
+  "prettier": {},
   "browserslist": {
     "production": [
       ">0.2%",
@@ -57,5 +60,8 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "lint-staged": {
+    "*.{js,css,md}": "prettier --write"
   }
 }
