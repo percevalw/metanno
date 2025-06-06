@@ -1,0 +1,19 @@
+name: Delete preview docs
+
+on:
+  workflow_dispatch:
+  delete:
+
+jobs:
+  delete:
+    name: Delete Vercel Project
+    if: github.event.ref_type == 'branch'
+    runs-on: ubuntu-latest
+    steps:
+    - run: |
+        # Set up Vercel
+        npm install --global vercel@latest
+        # Pull Vercel environment
+        vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+        # Delete vercel project linked to this branch
+        vercel remove metanno-${{ github.event.ref }} --yes --token=${{ secrets.VERCEL_TOKEN }}

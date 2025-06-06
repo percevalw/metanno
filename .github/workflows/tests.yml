@@ -1,0 +1,217 @@
+name: Jupyter Tests
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+env:
+  BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+
+jobs:
+  linting:
+    name: Linting
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-22.04
+    steps:
+      - name: 'Compute git fetch depth'
+        run: echo "PR_FETCH_DEPTH=$(( ${{ github.event.pull_request.commits }} + 1 ))" >> "${GITHUB_ENV}"
+
+      # To support coverage diffing
+      - name: 'Checkout PR branch and all PR commits'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: ${{ env.PR_FETCH_DEPTH }}
+          submodules: 'recursive'
+
+      - uses: actions/setup-python@v4
+        with:
+          cache: 'pip'
+
+      - uses: pre-commit/action@v3.0.0
+        with:
+          extra_args: --color=always --from-ref ${{ github.event.pull_request.base.sha }} --to-ref ${{ github.event.pull_request.head.sha }}
+
+  test:
+    name: Run tests
+    timeout-minutes: 60
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        python-version: [ "3.7", "3.8", "3.9", "3.10" ]
+
+    steps:
+      - name: 'Compute git fetch depth'
+        run: echo "PR_FETCH_DEPTH=$(( ${{ github.event.pull_request.commits }} + 1 ))" >> "${GITHUB_ENV}"
+
+      # To support coverage diffing
+      - name: 'Checkout PR branch and all PR commits'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: ${{ env.PR_FETCH_DEPTH }}
+          submodules: 'recursive'
+
+      # - name: Base Setup
+      #   uses: jupyterlab/maintainer-tools/.github/actions/base-setup@v1
+      #   with:
+      #     python_version: ${{ matrix.python-version }}
+      #     node_version: "20.x"
+      #     dependency_type: "standard"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+
+      - name: Install Node dependencies
+        run: yarn install
+
+      - name: Install Playwright Browsers
+        run: yarn playwright install --with-deps
+
+      - name: Install project
+        run: pip install -e ".[dev]"
+
+      # TODO: replace with hatch run tests when py37 is supported
+      # run: hatch run test.py${{ matrix.python-version }}-jupyterlab3:jupyter
+
+      - name: Run tests for JupyterLab 4
+        if: ${{ matrix.python-version != '3.7' }}
+        run: |
+          pip install "jupyterlab>=4"
+          sh tests/jupyter/run.sh
+
+      - name: Run tests for JupyterLab 3
+        run: |
+          pip install "jupyterlab<4"
+          sh tests/jupyter/run.sh
+
+      - name: Upload blob report
+        uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: blob-report-${{ matrix.python-version }}
+          path: blob-report/
+          retention-days: 7
+
+  combine-report:
+    name: Generate combined report
+    needs: test
+    runs-on: ubuntu-22.04
+    if: ${{ !cancelled() }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all blob-reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: blob-report-*
+          path: blob-report/
+          merge-multiple: true
+
+      - name: Base Setup
+        uses: jupyterlab/maintainer-tools/.github/actions/base-setup@v1
+        with:
+          python_version: "3.10"
+          node_version: "20.x"
+          dependency_type: "standard"
+
+      # Even if the tests fail, we want to generate the report
+      - name: Generate Playwright report
+        run: hatch run ci:combine-reports
+        if: ${{ !cancelled() }}
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 30
+
+  docs:
+    name: Test documentation
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
+
+      - name: Base Setup
+        uses: jupyterlab/maintainer-tools/.github/actions/base-setup@v1
+        with:
+          python_version: "3.10"
+          node_version: "20.x"
+          dependency_type: "standard"
+
+      - name: Set up Git
+        run: |
+          git config user.name ${{ github.actor }}
+          git config user.email ${{ github.actor }}@users.noreply.github.com
+          echo Current branch: $BRANCH_NAME
+
+      - name: Build docs
+        run: |
+          hatch -e docs run mike deploy --no-redirect --rebase --update-aliases $BRANCH_NAME latest
+          hatch -e docs run mike set-default $BRANCH_NAME
+
+      - name: Put content of gh-pages to public folder
+        run: rm -rf public && mkdir public && git archive gh-pages | tar -x -C ./public/
+
+      - name: Set up Vercel
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel environment
+        run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Create new vercel project linked to this branch
+        run: vercel project add metanno-$BRANCH_NAME --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Link public folder to the (maybe) new vercel project
+        run: vercel link --cwd public --project metanno-$BRANCH_NAME --yes --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy to Vercel
+        run: vercel deploy public/ --yes --token=${{ secrets.VERCEL_TOKEN }} --archive=tgz --prod > deployment-url.txt
+
+      - name: Post the documentation link
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          slugify () {
+              echo "$1" | iconv -c -t ascii//TRANSLIT | sed -E 's/[^a-zA-Z0-9-]+//g' | tr A-Z a-z
+          }
+          RAW_PROJECT_NAME="metanno-$BRANCH_NAME"
+          URL=https://$(slugify "$RAW_PROJECT_NAME").vercel.app/
+          COMMENT_BODY="## Docs preview URL\n\n$URL\n\n"
+          HEADER="Authorization: token $GITHUB_TOKEN"
+          PR_COMMENTS_URL="https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments"
+
+          # Fetch existing comments to find if one from this workflow already exists
+          COMMENTS=$(curl -s -H "$HEADER" "$PR_COMMENTS_URL")
+          COMMENT_ID=$(echo "$COMMENTS" | jq -r '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("## Docs preview URL"))) | .id')
+
+          # Check if we have a comment ID, if so, update it, otherwise create a new one
+          if [[ "$COMMENT_ID" ]]; then
+            # Update existing comment
+            curl -s -X PATCH -H "$HEADER" -H "Content-Type: application/json" -d "{\"body\": \"$COMMENT_BODY\"}" "https://api.github.com/repos/${{ github.repository }}/issues/comments/$COMMENT_ID"
+          else
+            # Post new comment
+            curl -s -X POST -H "$HEADER" -H "Content-Type: application/json" -d "{\"body\": \"$COMMENT_BODY\"}" "$PR_COMMENTS_URL"
+          fi
+
+          if [ $status -ne 0 ]; then
+            exit $status
+          fi

@@ -1,7 +1,9 @@
 site_name: Metanno
 
 theme:
+  language: en
   name: material
+  custom_dir: docs/assets/overrides
   palette:
     - scheme: default
       toggle:
@@ -18,35 +20,34 @@ theme:
     - navigation.tracking
     - navigation.instant
     - navigation.indexes
-    # - navigation.tabs
+    - navigation.prune
     - navigation.top
+    - navigation.footer
     - content.code.annotate
-
+    - content.code.copy
+    - announce.dismiss
 
 nav:
-  - index.md
+  - Overview: index.md
   - installation.md
-  - first-app.md
-  - Concepts:
-    - state.md
-    - views.md
-  - Behind the scene:
-      - bts/overview.md
-      - bts/comms.md
-      - bts/immutability.md
-      - bts/jupyter.md
-      - bts/transpilation.md
-  - Reference:
-    - Widgets:
-      - reference/static-text-elements.md
-      - reference/buttons.md
-      - reference/text-annotator.md
-      - reference/table-annotator.md
-    # - Code Reference: reference/
-  #- contributing.md
-  - changelog.md
-
-
+  # - first-app.md
+  # - Concepts:
+  #   - state.md
+  #   - views.md
+  # - Behind the scene:
+  #     - bts/overview.md
+  #     - bts/comms.md
+  #     - bts/immutability.md
+  #     - bts/jupyter.md
+  #     - bts/transpilation.md
+  - Building Blocks:
+      - components/index.md
+      - Pret: https://percevalw.github.io/pret" target="_blank
+      - components/text-component.md
+      - components/table-component.md
+      - components/image-component.md
+  - Reference: reference/
+  - Changelog: changelog.md
 
 extra:
   version:
@@ -55,49 +56,73 @@ extra:
 
 extra_css:
   - assets/stylesheets/extra.css
-  - assets/termynal/termynal.css
-
-extra_javascript:
-  - https://cdn.jsdelivr.net/npm/vega@5
-  - https://cdn.jsdelivr.net/npm/vega-lite@5
-  - https://cdn.jsdelivr.net/npm/vega-embed@6
-  - assets/termynal/termynal.js
 
 plugins:
+  - auto_gen_pages:
+      package_dirs: ["metanno", "pret"]
+      reference_section: Reference
+      exclude_glob: assets/fragments/*
+      copy_files:
+        changelog.md: changelog.md
+  - cards
+  - fix_fonts
   - search
-  - autorefs
-  - bibtex:
-      bib_file: "docs/references.bib"
-  #- gen-files:
-  #    scripts:
-  #      - docs/generate_reference.py
-  #      - docs/generate_development.py
+  - minify:
+      minify_html: true
+      minify_js: true
+      minify_css: true
+      htmlmin_opts:
+          remove_comments: true
+      cache_safe: true
+  - autorefs:
+      priority:
+        - .*
+        - reference
+  - pret_snippet_renderer:
+  - mkdocstrings_options_templates:
   - mkdocstrings:
+      enable_inventory: true
       handlers:
         python:
-          selection:
+          options:
             docstring_style: numpy
-          rendering:
             docstring_section_style: spacy
-            heading_level: 3
+            heading_level: 2
             members_order: source
             show_root_toc_entry: false
-            show_if_no_docstring: yes
-      watch:
-        - "metanno"
-  - literate-nav:
-      nav_file: SUMMARY.md
+            show_signature: false
+            merge_init_into_class: true
+  - bibtex:
+      bibtex_file: "docs/references.bib"
+  - clickable_code:
   - mike
 
+watch:
+  - changelog.md
+  - pret
+  - metanno
+
 markdown_extensions:
+  - pymdownx.highlight
   - admonition
   - pymdownx.superfences
-  - pymdownx.highlight
   - pymdownx.inlinehilite
   - pymdownx.snippets
   - pymdownx.tabbed:
       alternate_style: true
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
   - footnotes
   - md_in_html
   - attr_list
   - pymdownx.details
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:materialx.emoji.twemoji
+      emoji_generator: !!python/name:materialx.emoji.to_svg
+
+validation:
+  absolute_links: ignore
+  unrecognized_links: ignore
