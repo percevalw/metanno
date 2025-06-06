@@ -69,7 +69,7 @@ There are many annotation tools available (see [Neves et al.](https://pubmed.ncb
 require a complex installation that is not compatible with existing remote work environments, or are difficult to customize.
 Finally, the standardization of annotation levels (mention / relation / event) is an obstacle to the development of new tasks.
 Given the limitations of the existing softwares and the difficulty to cover every need with a single static annotator,
-this project was initiated to provide a modular and fully customizable annotation framework, Metanno, and address these difficulties.  
+this project was initiated to provide a modular and fully customizable annotation framework, Metanno, and address these difficulties.
 
 ## Demo
 
