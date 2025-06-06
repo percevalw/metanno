@@ -45,36 +45,14 @@ classifiers = [
 pret = "pret.cli:app"
 
 # ----- Development configuration -----
-[project.optional-dependencies]
+[project.dependency-groups]
 dev = [
     "hatchling",
     "hatch-jupyter-builder",
 ]
 docs = [
-    "mike~=1.1.2",
-    "mkdocs-charts-plugin==0.0.8",
-    "mkdocs-img2fig-plugin==0.9.3",
-    "mkdocs-material~=9.2.0",
-    "mkdocs-section-index==0.3.4",
-    "mkdocs~=1.5.2",
-    "mkdocstrings>=0.20,<0.28.0",
-    "mkdocstrings-python~=1.1",
-    "mkdocs-minify-plugin",
-    "mkdocs-redirects>=1.2.1;python_version>='3.8'",
-    "pybtex~=0.24.0",
-    "pathspec>=0.11.1", # required by vendored mkdocs-autorefs PR
-    "astunparse",
-    "griffe<0.39",
-    "beautifulsoup4",
-    "jedi",
-    "html5lib",
+    "mkdocs-eds @ git+https://github.com/percevalw/mkdocs-eds.git@main#egg=mkdocs-eds",
 ]
-
-[project.entry-points."mkdocs.plugins"]
-"bibtex" = "docs.scripts.bibtex:BibTexPlugin"
-"autorefs" = "docs.scripts.autorefs.plugin:AutorefsPlugin"
-"clickable_snippets" = "docs.scripts.clickable_snippets:ClickableSnippetsPlugin"
-"pret_snippet_renderer" = "docs.scripts.pret_snippet_renderer:PretSnippetRendererPlugin"
 
 # ----- Linting & Testing -----
 [tool.ruff]
@@ -138,11 +116,17 @@ packages = [
 # ----- Documentation -----
 [tool.hatch.envs.docs]
 python = "3.10"
-features = ["docs", "dev", "joy"]
+# Todo, use dependency-groups once hatch supports them
+dependencies = [
+    "mkdocs-eds @ git+https://github.com/percevalw/mkdocs-eds.git@main#egg=mkdocs-eds",
+    "pret @ git+https://github.com/percevalw/pret.git@main#egg=pret"
+]
 
 # ----- Testing -----
 [tool.hatch.envs.test]
-features = ["dev"]
+dependencies = [
+    "pret @ git+https://github.com/percevalw/pret.git@main#egg=pret"
+]
 
 [[tool.hatch.envs.test.matrix]]
 jupyterlab = ["jupyterlab3", "jupyterlab4"]
