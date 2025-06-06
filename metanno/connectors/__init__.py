@@ -1,1 +1,0 @@
-from .brat import BratDataConnector
