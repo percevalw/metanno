@@ -43,6 +43,7 @@ export type TokenData = {
 } & TextRange;
 
 export type TextAnnotationStyle = {
+    color: string;
     backgroundColor: string;
     borderColor: string
     autoNestingLayout: boolean;
@@ -79,10 +80,10 @@ export type ImageAnnotationStyle = {
     fillColor: string;
     opacity: number;
     shape: string;
-    labelPosition: string;
     fontSize: number;
     align: "left" | "center" | "right";
     verticalAlign: "top" | "middle" | "bottom";
+    textColor?: string;
 }
 
 export type Shape = {
@@ -106,7 +107,7 @@ export type ImageData = {
 export type ImageMethods = {
     actions?: {};
     onKeyPress?: (key: string, modkeys: string[]) => void;
-    onClickShape?: (shape_id: any, modkeys: string[]) => void;
+    onClick?: (shape_id: any, modkeys: string[]) => void;
     onMouseEnterShape?: (shape_id: any, modkeys: string[]) => void;
     onMouseLeaveShape?: (shape_id: any, modkeys: string[]) => void;
     onMouseSelect?: (modkeys: string[], shapes: Shape[]) => void
@@ -154,7 +155,6 @@ export type TableMethods = {
     onPositionChange?: (row_idx: number, name: string, mode: string, cause: string) => void;
     onFiltersChange?: (values: {[key: string]: string}, column: string) => void;
     onClickCellContent?: (row_idx: number, name: string, value?: any) => boolean | void;
-    onKeyPress?: () => void;
     onMouseEnterRow?: (row_idx: number, mod_keys: string[]) => void;
     onMouseLeaveRow?: (row_idx: number, mod_keys: string[]) => void;
     onCellChange?: (row_idx: number, name: string, value: any) => void;

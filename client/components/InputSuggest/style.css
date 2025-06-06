@@ -1,4 +1,4 @@
-.react-autosuggest__container, .input-tag-container {
+.metanno-table .react-autosuggest__container, .metanno-table  .input-tag-container {
     position: relative;
     height: 100%;
     /*width: 282px;*/
@@ -49,7 +49,7 @@
     /*background: white;*/
 }
 
-.rdg-editor-container > div, .rdg-cell-value, .rdg-cell-value > div {
+.rdg-editor-container > div, .metanno-table .rdg-cell-value, .rdg-cell-value > div {
     height: 100%;
     width: 100%;
 }
@@ -92,9 +92,16 @@
     list-style-type: none;
 }
 
-.rdg-cell .react-autosuggest__suggestion {
+.rdg-cell ul.react-autosuggest__suggestions-list {
+    margin-left: 0;
+}
+
+.rdg-cell ul > li.react-autosuggest__suggestion {
     cursor: pointer;
     padding: 0 8px;
+    margin-left: 0;
+    margin-bottom: 0;
+
 }
 
 .rdg-cell .react-autosuggest__suggestion--highlighted {
