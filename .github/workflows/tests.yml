@@ -1,5 +1,4 @@
 name: Jupyter Tests
-
 on:
   push:
     branches: [ main, master ]
@@ -11,7 +10,7 @@ env:
 
 jobs:
   linting:
-    name: Linting
+    name: 'Linting'
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-22.04
     steps:
@@ -26,16 +25,16 @@ jobs:
           fetch-depth: ${{ env.PR_FETCH_DEPTH }}
           submodules: 'recursive'
 
-      - uses: actions/setup-python@v4
-        with:
-          cache: 'pip'
+      - name: 'Setup Python'
+        uses: actions/setup-python@v5
 
-      - uses: pre-commit/action@v3.0.0
+      - name: 'Run pre-commit'
+        uses: pre-commit/action@v3.0.0
         with:
           extra_args: --color=always --from-ref ${{ github.event.pull_request.base.sha }} --to-ref ${{ github.event.pull_request.head.sha }}
 
   test:
-    name: Run tests
+    name: 'Run tests'
     timeout-minutes: 60
     runs-on: ubuntu-22.04
     strategy:
@@ -54,48 +53,49 @@ jobs:
           fetch-depth: ${{ env.PR_FETCH_DEPTH }}
           submodules: 'recursive'
 
-      # - name: Base Setup
-      #   uses: jupyterlab/maintainer-tools/.github/actions/base-setup@v1
-      #   with:
-      #     python_version: ${{ matrix.python-version }}
-      #     node_version: "20.x"
-      #     dependency_type: "standard"
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-          cache: 'pip'
-
-      - name: Set up Node
+      - name: 'Set up Node'
         uses: actions/setup-node@v4
         with:
           node-version: "20.x"
 
-      - name: Install Node dependencies
-        run: yarn install
+      # UV fails to install python 3.7 so with use the base python action
+      # and let UV use the installed python
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
 
-      - name: Install Playwright Browsers
+      - name: 'Install uv'
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          activate-environment: true
+          cache-dependency-glob: |
+            pyproject.toml
+            uv.lock
+
+      - name: 'Install project'
+        run: |
+          cd submodules/react-data-grid && yarn link && cd ../.. && yarn link "react-data-grid"
+          yarn install
+          uv pip install -e . --group dev
+
+      - name: 'Install Playwright Browsers'
         run: yarn playwright install --with-deps
 
-      - name: Install project
-        run: pip install -e ".[dev]"
 
-      # TODO: replace with hatch run tests when py37 is supported
-      # run: hatch run test.py${{ matrix.python-version }}-jupyterlab3:jupyter
-
-      - name: Run tests for JupyterLab 4
+      - name: 'Run tests for JupyterLab 4'
         if: ${{ matrix.python-version != '3.7' }}
         run: |
-          pip install "jupyterlab>=4"
+          uv pip install "jupyterlab>=4"
           sh tests/jupyter/run.sh
 
-      - name: Run tests for JupyterLab 3
+      - name: 'Run tests for JupyterLab 3'
         run: |
-          pip install "jupyterlab<4"
+          uv pip install "jupyterlab<4"
           sh tests/jupyter/run.sh
 
-      - name: Upload blob report
+      - name: 'Upload blob report'
         uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
         with:
@@ -104,34 +104,34 @@ jobs:
           retention-days: 7
 
   combine-report:
-    name: Generate combined report
+    name: 'Generate combined report'
     needs: test
     runs-on: ubuntu-22.04
     if: ${{ !cancelled() }}
     steps:
-      - name: Checkout
+      - name: 'Checkout'
         uses: actions/checkout@v4
 
-      - name: Download all blob-reports
+      - name: 'Download all blob-reports'
         uses: actions/download-artifact@v4
         with:
           pattern: blob-report-*
           path: blob-report/
           merge-multiple: true
 
-      - name: Base Setup
-        uses: jupyterlab/maintainer-tools/.github/actions/base-setup@v1
+      - name: 'Set up Node'
+        uses: actions/setup-node@v4
         with:
-          python_version: "3.10"
-          node_version: "20.x"
-          dependency_type: "standard"
+          node-version: "20.x"
 
-      # Even if the tests fail, we want to generate the report
-      - name: Generate Playwright report
-        run: hatch run ci:combine-reports
+      - name: 'Generate Playwright report'
+        run: |
+          npx playwright merge-reports --reporter html ./blob-report
+          rm -rf ./blob-report
+        # Even if the tests fail, we want to generate the report
         if: ${{ !cancelled() }}
 
-      - name: Upload Playwright report
+      - name: 'Upload Playwright report'
         uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
         with:
@@ -140,53 +140,64 @@ jobs:
           retention-days: 30
 
   docs:
-    name: Test documentation
+    name: 'Test documentation'
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
 
     steps:
-      - name: Checkout
+      - name: 'Checkout'
         uses: actions/checkout@v4
         with:
           submodules: 'recursive'
 
-      - name: Base Setup
-        uses: jupyterlab/maintainer-tools/.github/actions/base-setup@v1
+      - name: 'Set up Node'
+        uses: actions/setup-node@v4
         with:
-          python_version: "3.10"
-          node_version: "20.x"
-          dependency_type: "standard"
+          node-version: "20.x"
 
-      - name: Set up Git
+      - name: 'Install uv'
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: 3.11
+          enable-cache: true
+          activate-environment: true
+          cache-dependency-glob: |
+            pyproject.toml
+            uv.lock
+
+      - name: 'Set up Git'
         run: |
           git config user.name ${{ github.actor }}
           git config user.email ${{ github.actor }}@users.noreply.github.com
           echo Current branch: $BRANCH_NAME
 
-      - name: Build docs
+      - name: 'Build docs'
         run: |
-          hatch -e docs run mike deploy --no-redirect --rebase --update-aliases $BRANCH_NAME latest
-          hatch -e docs run mike set-default $BRANCH_NAME
+          cd submodules/react-data-grid && yarn link && cd ../.. && yarn link "react-data-grid"
+          yarn install
+          uv pip install -e . --group docs
+          mike deploy --alias-type=copy --update-aliases $BRANCH_NAME latest
+          mike set-default $BRANCH_NAME
 
-      - name: Put content of gh-pages to public folder
+      - name: 'Put content of gh-pages to public folder'
         run: rm -rf public && mkdir public && git archive gh-pages | tar -x -C ./public/
 
-      - name: Set up Vercel
+      - name: 'Set up Vercel'
         run: npm install --global vercel@latest
 
-      - name: Pull Vercel environment
+      - name: 'Pull Vercel environment'
         run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
 
-      - name: Create new vercel project linked to this branch
+      - name: 'Create new vercel project linked to this branch'
         run: vercel project add metanno-$BRANCH_NAME --token=${{ secrets.VERCEL_TOKEN }}
 
-      - name: Link public folder to the (maybe) new vercel project
+      - name: 'Link public folder to the (maybe) new vercel project'
         run: vercel link --cwd public --project metanno-$BRANCH_NAME --yes --token=${{ secrets.VERCEL_TOKEN }}
 
-      - name: Deploy to Vercel
+      - name: 'Deploy to Vercel'
         run: vercel deploy public/ --yes --token=${{ secrets.VERCEL_TOKEN }} --archive=tgz --prod > deployment-url.txt
 
-      - name: Post the documentation link
+      - name: 'Post the documentation link'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

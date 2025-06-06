@@ -10,11 +10,6 @@ urls.homepage = "https://github.com/perceval/metanno/"
 urls.repository = "https://github.com/perceval/metanno/"
 urls.documentation = "https://perceval.github.io/metanno/"
 dynamic = ["version"]
-requires-python = ">=3.7,<4.0,!=3.8.1"
-dependencies = [
-    "pret",
-    "pret-joy",
-]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -39,13 +34,14 @@ classifiers = [
     "Framework :: Jupyter :: JupyterLab :: Extensions :: Prebuilt",
     "Framework :: Jupyter :: JupyterLab :: Extensions :: Mime Renderers",
 ]
-
-# ----- CLI configuration -----
-[project.scripts]
-pret = "pret.cli:app"
+requires-python = ">=3.7,<4.0,!=3.8.1"
+dependencies = [
+    "pret @ git+https://github.com/percevalw/pret.git@main#egg=pret",
+    "pret-joy",
+]
 
 # ----- Development configuration -----
-[project.dependency-groups]
+[dependency-groups]
 dev = [
     "hatchling",
     "hatch-jupyter-builder",
@@ -53,6 +49,10 @@ dev = [
 docs = [
     "mkdocs-eds @ git+https://github.com/percevalw/mkdocs-eds.git@main#egg=mkdocs-eds",
 ]
+
+# ----- CLI configuration -----
+[project.scripts]
+pret = "pret.cli:app"
 
 # ----- Linting & Testing -----
 [tool.ruff]
@@ -112,46 +112,6 @@ packages = [
 
 [tool.hatch.build.targets.wheel.shared-data]
 "pret/ui/metanno/js-extension" = "share/jupyter/labextensions/metanno"
-
-# ----- Documentation -----
-[tool.hatch.envs.docs]
-python = "3.10"
-# Todo, use dependency-groups once hatch supports them
-dependencies = [
-    "mkdocs-eds @ git+https://github.com/percevalw/mkdocs-eds.git@main#egg=mkdocs-eds",
-    "pret @ git+https://github.com/percevalw/pret.git@main#egg=pret"
-]
-
-# ----- Testing -----
-[tool.hatch.envs.test]
-dependencies = [
-    "pret @ git+https://github.com/percevalw/pret.git@main#egg=pret"
-]
-
-[[tool.hatch.envs.test.matrix]]
-jupyterlab = ["jupyterlab3", "jupyterlab4"]
-python = ["3.7", "3.8", "3.9", "3.10"]
-
-[tool.hatch.envs.test.overrides]
-matrix.jupyterlab.dependencies = [
-    { value = "jupyterlab>=4", if = ["jupyterlab4"] },
-    { value = "jupyterlab<4", if = ["jupyterlab3"] },
-]
-
-[tool.hatch.envs.test.scripts]
-jupyter = "sh tests/jupyter/run.sh"
-# Don't run this via hatch since it would run with all py versions
-# playwright-combine = "npx playwright merge-reports --reporter html ./blob-report"
-
-[tool.hatch.envs.ci]
-detached = true
-
-# TODO: if and when hatch allow, put this as a post-run script after test:jupyter
-[tool.hatch.envs.ci.scripts]
-combine-reports = [
-    "npx playwright merge-reports --reporter html ./blob-report",
-    "rm -rf ./blob-report"
-]
 
 [tool.hatch.metadata]
 allow-direct-references = true
