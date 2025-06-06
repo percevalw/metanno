@@ -33,24 +33,19 @@ const processStyle = ({color, shape, autoNestingLayout, labelPosition, ...rest}:
     } catch (e) {
         colorObject = Color('lightgray')
     }
-    let highlightedColor, highlightedTextColor, backgroundColor, textColor;
-    highlightedColor = toLuminance(colorObject.saturate(1.), 0.6).toString()
-    if (colorObject.isLight() || shape === 'underline') {
-        highlightedTextColor = '#ffffffde';
+    let backgroundColor, textColor;
+    if (colorObject.isLight()) {
         textColor = '#000000de';
         backgroundColor = colorObject.lighten(0.02).toString();
     } else {
-        highlightedTextColor = '#000000de';
         textColor = '#ffffffde'
         backgroundColor = colorObject.darken(0.02).toString();
     }
-    if (shape === 'underline')
-        textColor = '#000000de';
     return {
         base: {
             'borderColor': color,
             'backgroundColor': shape === 'underline' ? 'transparent' : backgroundColor,
-            'color': textColor,
+            'color': shape === 'underline' ? undefined : textColor,
             ...rest,
         },
         highlighted: {
@@ -301,6 +296,18 @@ const setOnMapping = (mapping: Map<string, any>|{[key: string]: any}, key: strin
 }
 
 
+/**
+ * A React component for rendering text with annotations and spans.
+ *
+ * @param {TextData} props.text The text content to display.
+ * @param {TextAnnotation[]} props.spans An array of text annotations.
+ * @param {TextAnnotationStyle} props.annotationStyles Styles for annotations.
+ * @param {Function} [props.onMouseSelect] Callback for mouse selection events.
+ * @param {Function} [props.onClickSpan] Callback for click events on spans.
+ * @param {Function} [props.onMouseEnterSpan] Callback for mouse enter events on spans.
+ * @param {Function} [props.onMouseLeaveSpan] Callback for mouse leave events on spans.
+ * @param {CSSProperties} [props.style] Custom styles for the component.
+ */
 export class TextComponent extends React.Component<TextData & TextMethods> {
     public static defaultProps = {
         spans: [],

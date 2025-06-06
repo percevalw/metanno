@@ -6,7 +6,7 @@
 }
 
 .metanno-text-view .text {
-    background: var(--metanno-background-color);
+    /*background: var(--metanno-background-color);*/
     font-family: var(--metanno-font-family);
     font-size: var(--metanno-font-size);
     padding-top: 10px;
