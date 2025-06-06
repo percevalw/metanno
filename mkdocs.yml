@@ -3,7 +3,6 @@ site_name: Metanno
 theme:
   language: en
   name: material
-  custom_dir: docs/assets/overrides
   palette:
     - scheme: default
       toggle:

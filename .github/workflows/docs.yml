@@ -1,14 +1,9 @@
 name: Build documentation
 
-# suppress warning raised by https://github.com/jupyter/jupyter_core/pull/292
-env:
-  JUPYTER_PLATFORM_DIRS: "1"
-
 on:
     workflow_dispatch:
     push:
         branches: [ main, master ]
-
 
 jobs:
   docs:
@@ -24,19 +19,31 @@ jobs:
         with:
           submodules: 'recursive'
 
-      - name: Set up Git
+      - name: 'Set up Node'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+
+      - name: 'Install uv'
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: 3.11
+          enable-cache: true
+          activate-environment: true
+          cache-dependency-glob: |
+            pyproject.toml
+            uv.lock
+
+      - name: 'Set up Git'
         run: |
           git config user.name ${{ github.actor }}
           git config user.email ${{ github.actor }}@users.noreply.github.com
+          echo Current branch: $BRANCH_NAME
 
-      - name: Base Setup
-        uses: jupyterlab/maintainer-tools/.github/actions/base-setup@v1
-        with:
-          python_version: "3.10"
-          node_version: "20.x"
-          dependency_type: "standard"
-
-      - name: Build docs
+      - name: 'Build docs'
         run: |
+          cd submodules/react-data-grid && yarn link && cd ../.. && yarn link "react-data-grid"
+          yarn install
+          uv pip install -e . --group docs
           git fetch origin gh-pages
-          hatch -e docs run mike deploy --push --no-redirect --update-aliases main latest
+          mike deploy --push --alias-type=copy --update-aliases $BRANCH_NAME latest
