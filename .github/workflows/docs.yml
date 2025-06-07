@@ -42,8 +42,6 @@ jobs:
 
       - name: 'Build docs'
         run: |
-          cd submodules/react-data-grid && yarn link && cd ../.. && yarn link "react-data-grid"
-          yarn install
-          uv pip install -e . --group docs
+          uv pip install . --group docs
           git fetch origin gh-pages
           mike deploy --push --alias-type=copy --update-aliases $BRANCH_NAME latest

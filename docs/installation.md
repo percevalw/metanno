@@ -25,6 +25,7 @@ If you want to contribute to Metanno, you should have a programming environment:
 
 - Python 3.7 or later, with pip and [hatch](https://hatch.pypa.io/latest/) installed
 - Node.js 20 or later (you can use [nvm](https://github.com/nvm-sh/nvm) to easily install and manage Node.js versions)
+- JupyterLab 3 (the built extension will be compatible with JupyterLab 4)
 - Various web browsers for testing (e.g., Chrome, Firefox, Safari)
 - A Git client to clone the repository and manage your changes
 
