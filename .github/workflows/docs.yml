@@ -42,7 +42,7 @@ jobs:
 
       - name: 'Install'
         run: |
-          uv pip install . --group docs
+          uv pip install -e . --group docs
 
       - name: 'Build docs'
         run: |
