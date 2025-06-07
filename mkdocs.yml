@@ -42,9 +42,9 @@ nav:
   - Building Blocks:
       - components/index.md
       - Pret: https://percevalw.github.io/pret" target="_blank
-      - components/text-component.md
-      - components/table-component.md
-      - components/image-component.md
+      - components/annotated-text.md
+      - components/table.md
+      - components/annotated-image.md
   - Reference: reference/
   - Changelog: changelog.md
 

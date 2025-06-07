@@ -70,7 +70,7 @@ Hold the Shift (or Maj) while selecting to delete spans instead.
 
 ```python { .render-with-pret .code--expandable }
 from pret import component, proxy, use_tracked, use_event_callback
-from pret.ui.metanno import TextComponent
+from pret.ui.metanno import AnnotatedText
 
 state = proxy([
     {"text": "soir", "begin": 3, "end": 7, "id": "s-3-7", "label": "ENT"},
@@ -107,7 +107,7 @@ def App():
                 [{**s, "id": f"s-{s['begin']}-{s['end']}", "text": text[s['begin']:s['end']], "label": "ENT"} for s in spans]
             )
 
-    return TextComponent(
+    return AnnotatedText(
         text=text,
         spans=view_state,
         annotation_styles={"ENT": {"color": "lightblue"}},
@@ -124,7 +124,7 @@ Observe how the annotations are updated in the table below. The two views are sy
 ```python { .render-with-pret .code--expandable style="height: 200px;" }
 # ↑ Complete the code above with the following snippet ↑
 from pret import component, use_tracked, use_event_callback
-from pret.ui.metanno import TableComponent
+from pret.ui.metanno import Table
 
 columns = [
     {"key": "id", "kind": "text", "name": "id", "filterable": True},
@@ -144,7 +144,7 @@ def MyTable():
         x.setdefault("label", "ENT")  # Ensure all rows have a label
 
     view_state = use_tracked(state)
-    return TableComponent(
+    return Table(
         rows=view_state,
         columns=columns,
         auto_filter=True,

@@ -6,8 +6,8 @@ This page provides an overview of the base components available in `metanno`.
 
 | Component                                        | Description                                                |
 |--------------------------------------------------|------------------------------------------------------------|
-| [TextComponent][pret.ui.metanno.TextComponent]   | View and interact with a text with optional annotations.   |
-| [ImageComponent][pret.ui.metanno.ImageComponent] | View and interact with an image with optional annotations. |
-| [TableComponent][pret.ui.metanno.TableComponent] | View and interact with a table                             |
+| [AnnotatedText][pret.ui.metanno.AnnotatedText]   | View and interact with a text with optional annotations.   |
+| [AnnotatedImage][pret.ui.metanno.AnnotatedImage] | View and interact with an image with optional annotations. |
+| [Table][pret.ui.metanno.Table]                   | View and interact with a table                             |
 
 <!-- --8<-- [end:components] -->

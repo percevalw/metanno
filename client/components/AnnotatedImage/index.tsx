@@ -18,7 +18,7 @@ import {
   ImageAnnotationStyle,
 } from "../../types";
 
-export const ImageComponent: React.FC<ImageData & ImageMethods> = (props) => {
+export const AnnotatedImage: React.FC<ImageData & ImageMethods> = (props) => {
   const [img] = useImage(props.image);
   const groupRef = useRef<any>(null);
   const imageRef = useRef<any>(null);
@@ -325,7 +325,7 @@ export const ImageComponent: React.FC<ImageData & ImageMethods> = (props) => {
   );
 };
 
-ImageComponent.defaultProps = {
+AnnotatedImage.defaultProps = {
   annotations: [],
   mouseSelection: [],
   annotationStyles: {},

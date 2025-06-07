@@ -42,8 +42,8 @@ props_mapping = {
  "on_mouse_leave_span": "onMouseLeaveSpan"
 }
 
-@stub_component(js.Metanno.ImageComponent, props_mapping)
-def ImageComponent(*children, annotations: Any, annotation_styles: Any, image: str, mouse_selection: Any, style: Any, actions: Any, key: Union[str, int], on_click: Any, on_key_press: Any, on_mouse_enter_shape: Any, on_mouse_leave_shape: Any, on_mouse_select: Any):
+@stub_component(js.Metanno.AnnotatedImage, props_mapping)
+def AnnotatedImage(*children, annotations: Any, annotation_styles: Any, image: str, mouse_selection: Any, style: Any, actions: Any, key: Union[str, int], on_click: Any, on_key_press: Any, on_mouse_enter_shape: Any, on_mouse_leave_shape: Any, on_mouse_select: Any):
     """
     An interactive image viewer that supports drawing, selecting, and styling
     geometric shapes (polygons, rectangles, points...) as annotations.
@@ -56,7 +56,7 @@ def ImageComponent(*children, annotations: Any, annotation_styles: Any, image: s
 
     ```python { .render-with-pret style="height: 300px" }
     from pret import component, proxy, use_tracked, use_event_callback
-    from pret.ui.metanno import ImageComponent
+    from pret.ui.metanno import AnnotatedImage
     import time
 
     # Reactive store holding the annotation list
@@ -112,7 +112,7 @@ def ImageComponent(*children, annotations: Any, annotation_styles: Any, image: s
                 new_style = "secondary" if old_style == "primary" else "primary"
                 img_state[shape_idx]["style"] = new_style
 
-        return ImageComponent(
+        return AnnotatedImage(
             image="https://picsum.photos/400/300",
             annotations=tracked_state,
             annotation_styles=img_annotation_styles,
@@ -197,8 +197,8 @@ class Position(TypedDict):
     col: str
     mode: Literal["EDIT", "SELECT"]
 
-@stub_component(js.Metanno.TableComponent, props_mapping)
-def TableComponent(
+@stub_component(js.Metanno.Table, props_mapping)
+def Table(
     *children,
     columns: ColumnData,
     filters: Dict[str, str],
@@ -233,7 +233,7 @@ def TableComponent(
 
     ```python { .render-with-pret style="min-height: 200px" }
     from pret import component, proxy, use_tracked, use_event_callback
-    from pret.ui.metanno import TableComponent
+    from pret.ui.metanno import Table
 
     table_state = proxy([
         {"id": "1", "date": "2023-01-01", "text": "Sample text 1", "type": "ENT", "labels": ["ready"]},
@@ -259,7 +259,7 @@ def TableComponent(
             table_state[row_idx][col] = new_value
 
         view_state = use_tracked(table_state)
-        return TableComponent(
+        return Table(
             rows=view_state,
             columns=columns,
             auto_filter=True,
@@ -359,8 +359,8 @@ def TableComponent(
     """
     ...
 
-@stub_component(js.Metanno.TextComponent, props_mapping)
-def TextComponent(
+@stub_component(js.Metanno.AnnotatedText, props_mapping)
+def AnnotatedText(
         *children,
         text: str,
         spans: List[Dict[str, Any]],
@@ -376,7 +376,7 @@ def TextComponent(
         on_mouse_select: Callable[[List[Dict[str, int]], List[str]], None]
 ):
     """
-    The `TextComponent` is a rich text viewer that supports span-level annotations, nested token
+    The `AnnotatedText` is a rich text viewer that supports span-level annotations, nested token
     highlights, and various user event callbacks.
 
     Examples
@@ -384,7 +384,7 @@ def TextComponent(
 
     ```python { .render-with-pret }
     from pret import component, proxy, use_tracked, use_event_callback, use_state
-    from pret.ui.metanno import TextComponent
+    from pret.ui.metanno import AnnotatedText
     from pret.ui.joy import Button, Box
 
     txt = (
@@ -443,7 +443,7 @@ def TextComponent(
         return Box(
             Button("Change style", on_click=on_span_style_change),
             Button("Remove annotations", on_click=lambda: spans.clear()),
-            TextComponent(
+            AnnotatedText(
                 text=txt,
                 spans=tracked_spans,
                 annotation_styles=tracked_styles,
