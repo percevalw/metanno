@@ -1,11 +1,3 @@
-@font-face {
-    font-family: Optimistic Text;
-    src: url(https://react.dev/fonts/Optimistic_Text_W_Rg.woff2) format("woff2");
-    font-weight: 400;
-    font-style: normal;
-    font-display: swap;
-}
-
 [data-md-color-scheme="default"] {
     --md-primary-fg-color: hsl(194.62deg 90.7% 33.73%);
     --md-primary-fg-color--light: hsl(194.62deg 90.7% 33.73%);
@@ -66,7 +58,6 @@ html {
 }
 
 body, input {
-    font-family: Optimistic Text, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";;
     font-weight: 400;
     font-feature-settings: normal;
 }
