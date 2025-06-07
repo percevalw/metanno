@@ -1,3 +1,3 @@
-export { TextComponent } from './TextComponent';
-export { TableComponent } from './TableComponent';
-export { ImageComponent } from './ImageComponent';
+export { AnnotatedText } from './AnnotatedText';
+export { Table } from './Table';
+export { AnnotatedImage } from './AnnotatedImage';

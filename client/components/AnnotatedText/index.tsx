@@ -308,7 +308,7 @@ const setOnMapping = (mapping: Map<string, any>|{[key: string]: any}, key: strin
  * @param {Function} [props.onMouseLeaveSpan] Callback for mouse leave events on spans.
  * @param {CSSProperties} [props.style] Custom styles for the component.
  */
-export class TextComponent extends React.Component<TextData & TextMethods> {
+export class AnnotatedText extends React.Component<TextData & TextMethods> {
     public static defaultProps = {
         spans: [],
         mouseSelection: [],

@@ -1,6 +1,6 @@
-# TableComponent {: #pret.ui.metanno.TableComponent }
+# AnnotatedText {: #pret.ui.metanno.AnnotatedText }
 
-::: pret.ui.metanno.TableComponent
+::: pret.ui.metanno.AnnotatedText
     options:
         heading_level: 2
         show_bases: false

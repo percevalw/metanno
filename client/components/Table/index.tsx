@@ -51,7 +51,7 @@ const setOnMapping = (mapping: Map<string, any> | { [key: string]: any }, key: s
 };
 
 
-export const TableComponent = function TableComponent(props: TableData & TableMethods) {
+export const Table = function Table(props: TableData & TableMethods) {
   const [columnsOrder, setColumnsOrder] = useState(props.columns.map((column) => column.key));
   const [position, setPosition] = useState<TableData["position"] | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(false);
