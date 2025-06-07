@@ -172,7 +172,8 @@ jobs:
       - name: 'Install'
         run: |
           yarn install
-          uv pip install -e . --group docs setuptools
+          # install setuptools < 81 to fix issue with pkg_resources
+          uv pip install -e . --group docs "setuptools<81"
 
       - name: 'Build docs'
         run: |
