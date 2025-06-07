@@ -31,6 +31,7 @@ If you want to contribute to Metanno, you should have a programming environment:
 
 ```bash { data-md-color-scheme="slate" }
 git clone https://github.com/percevalw/metanno.git
+cd metanno
 ```
 
 Then, create a new branch for your changes:
@@ -39,20 +40,27 @@ Then, create a new branch for your changes:
 git checkout -b my-feature-branch
 ```
 
+Create (optional) virtual env and install all development deps.
 Install the package in editable mode with development dependencies:
 
 ```bash { data-md-color-scheme="slate" }
-pip install -e ".[dev]"
+yarn install
+pip install -e . --group dev  #(1)!
+yarn playwright install --with-deps # browsers for UI tests
 ```
 
-### Running the tests
+1. or `uv pip install -e . --group dev` with uv
+
+### Running the UI tests
 
 Metanno uses [playwright](https://playwright.dev/) to test the JupyterLab extension (which should cover most of the app features).
 You can run the tests to ensure everything is working correctly.
 
 ```bash { data-md-color-scheme="slate" }
-hatch run tests
+sh tests/jupyter/run.sh #(1)!
 ```
+
+1. or `uv run sh tests/jupyter/run.sh` with uv
 
 ### Building the documentation
 
@@ -60,5 +68,9 @@ The documentation is built with [MkDocs](https://www.mkdocs.org/) and [MkDocs Ma
 To build the documentation, you can use the following command:
 
 ```bash { data-md-color-scheme="slate" }
-hatch run docs
+pip install -e . --group docs  #(1)!
+mkdocs serve  #(2)!
 ```
+
+1. or `uv pip install -e . --group docs` with uv
+2. or `uv run mkdocs serve` with uv
