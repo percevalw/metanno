@@ -74,5 +74,7 @@ test.describe("Notebook Tests", () => {
     desc = await page.waitForSelector(".pret-view p", { state: "attached" });
     expectedDescText = "Number of unfinished todo: 1";
     expect(await desc.textContent()).toEqual(expectedDescText);
+
+    await page.unrouteAll({ behavior: 'ignoreErrors' })
   });
 });
