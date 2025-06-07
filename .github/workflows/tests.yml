@@ -172,7 +172,7 @@ jobs:
       - name: 'Install'
         run: |
           yarn install
-          uv pip install -ev . --group docs
+          uv pip install -e . --group docs -v
 
       - name: 'Build docs'
         run: |
