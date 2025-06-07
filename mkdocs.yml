@@ -62,7 +62,7 @@ plugins:
       reference_section: Reference
       exclude_glob: assets/fragments/*
       copy_files:
-        changelog.md: changelog.md
+        changelog.md: CHANGELOG.md
   - cards
   - fix_fonts
   - search
@@ -97,7 +97,7 @@ plugins:
   - mike
 
 watch:
-  - changelog.md
+  - CHANGELOG.md
   - pret
   - metanno
 
