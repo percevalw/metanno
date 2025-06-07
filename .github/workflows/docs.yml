@@ -42,6 +42,7 @@ jobs:
 
       - name: 'Install'
         run: |
+          yarn install
           uv pip install -e . --group docs
 
       - name: 'Build docs'
