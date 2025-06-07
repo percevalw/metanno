@@ -236,19 +236,20 @@ def TableComponent(
     from pret.ui.metanno import TableComponent
 
     table_state = proxy([
-        {"id": "1", "date": "2023-01-01", "text": "Sample text 1", "label": "ENT"},
-        {"id": "2", "date": "2023-01-03", "text": "Sample text 2", "label": "OTHER"},
-        {"id": "3", "date": "2023-01-05", "text": "Sample text 3", "label": "ENT"},
-        {"id": "4", "date": "2023-01-07", "text": "Sample text 4", "label": "OTHER"},
-        {"id": "5", "date": "2023-01-09", "text": "Sample text 5", "label": "ENT"},
-        {"id": "6", "date": "2023-01-11", "text": "Sample text 6", "label": "OTHER"},
+        {"id": "1", "date": "2023-01-01", "text": "Sample text 1", "type": "ENT", "labels": ["ready"]},
+        {"id": "2", "date": "2023-01-03", "text": "Sample text 2", "type": "OTHER", "labels": ["ready", "danger"]},
+        {"id": "3", "date": "2023-01-05", "text": "Sample text 3", "type": "ENT", "labels": ["blue"]},
+        {"id": "4", "date": "2023-01-07", "text": "Sample text 4", "type": "OTHER", "labels": ["bad"]},
+        {"id": "5", "date": "2023-01-09", "text": "Sample text 5", "type": "ENT", "labels": []},
+        {"id": "6", "date": "2023-01-11", "text": "Sample text 6", "type": "OTHER", "labels": ["custom"]},
     ])
 
     columns = [
         {"key": "id", "kind": "text", "name": "id", "filterable": True},
         {"key": "date", "kind": "text", "name": "end", "filterable": True},
         {"key": "text", "kind": "text", "name": "text", "filterable": True, "editable": True},
-        {"key": "label", "kind": "text", "name": "label", "filterable": True, "editable": True, "choices": ["ENT", "OTHER"]},
+        {"key": "type", "kind": "text", "name": "label", "filterable": True, "editable": True, "choices": ["ENT", "OTHER"]},
+        {"key": "labels", "kind": "multi-text", "name": "labels", "filterable": True, "editable": True, "choices": ["ready", "danger", "blue", "bad", "custom"]},
     ]
 
     @component
