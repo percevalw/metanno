@@ -85,12 +85,12 @@ jobs:
       - name: 'Run tests for JupyterLab 4'
         if: ${{ matrix.python-version != '3.7' }}
         run: |
-          uv pip install "jupyterlab>=4"
+          uv pip install pip "jupyterlab>=4"
           sh tests/jupyter/run.sh
 
       - name: 'Run tests for JupyterLab 3'
         run: |
-          uv pip install "jupyterlab<4"
+          uv pip install pip "jupyterlab<4"
           sh tests/jupyter/run.sh
 
       - name: 'Upload blob report'
@@ -156,7 +156,7 @@ jobs:
       - name: 'Install uv'
         uses: astral-sh/setup-uv@v6
         with:
-          python-version: 3.11
+          python-version: 3.10
           enable-cache: true
           activate-environment: true
           cache-dependency-glob: |
