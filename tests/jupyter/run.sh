@@ -19,7 +19,6 @@ export PYTHON_VERSION
 export JUPYTERLAB_GALATA_ROOT_DIR=tests/jupyter
 jupyter --version
 jupyter labextension list
-hatch --version
 echo "Pret installed package"
 pip show -f pret
 

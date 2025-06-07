@@ -27,7 +27,7 @@ jobs:
       - name: 'Install uv'
         uses: astral-sh/setup-uv@v6
         with:
-          python-version: 3.11
+          python-version: 3.10
           enable-cache: true
           activate-environment: true
           cache-dependency-glob: |
@@ -40,8 +40,11 @@ jobs:
           git config user.email ${{ github.actor }}@users.noreply.github.com
           echo Current branch: $BRANCH_NAME
 
-      - name: 'Build docs'
+      - name: 'Install'
         run: |
           uv pip install . --group docs
+
+      - name: 'Build docs'
+        run: |
           git fetch origin gh-pages
           mike deploy --push --alias-type=copy --update-aliases $BRANCH_NAME latest
