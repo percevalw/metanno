@@ -4,6 +4,8 @@ on:
     workflow_dispatch:
     push:
         branches: [ main, master ]
+env:
+  BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
 
 jobs:
   docs:
