@@ -17,7 +17,6 @@
 .rdg-cell .react-autosuggest__input {
     font-family: inherit;
     border: none;
-    padding-left: 8px;
     font-size: var(--font-size);
     width: 100%;
     height: 100%;
