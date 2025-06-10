@@ -500,8 +500,16 @@ def AnnotatedText(
         - `key` – Key name
         - `ranges` – Current selection ranges
         - `modkeys` – Modifier keys
-    on_mouse_enter_span / on_mouse_leave_span: Callable[[Any, List[str]], None]
-        Hover callbacks when entering or leaving a span.
+    on_mouse_enter_span: Callable[[Any, List[str]], None]
+        Called when the mouse pointer enters a span.
+
+        - `span_id` – Identifier of the span entered
+        - `modkeys` – Pressed modifier keys
+    on_mouse_leave_span: Callable[[Any, List[str]], None]
+        Called when the mouse pointer leaves a span.
+
+        - `span_id` – Identifier of the span left
+        - `modkeys` – Pressed modifier keys
     on_mouse_select: Callable[[List[TextRange], List[str]], None]
         Triggered when the user finishes selecting text with the mouse.
 
