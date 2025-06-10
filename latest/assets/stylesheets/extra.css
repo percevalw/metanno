@@ -188,13 +188,14 @@ a.discrete-link {
     // grid-template-columns: 66% 33%;
 }
 
+.pret-code-snippet > details {
+    margin-bottom: 0;
+}
+
 .pret-code-snippet .pret-code-snippet-view-container {
     display: flex;
     flex-direction: row;
     justify-content: center;
-    margin-top: -1em;
-    padding: 1em 1em 1em;
-
     border-radius: 0 0 12px 12px;
     border: 1px solid hsl(215, 15%, 92%);
 }
