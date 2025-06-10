@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.0.0.beta1
 
 - Complete refacto of the framework: the Python-JS synchronized app mechanisms have been moved to a new library: [Pret](https://github.com/percevalw/pret) !
 - Text and Table components are now callable directly from python, along other components built around MUI Joy. This gives the user the ability to easily build simple apps, and iterate on the design step by step.
