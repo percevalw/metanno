@@ -36,7 +36,7 @@ classifiers = [
 ]
 requires-python = ">=3.7,<4.0,!=3.8.1"
 dependencies = [
-    "pret @ git+https://github.com/percevalw/pret.git@main#egg=pret",
+    "pret",
     "pret-joy",
 ]
 
@@ -45,9 +45,11 @@ dependencies = [
 dev = [
     "hatchling",
     "hatch-jupyter-builder",
+    "pret @ git+https://github.com/percevalw/pret.git@main#egg=pret",
 ]
 docs = [
     "mkdocs-eds @ git+https://github.com/percevalw/mkdocs-eds.git@main#egg=mkdocs-eds",
+    "pret @ git+https://github.com/percevalw/pret.git@main#egg=pret",
 ]
 
 # ----- CLI configuration -----
