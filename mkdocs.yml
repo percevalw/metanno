@@ -29,22 +29,12 @@ theme:
 nav:
   - Overview: index.md
   - installation.md
-  # - first-app.md
-  # - Concepts:
-  #   - state.md
-  #   - views.md
-  # - Behind the scene:
-  #     - bts/overview.md
-  #     - bts/comms.md
-  #     - bts/immutability.md
-  #     - bts/jupyter.md
-  #     - bts/transpilation.md
   - Building Blocks:
       - components/index.md
       - Pret: https://percevalw.github.io/pret" target="_blank
       - components/annotated-text.md
-      - components/table.md
       - components/annotated-image.md
+      - components/table.md
   - Reference: reference/
   - Changelog: changelog.md
 
