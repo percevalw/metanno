@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Improved visibility of highlighted spans and layout of boxes with mixed inset/outset nesting
+
 ## v1.0.0.beta1
 
 - Complete refacto of the framework: the Python-JS synchronized app mechanisms have been moved to a new library: [Pret](https://github.com/percevalw/pret) !
