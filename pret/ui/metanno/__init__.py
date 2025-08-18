@@ -242,13 +242,22 @@ def Table(
         {"id": "4", "date": "2023-01-07", "text": "Sample text 4", "type": "OTHER", "labels": ["bad"]},
         {"id": "5", "date": "2023-01-09", "text": "Sample text 5", "type": "ENT", "labels": []},
         {"id": "6", "date": "2023-01-11", "text": "Sample text 6", "type": "OTHER", "labels": ["custom"]},
+        {"id": "7", "date": "2023-01-13", "text": "Sample text 7", "type": "FOO", "labels": ["ready"]},
+        {"id": "8", "date": "2023-01-15", "text": "Sample text 8", "type": "FOO2", "labels": ["danger"]},
+        {"id": "9", "date": "2023-01-17", "text": "Sample text 9", "type": "FOO3", "labels": ["blue"]},
+        {"id": "10", "date": "2023-01-19", "text": "Sample text 10", "type": "ENT", "labels": ["bad"]},
+        {"id": "11", "date": "2023-01-21", "text": "Sample text 11", "type": "OTHER", "labels": ["custom"]},
+        {"id": "12", "date": "2023-01-23", "text": "Sample text 12", "type": "ENT", "labels": ["ready"]},
+        {"id": "13", "date": "2023-01-25", "text": "Sample text 13", "type": "OTHER", "labels": ["danger"]},
+        {"id": "14", "date": "2023-01-27", "text": "Sample text 14", "type": "FOO2", "labels": ["blue"]},
+        {"id": "15", "date": "2023-01-29", "text": "Sample text 15", "type": "FOO3", "labels": ["bad"]},
     ])
 
     columns = [
         {"key": "id", "kind": "text", "name": "id", "filterable": True},
         {"key": "date", "kind": "text", "name": "end", "filterable": True},
         {"key": "text", "kind": "text", "name": "text", "filterable": True, "editable": True},
-        {"key": "type", "kind": "text", "name": "label", "filterable": True, "editable": True, "choices": ["ENT", "OTHER"]},
+        {"key": "type", "kind": "text", "name": "label", "filterable": True, "editable": True, "choices": ["ENT", "OTHER", "STUFF", "FOO", "FOO2", "FOO3"]},
         {"key": "labels", "kind": "multi-text", "name": "labels", "filterable": True, "editable": True, "choices": ["ready", "danger", "blue", "bad", "custom"]},
     ]
 
