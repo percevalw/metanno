@@ -94,7 +94,7 @@
 }
 
 .metanno-text-view .mention_token.mention_underline, .metanno-text-view .mention_token.mention_underline.closed_left, .metanno-text-view .mention_token.mention_underline.closed_right {
-    top: unset;
+    top: calc(100% - 3px);
     border-top: 0;
     border-top-left-radius: 0;
     border-top-right-radius: 0;

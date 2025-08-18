@@ -27,7 +27,7 @@ const toLuminance = (color: Color, y: number=0.6) => {
 }
 
 const processStyle = ({color, shape, autoNestingLayout, labelPosition, ...rest}: TextAnnotationStyle): PreprocessedStyle => {
-    let colorObject;
+    let colorObject, strongerColor;
     try {
         colorObject = Color(color).alpha(0.8);
     } catch (e) {
@@ -37,9 +37,11 @@ const processStyle = ({color, shape, autoNestingLayout, labelPosition, ...rest}:
     if (colorObject.isLight()) {
         textColor = '#000000de';
         backgroundColor = colorObject.lighten(0.02).toString();
+        strongerColor = colorObject.darken(0.05).toString();
     } else {
         textColor = '#ffffffde'
         backgroundColor = colorObject.darken(0.02).toString();
+        strongerColor = colorObject.lighten(0.05).toString();
     }
     return {
         base: {
@@ -49,7 +51,7 @@ const processStyle = ({color, shape, autoNestingLayout, labelPosition, ...rest}:
             ...rest,
         },
         highlighted: {
-            'borderColor': color,
+            'borderColor': strongerColor,
             'backgroundColor': backgroundColor,
             'color': textColor,
             ...rest,
@@ -117,7 +119,7 @@ const Token = React.memo((
                     className={`mention_token mouse_selected`}/>
             );
         } else {
-            verticalOffset = annotation.depth * 2.5 - 2;
+            verticalOffset = annotation.depth * 3 - 2;
             annotations.push(
                 <span
                     key={`annotation-${annotation_i}`}
@@ -140,7 +142,7 @@ const Token = React.memo((
                                ${isFirstTokenOfChunk && !annotation.openleft ? 'closedleft' : ""}
                                ${isLastTokenOfChunk && !annotation.openright ? 'closedright' : ""}`}
                     style={{
-                        top: (isUnderline && !annotation.highlighted) ? 22 : verticalOffset,
+                        top: (isUnderline && !annotation.highlighted) ? undefined : verticalOffset,
                         bottom: verticalOffset,
                         zIndex: annotation.zIndex + 2 + (annotation.highlighted ? 50 : 0),
                         ...styles?.[annotation.style]?.[annotation.highlighted ? 'highlighted' : 'base'],
@@ -167,6 +169,7 @@ const Token = React.memo((
             isFirstTokenOfChunk && token_annotations.map((annotation, annotation_i) => {
             if (annotation.isFirstTokenOfSpan && annotation.label) {
                 shape = styles[annotation.style]?.shape || 'box';
+                const verticalOffset = annotation.depth * 2.5 - 2;
                 const isUnderline = shape === 'underline';
                 labelIdx[shape] += 1;
                 return (
@@ -184,7 +187,7 @@ const Token = React.memo((
                         span_key={annotation.id}
                         style={{
                             borderColor: styles?.[annotation?.style]?.[annotation?.highlighted ? 'highlighted' : 'base']?.borderColor,
-                            [isUnderline ? 'bottom' : 'top']: -9,
+                            [isUnderline ? 'bottom' : 'top']: -9 + verticalOffset,
                             left: (nLabels[shape] - labelIdx[shape]) * 6 + (shape === 'box' ? -1 : 2),
                             // Labels are above every text entity overlay, except when this entity is highlighted
                             zIndex: 50 + annotation.zIndex + (annotation.highlighted ? 50 : 0)
