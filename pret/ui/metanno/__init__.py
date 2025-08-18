@@ -55,12 +55,12 @@ def AnnotatedImage(*children, annotations: Any, annotation_styles: Any, image: s
     --------
 
     ```python { .render-with-pret style="height: 300px" }
-    from pret import component, proxy, use_tracked, use_event_callback
+    from pret import component, create_store, use_store_snapshot, use_event_callback
     from pret.ui.metanno import AnnotatedImage
     import time
 
     # Reactive store holding the annotation list
-    img_state = proxy([
+    img_state = create_store([
         {
             "id": "1",
             "type": "polygon",
@@ -90,7 +90,7 @@ def AnnotatedImage(*children, annotations: Any, annotation_styles: Any, image: s
 
     @component
     def MyImage():
-        tracked_state = use_tracked(img_state)
+        tracked_state = use_store_snapshot(img_state)
 
         @use_event_callback
         def on_mouse_select(modkeys, shapes):
@@ -231,11 +231,11 @@ def Table(
     Examples
     --------
 
-    ```python { .render-with-pret style="min-height: 200px" }
-    from pret import component, proxy, use_tracked, use_event_callback
+    ```python { .render-with-pret style="min-height: 300px" }
+    from pret import component, create_store, use_store_snapshot, use_event_callback
     from pret.ui.metanno import Table
 
-    table_state = proxy([
+    table_state = create_store([
         {"id": "1", "date": "2023-01-01", "text": "Sample text 1", "type": "ENT", "labels": ["ready"]},
         {"id": "2", "date": "2023-01-03", "text": "Sample text 2", "type": "OTHER", "labels": ["ready", "danger"]},
         {"id": "3", "date": "2023-01-05", "text": "Sample text 3", "type": "ENT", "labels": ["blue"]},
@@ -267,7 +267,7 @@ def Table(
         def on_cell_change(row_idx, col, new_value):
             table_state[row_idx][col] = new_value
 
-        view_state = use_tracked(table_state)
+        view_state = use_store_snapshot(table_state)
         return Table(
             rows=view_state,
             columns=columns,
@@ -392,7 +392,7 @@ def AnnotatedText(
     --------
 
     ```python { .render-with-pret }
-    from pret import component, proxy, use_tracked, use_event_callback, use_state
+    from pret import component, create_store, use_store_snapshot, use_event_callback, use_state
     from pret.ui.metanno import AnnotatedText
     from pret.ui.joy import Button, Box
 
@@ -402,7 +402,7 @@ def AnnotatedText(
     )
 
     # One span covering the word “Metanno”
-    spans = proxy([{
+    spans = create_store([{
         "id": f"span-0-7",
         "begin": 0,
         "end": 7,
@@ -410,7 +410,7 @@ def AnnotatedText(
         "highlighted": False,
     }])
 
-    txt_annotation_styles = proxy({
+    txt_annotation_styles = create_store({
         "OBJ": {
             "color": "red",
             "shape": "underline",
@@ -419,8 +419,8 @@ def AnnotatedText(
 
     @component
     def MyText():
-        tracked_spans = use_tracked(spans)
-        tracked_styles = use_tracked(txt_annotation_styles)
+        tracked_spans = use_store_snapshot(spans)
+        tracked_styles = use_store_snapshot(txt_annotation_styles)
 
         @use_event_callback
         def handle_select(ranges, modkeys):

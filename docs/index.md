@@ -69,10 +69,10 @@ and visualize the annotations in a table. Just select spans of text to annotate 
 Hold the Shift (or Maj) while selecting to delete spans instead.
 
 ```python { .render-with-pret .code--expandable }
-from pret import component, proxy, use_tracked, use_event_callback
+from pret import component, create_store, use_store_snapshot, use_event_callback
 from pret.ui.metanno import AnnotatedText
 
-state = proxy([
+state = create_store([
     {"text": "soir", "begin": 3, "end": 7, "id": "s-3-7", "label": "ENT"},
     {"text": "Charlie", "begin": 59, "end": 66, "id": "s-59-66", "label": "ENT"},
 ])
@@ -91,7 +91,7 @@ text = ("Le soir, après avoir mangé sa soupe aux choux noyée "
 
 @component
 def App():
-    view_state = use_tracked(state)
+    view_state = use_store_snapshot(state)
 
     @use_event_callback
     def on_select(spans, mod_keys):
@@ -123,7 +123,7 @@ Observe how the annotations are updated in the table below. The two views are sy
 
 ```python { .render-with-pret .code--expandable style="height: 200px;" }
 # ↑ Complete the code above with the following snippet ↑
-from pret import component, use_tracked, use_event_callback
+from pret import component, use_store_snapshot, use_event_callback
 from pret.ui.metanno import Table
 
 columns = [
@@ -143,7 +143,7 @@ def MyTable():
     for x in state:
         x.setdefault("label", "ENT")  # Ensure all rows have a label
 
-    view_state = use_tracked(state)
+    view_state = use_store_snapshot(state)
     return Table(
         rows=view_state,
         columns=columns,
