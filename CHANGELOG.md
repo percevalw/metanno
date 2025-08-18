@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Improved visibility of highlighted spans and layout of boxes with mixed inset/outset nesting
+- Improved autocompletion experience for table suggestion inputs
 
 ## v1.0.0.beta1
 
