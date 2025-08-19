@@ -1,4 +1,6 @@
-# Metanno
+<h1 style="text-align: center" markdown>
+![Metanno](/assets/images/logo.svg){ width="250px" }
+</h1>
 
 Metanno is a Python library aimed at building dynamic annotation interfaces customized
 to your needs without leaving your notebook.

@@ -38,6 +38,8 @@ requires-python = ">=3.7,<4.0,!=3.8.1"
 dependencies = [
     "pret",
     "pret-joy",
+    "pret-markdown",
+    "pret-simple-dock",
 ]
 
 # ----- Development configuration -----
@@ -50,6 +52,7 @@ dev = [
 docs = [
     "mkdocs-eds @ git+https://github.com/percevalw/mkdocs-eds.git@main#egg=mkdocs-eds",
     "pret @ git+https://github.com/percevalw/pret.git@main#egg=pret",
+    "edsnlp",
 ]
 
 # ----- CLI configuration -----
