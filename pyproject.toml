@@ -47,11 +47,11 @@ dependencies = [
 dev = [
     "hatchling",
     "hatch-jupyter-builder",
-    "pret @ git+https://github.com/percevalw/pret.git@main#egg=pret",
+    "pret>=0.4.0",
 ]
 docs = [
     "mkdocs-eds @ git+https://github.com/percevalw/mkdocs-eds.git@main#egg=mkdocs-eds",
-    "pret @ git+https://github.com/percevalw/pret.git@main#egg=pret",
+    "pret>=0.4.0",
     "edsnlp",
 ]
 
