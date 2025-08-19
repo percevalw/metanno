@@ -1,1 +1,0 @@
-{"version":3,"file":"client_index_js.a76c3d87d7bd9acca87a.js","mappings":";;;;;;;;;;;;AAAmB;AACE","sources":["webpack://pret-joy/./client/index.js"],"sourcesContent":["import './globals';\nimport './index.css';"],"names":[],"sourceRoot":""}
