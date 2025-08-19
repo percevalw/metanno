@@ -1,107 +1,96 @@
-<img src="https://github.com/percevalw/metanno/raw/master/doc/logo.png" width=120px />
+<h1 align="center">
+  <img alt="Metanno" width="250" src="https://raw.githubusercontent.com/percevalw/metanno/main/docs/assets/images/logo.png" />
+</h1>
 
-[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/percevalw/metanno/HEAD?urlpath=lab%2Ftree%2Fexamples%2FAnnotator.ipynb)
 [![DOI](https://zenodo.org/badge/244972164.svg)](https://zenodo.org/doi/10.5281/zenodo.10689826)
 
 --------------------------------------------------------------------------------
 
+Metanno is a JupyterLab extension that allows you to build your own annotation interface. Metanno is a Python library aimed at building dynamic annotation interfaces customized to your needs without leaving your notebook.
 
-Metanno is a JupyterLab extension that allows you build your own annotator. For the moment, it focuses on textual documents with rich structured entities.
-Its main objectives are:
+At the moment, Metanno focuses on textual documents and images with rich structured entities.
+Its main goals are:
+
 - modularity: you decide how many views of your data are needed
 - customization: you can easily customize the software behavior in Python and see the changes immediately
 - interactivity: all of your annotations are immediately available as Python objects as soon as you edit something
 
 ## Features
 
-- ↵ multiline and nested span annotations
-- 🖇️ nested, relational, complex annotation with table views
-- 🔗 multiple data type: hyperlinks, text, lists
-- 🪟 text view or table view
-- ✨ extensive customization power
-- 🐍 write your app in Python, execute it in the browser (or in the kernel, you decide)
-- 🚀 fast: the client side is written in React, and every action is processed in the browser directly by default
-- 🌐 websocket communication: you do not need to open any port
-- ⏮️ immutable state management, any state mutation is recorded and undoable
+### Annotate anything
 
-## Citation
+Metanno allows users to create a wide variety of annotations,
+including multiline and nested span annotations for text, shapes for images, and document-level, relational, or complex annotations using tables.
 
-If you use Metanno, consider citing this work as below.
+It also supports multiple data types, including hyperlinks, text, and lists, and
+allows users to switch between text, image, and table views for their annotations.
 
-```bibtex
-@software{wajsburt_metanno,
-  author       = {Wajsbürt, Perceval},
-  title        = {Metanno: a modular annotator building framework},
-  month        = feb,
-  year         = 2024,
-  publisher    = {Zenodo},
-  version      = {0.0.9},
-  doi          = {10.5281/zenodo.10689827},
-  url          = {https://doi.org/10.5281/zenodo.10689827}
-}
-```
+### Serving vs embedding
 
-## Installation
+Metanno can be used in two different ways:
 
-This project is still under development and is subject to change.
-A simple pip install should be enough if you use Jupyterlab 3. You do not need to open any port.
-```
-# To setup the environment
-conda create --name annotation python=3.9
-conda activate annotation
-pip install ipykernel && python -m ipykernel install --user --name annotation
+- As a standalone application, where you can run a server and access the app through a web browser.
+- As a collection of JupyterLab widgets
 
-# To install the package
+This makes it easy to develop and test your app in a notebook, and then deploy it as a standalone application if needed.
+
+### Easy setup
+
+Metanno is easy to install with a simple
+
+```bash { data-md-color-scheme="slate" }
 pip install metanno
 ```
 
-If **you're a user in a shared Jupyter environment** (you did not run the `jupyter lab` command), you should instead install the extension at the user level
+Unlike many other alternatives, when used in JupyterLab, it does not require users to open any ports
+or leave their notebook to launch a server. It also allows users to write
+their own apps in Python while automatically benefiting from the speed of client-side JavaScript code with a React-based implementation.
 
-```
-pip install metanno --user
-```
+### Interactive and customizable by design
 
-## Why
+- visualize and edit the current app state directly in Python
+- update the UI in Python, execute the cell and see the results immediately
+- immutable state management, any state mutation is recorded and undoable
+- many event handlers to react to any user action (click, hover, type, ...)
 
-The choice of annotation software must be taken into account in the design of the annotation scheme.
-For example, it is difficult to annotate implicit/document-level entities in Brat or to annotate relations on multiple lines, and impossible to handle multiple documents at once.
-There are many annotation tools available (see [Neves et al.](https://pubmed.ncbi.nlm.nih.gov/31838514/)), but most of them are either proprietary, poorly adapted to document or multi-document annotation,
-require a complex installation that is not compatible with existing remote work environments, or are difficult to customize.
-Finally, the standardization of annotation levels (mention / relation / event) is an obstacle to the development of new tasks.
-Given the limitations of the existing softwares and the difficulty to cover every need with a single static annotator,
-this project was initiated to provide a modular and fully customizable annotation framework, Metanno, and address these difficulties.
+Metanno is designed to be highly interactive and customizable, with the ability
+to visualize and edit app states directly in Python and update the UI in real
+time. It also offers a variety of event handlers that allow users to react to
+any user action. This makes it easy to create tailored and responsive app UIs
+in JupyterLab.
+
+## Why another annotation tool ?
+
+The choice of annotation software must be taken into account in the design of the
+annotation scheme. For example, it is challenging to annotate implicit/document-level
+entities in Brat or to annotate relations on multiple lines, and impossible to handle
+multiple documents at once. There are many annotation tools available
+(see [Neves et al.](https://pubmed.ncbi.nlm.nih.gov/31838514/)), but most of them
+are either proprietary, poorly adapted to document or multi-document annotation, require
+a complex installation that is not compatible with existing remote work environments,
+or are difficult to customize. Finally, the standardization of annotation levels
+(mention / relation / event) is an obstacle to the development of new tasks. Given the
+limitations of the existing software and the difficulty to cover every need with a
+single static annotator, this project was initiated to provide a modular and fully
+customizable annotation framework, Metanno, and address these difficulties.
 
 ## Demo
 
-You can try it with [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/percevalw/metanno/HEAD?urlpath=lab%2Ftree%2Fexamples%2FAnnotator.ipynb). Be patient though, when there is no cached build, it may take a few minutes to start.
-
-![https://github.com/percevalw/metanno/raw/master/doc/screenshot.png](https://github.com/percevalw/metanno/raw/master/doc/screenshot.png)
-
-## How it works
-
-<img src="https://github.com/percevalw/metanno/raw/master/doc/how.png" width=500px />
-
-All the app is controlled by a single state, replicated on both the frontend (the Jupyter client) and the backend (the Python kernel).
-Each views rendered in Jupyter uses a derivation of this state (think `view_data = fn(app_data)`) and calls functions in the app class whenever an event occurs.
-This app class is written in Python (by you), automatically translated into javascript and sent to the front-end such that every action taken by the
-user is answered immediately.
-If a given function modifies the state (wrapped by the `@produce` decorator), the changes are sent to the backend or the frontend to keep the state replicas in sync.
-If a function needs to be executed exclusively on the frontend or the backend (for example, triggering a database query on the backend), you can wrap it
-with `@frontend_only` or `@kernel_only`, and the call will be transmitted over the Jupyter websocket.
+You can view some demos here: [Demos](https://percevalw.github.io/metanno/main/demos).
 
 ## Todo
 
-- add basic app samples
-- add a documentation
+- ~~add basic app samples~~
+- ~~add a documentation~~
 - add more table column types and renderers (numerical, dates, ...)
 - ~~add customizable column filterers~~
 - add relations visualizations and edition with editable arrows
-- add an image annotation view
+- ~~add an image annotation view~~
 - ~~finish javascript to typescript conversion~~
 - ~~customizable undo / redo logic~~
 - add multi-cell editing (see a [react-data-grid](https://github.com/adazzle/react-data-grid) PR)
-- add a test suite (Cypress ?)
-- make a standalone version (without Jupyter)
+- ~~add a test suite (Cypress ?)~~
+- ~~make a standalone version (without Jupyter)~~
 
 ## Contribute
 
