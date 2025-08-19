@@ -185,3 +185,6 @@ blob-report
 # Misc
 *.back
 *.tmp
+
+# Data
+QUAERO_FrenchMed_brat

@@ -29,6 +29,9 @@ theme:
 nav:
   - Overview: index.md
   - installation.md
+  - Demos:
+      - demos/index.md
+      - demos/quaero-explorer.md
   - Building Blocks:
       - components/index.md
       - Pret: https://percevalw.github.io/pret" target="_blank
@@ -42,6 +45,7 @@ extra:
   version:
     provider: mike
     default: latest
+  generator: false
 
 extra_css:
   - assets/stylesheets/extra.css
