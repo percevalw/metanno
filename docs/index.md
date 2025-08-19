@@ -2,81 +2,62 @@
 ![Metanno](/assets/images/logo.svg){ width="250px" }
 </h1>
 
-Metanno is a JupyterLab extension that allows you to build your own annotation interface. Metanno is a Python library aimed at building dynamic annotation interfaces customized to your needs without leaving your notebook.
+Metanno is a Python library built on top of the [Pret framework](https://github.com/percevalw/pret) for building dynamic, customizable annotation interfaces.
 
-At the moment, Metanno focuses on textual documents and images with rich structured entities.
-Its main goals are:
+Who is it for? Research groups, clinical NLP and biomedical teams, data labeling squads, and anyone who wants custom and interactive annotation tools without wrestling with JavaScript.
 
-- modularity: you decide how many views of your data are needed
-- customization: you can easily customize the software behavior in Python and see the changes immediately
-- interactivity: all of your annotations are immediately available as Python objects as soon as you edit something
+Metanno currently focuses on text and images with richly structured entities. Its goals are:
+
+- **Modularity:** show your data from multiple synchronized angles. For example, highlight entities over text or images while editing the same rows in a table.
+- **Python‑first UI:** write the entire app in Python; it renders to a fast React UI under the hood.
+- **Interactivity:** handle annotations as plain Python objects at any time, so you can create, inspect, and transform them programmatically.
 
 ## Features
 
 ### Annotate anything
 
-Metanno allows users to create a wide variety of annotations,
-including multiline and nested span annotations for text, shapes for images, and document-level, relational, or complex annotations using tables.
+In addition to the Pret ecosystem component suite, Metanno provides components for common annotation views:
 
-It also supports multiple data types, including hyperlinks, text, and lists, and
-allows users to switch between text, image, and table views for their annotations.
+- **[AnnotatedText][pret.ui.metanno.AnnotatedText]**: display text with highlighted, nestable spans
+- **[AnnotatedImage][pret.ui.metanno.AnnotatedImage]**: draw shapes (boxes, polygons, etc.) over images.
+- **[Table][pret.ui.metanno.Table]**: an editable, filterable spreadsheet‑style grid for inspecting and editing annotations.
 
-### Serving vs embedding
+You can compose these views of the same underlying annotations to get a better grasp of the data you are annotating or inspecting.
 
-Metanno can be used in two different ways:
+### Run it your way
 
-- As a standalone application, where you can run a server and access the app through a web browser.
-- As a collection of JupyterLab widgets
+Use Metanno in two modes:
 
-This makes it easy to develop and test your app in a notebook, and then deploy it as a standalone application if needed.
+- **Standalone app:** run a server and use it in your browser.
+- **JupyterLab widgets:** embed components directly in notebooks, with no extra ports or separate server process.
+
+Develop and test in a notebook. If you prefer, you can also run it as a standalone app.
 
 ### Easy setup
-
-Metanno is easy to install with a simple
 
 ```bash { data-md-color-scheme="slate" }
 pip install metanno
 ```
 
-Unlike many other alternatives, when used in JupyterLab, it does not require users to open any ports
-or leave their notebook to launch a server. It also allows users to write
-their own apps in Python while automatically benefiting from the speed of client-side JavaScript code with a React-based implementation.
+Unlike other alternatives, Metanno requires no additional ports and no separate server process when used in JupyterLab. Write your app in Python and benefit from a fast React front end under the hood.
 
 ### Interactive and customizable by design
 
-- visualize and edit the current app state directly in Python
-- update the UI in Python, execute the cell and see the results immediately
-- immutable state management, any state mutation is recorded and undoable
-- many event handlers to react to any user action (click, hover, type, ...)
+- Inspect and edit application state directly from Python.
+- Update the UI from Python; execute a notebook cell to see changes immediately.
+- Register event handlers for clicks, hovers, keystrokes, and more.
 
-Metanno is designed to be highly interactive and customizable, with the ability
-to visualize and edit app states directly in Python and update the UI in real
-time. It also offers a variety of event handlers that allow users to react to
-any user action. This makes it easy to create tailored and responsive app UIs
-in JupyterLab.
+## Why another annotation software?
 
-## Why another annotation tool ?
+Tool choice shapes both the annotation scheme and the workflow. In many out‑of‑the‑box tools, tasks like annotating implicit or document‑level entities, working across multiple documents at once, or coordinating multiple views can be difficult or unsupported. There are many available solutions (see [Neves et al.](https://pubmed.ncbi.nlm.nih.gov/31838514/)). However,  most of these are either proprietary, poorly adapted to document or multi-document annotation, require a complex installation that is not compatible with existing strict remote computing environments, or are difficult to customize.
 
-The choice of annotation software must be taken into account in the design of the
-annotation scheme. For example, it is challenging to annotate implicit/document-level
-entities in Brat or to annotate relations on multiple lines, and impossible to handle
-multiple documents at once. There are many annotation tools available
-(see [Neves et al.](https://pubmed.ncbi.nlm.nih.gov/31838514/)), but most of them
-are either proprietary, poorly adapted to document or multi-document annotation, require
-a complex installation that is not compatible with existing remote work environments,
-or are difficult to customize. Finally, the standardization of annotation levels
-(mention / relation / event) is an obstacle to the development of new tasks. Given the
-limitations of the existing software and the difficulty to cover every need with a
-single static annotator, this project was initiated to provide a modular and fully
-customizable annotation framework, Metanno, and address these difficulties.
+Metanno takes a different approach: a modular, Python‑first framework that adapts to your schema and to your annotation process, instead of forcing you into fixed layers or rigid UIs.
 
 ## Demo
 
-You can view some demos here: [Demos](/demos).
+See the [demos](/demos).
 
-Below is a simple example of a Metanno app that allows users to annotate text spans
-and visualize the annotations in a table. Just select spans of text to annotate them.
-Hold the Shift (or Maj) while selecting to delete spans instead.
+Below is a small example that lets you annotate text spans and view them in a synchronized table. Select spans to add them; hold **Shift** (also labeled **Maj** on some keyboards) while selecting to delete overlapping spans.
 
 ```python { .render-with-pret .code--expandable }
 from pret import component, create_store, use_store_snapshot, use_event_callback
@@ -128,8 +109,7 @@ def App():
 App()
 ```
 
-Observe how the annotations are updated in the table below. The two views are synchronized because they share the same state (see the `state` variable in the code).
-
+The annotations are reflected in the table below. Both views stay in sync because they share the same state (`state`).
 
 ```python { .render-with-pret .code--expandable style="height: 200px;" }
 # ↑ Complete the code above with the following snippet ↑
