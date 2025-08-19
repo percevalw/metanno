@@ -306,7 +306,7 @@ class DatasetApp:
 
         def make_on_add_span(label):
             def on_add_span(*args):
-                doc_idx = app_state[text_name]["last_idx"]
+                doc_idx = app_state[text_name]["last_idx"] or 0
                 doc = app_data[text_name][doc_idx]
                 doc_id = doc[text_pkey]
                 for r in app_state[text_name]["selected_ranges"]:
