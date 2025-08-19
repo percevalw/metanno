@@ -1,6 +1,6 @@
 # Building Blocks of Metanno
 
-This page provides an overview of the base components available in `metanno`.
+This page provides an overview of the base components available in Metanno.
 
 <!-- --8<-- [start:components] -->
 
