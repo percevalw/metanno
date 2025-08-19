@@ -85,6 +85,8 @@ plugins:
             show_root_toc_entry: false
             show_signature: false
             merge_init_into_class: true
+          inventories:
+            - https://percevalw.github.io/pret/main/objects.inv
   - bibtex:
       bibtex_file: "docs/references.bib"
   - clickable_code:
