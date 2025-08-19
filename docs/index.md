@@ -2,10 +2,9 @@
 ![Metanno](/assets/images/logo.svg){ width="250px" }
 </h1>
 
-Metanno is a Python library aimed at building dynamic annotation interfaces customized
-to your needs without leaving your notebook.
+Metanno is a JupyterLab extension that allows you to build your own annotation interface. Metanno is a Python library aimed at building dynamic annotation interfaces customized to your needs without leaving your notebook.
 
-At the moment, Metanno focuses on textual documents with rich structured entities.
+At the moment, Metanno focuses on textual documents and images with rich structured entities.
 Its main goals are:
 
 - modularity: you decide how many views of your data are needed
@@ -17,11 +16,19 @@ Its main goals are:
 ### Annotate anything
 
 Metanno allows users to create a wide variety of annotations,
-including multiline and nested span annotations with text views,
-as well as document level, relational, or complex annotations with table views.
+including multiline and nested span annotations for text, shapes for images, and document-level, relational, or complex annotations using tables.
 
 It also supports multiple data types, including hyperlinks, text, and lists, and
-allows users to switch between text and table views for their annotations.
+allows users to switch between text, image, and table views for their annotations.
+
+### Serving vs embedding
+
+Metanno can be used in two different ways:
+
+- As a standalone application, where you can run a server and access the app through a web browser.
+- As a collection of JupyterLab widgets
+
+This makes it easy to develop and test your app in a notebook, and then deploy it as a standalone application if needed.
 
 ### Easy setup
 
@@ -33,8 +40,7 @@ pip install metanno
 
 Unlike many other alternatives, when used in JupyterLab, it does not require users to open any ports
 or leave their notebook to launch a server. It also allows users to write
-their own apps in Python and while automatically benefiting from the speed of client
-run Javascript code with a React-based implementation.
+their own apps in Python while automatically benefiting from the speed of client-side JavaScript code with a React-based implementation.
 
 ### Interactive and customizable by design
 
@@ -46,8 +52,8 @@ run Javascript code with a React-based implementation.
 Metanno is designed to be highly interactive and customizable, with the ability
 to visualize and edit app states directly in Python and update the UI in real
 time. It also offers a variety of event handlers that allow users to react to
-any user action. This makes it easy to create tailored and responsive apps
-UIs in JupyterLab.
+any user action. This makes it easy to create tailored and responsive app UIs
+in JupyterLab.
 
 ## Why another annotation tool ?
 
@@ -60,11 +66,13 @@ are either proprietary, poorly adapted to document or multi-document annotation,
 a complex installation that is not compatible with existing remote work environments,
 or are difficult to customize. Finally, the standardization of annotation levels
 (mention / relation / event) is an obstacle to the development of new tasks. Given the
-limitations of the existing softwares and the difficulty to cover every need with a
+limitations of the existing software and the difficulty to cover every need with a
 single static annotator, this project was initiated to provide a modular and fully
 customizable annotation framework, Metanno, and address these difficulties.
 
 ## Demo
+
+You can view some demos here: [Demos](/demos).
 
 Below is a simple example of a Metanno app that allows users to annotate text spans
 and visualize the annotations in a table. Just select spans of text to annotate them.
