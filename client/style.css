@@ -19,18 +19,3 @@
 .jp-OutputArea {
     --metanno-font-size: var(--jp-code-font-size);
 }
-
-.metanno-table > .rdg.rdg {
-    --background-color: #fff;
-    --color: #000;
-    --border-color: #ddd;
-    --summary-border-color: #aaa;
-    --header-background-color: #f9f9f9;
-    --row-hover-background-color: #ffede6;
-    --row-selected-background-color: #dbecfa;
-    --row-selected-hover-background-color: #c9e3f8;
-    --checkbox-color: #005194;
-    --checkbox-focus-color: #61b8ff;
-    --checkbox-disabled-border-color: #ccc;
-    --checkbox-disabled-background-color: #ddd;
-}
