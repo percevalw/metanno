@@ -182,37 +182,6 @@ a.discrete-link {
     align-content: center;
 }
 
-.pret-code-snippet {
-    width: 100%;
-    // display: grid;
-    // grid-template-columns: 66% 33%;
-}
-
-.pret-code-snippet > details {
-    margin-bottom: 0;
-}
-
-.pret-code-snippet .pret-code-snippet-view-container {
-    display: flex;
-    flex-direction: row;
-    justify-content: center;
-    border-radius: 0 0 12px 12px;
-    border: 1px solid hsl(215, 15%, 92%);
-}
-
-.pret-code-snippet .pret-code-snippet-view-content {
-    display: flex;
-    overflow-x: auto;
-    position: relative;
-    /* To prevent a weird bug, likely related to overflow and flexbox, adding scrollbars to the div */
-    padding: 1px;
-    margin: -1px;
-}
-
-.pret-code-snippet-view-container .metanno-table {
-    min-height: 100px;
-}
-
 .md-content {
     contain: paint;
 }
