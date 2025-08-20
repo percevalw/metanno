@@ -1,5 +1,5 @@
 
-export const makeModKeys = (event: React.KeyboardEvent | React.MouseEvent): string[] => {
+export const makeModKeys = (event: React.KeyboardEvent | React.MouseEvent | React.TouchEvent): string[] => {
     const modkeys = [];
     if (event.shiftKey)
         modkeys.push("Shift");

@@ -17,12 +17,16 @@
 
     width: 100%;
     overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
 }
 
 .metanno-text-view .line {
     padding-left: 41px;
     box-sizing: border-box;
     width: 100%;
+    contain: layout paint style;
+    transform: translateZ(0);
+    will-change: transform;
 }
 
 .metanno-text-view .line-number {
@@ -46,8 +50,8 @@
 .metanno-text-view .text-chunk {
     word-break: break-word;
     white-space: nowrap;
-    display: inline;
     position: relative;
+    contain: layout paint;
 }
 
 .metanno-text-view .text-chunk-content {
@@ -90,7 +94,8 @@
 }
 
 .metanno-text-view .label.highlighted {
-    box-shadow: 0px 0px 4px 4px #e7c600;
+    outline: 2px solid #e7c600;
+    box-shadow: none;
 }
 
 .metanno-text-view .mention_token.mention_underline, .metanno-text-view .mention_token.mention_underline.closed_left, .metanno-text-view .mention_token.mention_underline.closed_right {
@@ -161,6 +166,8 @@
     }
 }
 
-.metanno-text-view .mention_token.selected {
-    animation: var(--blink-animation);
+@media (prefers-reduced-motion: no-preference) {
+    .metanno-text-view .mention_token.selected {
+        animation: blink .5s step-end infinite alternate;
+    }
 }

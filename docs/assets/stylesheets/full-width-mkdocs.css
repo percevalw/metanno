@@ -317,6 +317,11 @@ html .pret-code-snippet .pret-code-snippet-view-container {
     height: 100%;
 }
 
+html .pret-code-snippet .pret-code-snippet-view-content {
+    width: 100%;
+    height: 100%;
+}
+
 html article.md-content__inner {
     margin-left: 1rem !important;
     margin-right: 1rem !important;
