@@ -6,6 +6,10 @@
 - Improved autocompletion experience for table suggestion inputs
 - Improved tokenization of text, now allowed to split around dashes (-).
 - Added _theoretical_ support for touch screens (lightly tested)
+- Added tutorials
+    - Setup
+    - Run the Quaero Explorer app
+    - Customize the explorer
 
 ## v1.0.0.beta1
 

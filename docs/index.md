@@ -55,7 +55,17 @@ Metanno takes a different approach: a modular, Python‑first framework that ada
 
 ## Demo
 
-See the [demos](/demos).
+See the [demo apps](/demos), listed below.
+
+--8<-- "docs/demos/index.md:demos"
+
+## Tutorials
+
+Check out the [tutorials](/tutorials) to get started with Metanno !
+
+--8<-- "docs/tutorials/index.md:tutorials"
+
+## Small example
 
 Below is a small example that lets you annotate text spans and view them in a synchronized table. Select spans to add them; hold **Shift** (also labeled **Maj** on some keyboards) while selecting to delete overlapping spans.
 
@@ -63,21 +73,25 @@ Below is a small example that lets you annotate text spans and view them in a sy
 from pret import component, create_store, use_store_snapshot, use_event_callback
 from pret.ui.metanno import AnnotatedText
 
-state = create_store([
-    {"text": "soir", "begin": 3, "end": 7, "id": "s-3-7", "label": "ENT"},
-    {"text": "Charlie", "begin": 59, "end": 66, "id": "s-59-66", "label": "ENT"},
-])
+state = create_store(
+    [
+        {"text": "soir", "begin": 3, "end": 7, "id": "s-3-7", "label": "ENT"},
+        {"text": "Charlie", "begin": 59, "end": 66, "id": "s-59-66", "label": "ENT"},
+    ]
+)
 
-text = ("Le soir, après avoir mangé sa soupe aux choux noyée "
-        "d’eau, Charlie allait toujours dans la chambre de ses "
-        "quatre grands-parents pour écouter leurs histoires, "
-        "et pour leur souhaiter bonne nuit.\n"
-        "Chacun d’eux avait plus de quatre-vingt-dix ans. Ils "
-        "étaient fripés comme des pruneaux secs, ossus comme "
-        "des squelettes et, toute la journée, jusqu’à l’apparition "
-        "de Charlie, ils se pelotonnaient dans leur lit, deux de "
-        "chaque côté, coiffés de bonnets de nuit qui leur tenaient "
-        "chaud, passant le temps à ne rien faire.")
+text = (
+    "Le soir, après avoir mangé sa soupe aux choux noyée "
+    "d’eau, Charlie allait toujours dans la chambre de ses "
+    "quatre grands-parents pour écouter leurs histoires, "
+    "et pour leur souhaiter bonne nuit.\n"
+    "Chacun d’eux avait plus de quatre-vingt-dix ans. Ils "
+    "étaient fripés comme des pruneaux secs, ossus comme "
+    "des squelettes et, toute la journée, jusqu’à l’apparition "
+    "de Charlie, ils se pelotonnaient dans leur lit, deux de "
+    "chaque côté, coiffés de bonnets de nuit qui leur tenaient "
+    "chaud, passant le temps à ne rien faire."
+)
 
 
 @component
@@ -91,11 +105,21 @@ def App():
             state[:] = [
                 x
                 for x in state
-                if any((s['begin'] >= x['end'] or s['end'] <= x['begin']) for s in spans)
+                if any(
+                    (s["begin"] >= x["end"] or s["end"] <= x["begin"]) for s in spans
+                )
             ]
         else:
             state.extend(
-                [{**s, "id": f"s-{s['begin']}-{s['end']}", "text": text[s['begin']:s['end']], "label": "ENT"} for s in spans]
+                [
+                    {
+                        **s,
+                        "id": f"s-{s['begin']}-{s['end']}",
+                        "text": text[s["begin"] : s["end"]],
+                        "label": "ENT",
+                    }
+                    for s in spans
+                ]
             )
 
     return AnnotatedText(
@@ -111,6 +135,8 @@ App()
 
 The annotations are reflected in the table below. Both views stay in sync because they share the same state (`state`).
 
+<!-- blacken-docs:off -->
+
 ```python { .render-with-pret .code--expandable style="height: 200px;" }
 # ↑ Complete the code above with the following snippet ↑
 from pret import component, use_store_snapshot, use_event_callback
@@ -121,8 +147,10 @@ columns = [
     {"key": "begin", "kind": "text", "name": "begin", "filterable": True},
     {"key": "end", "kind": "text", "name": "end", "filterable": True},
     {"key": "text", "kind": "text", "name": "text", "filterable": True},
-    {"key": "label", "kind": "text", "name": "label", "filterable": True, "editable": True, "choices": ["ENT", "OTHER"]},
+    {"key": "label", "kind": "text", "name": "label", "filterable": True,
+        "editable": True, "choices": ["ENT", "OTHER"]},
 ]
+
 
 @component
 def MyTable():
@@ -141,5 +169,8 @@ def MyTable():
         on_cell_change=on_cell_change,
     )
 
+
 MyTable()
 ```
+
+<!-- blacken-docs:on -->

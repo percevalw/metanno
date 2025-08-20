@@ -288,7 +288,7 @@ html [data-md-toggle=drawer]:checked~.md-overlay {
 
 html .md-main .md-main__inner {
     max-width: unset !important;
-    height: calc(100vh - 48px);
+    height: calc(100vh - 53px);
 }
 
 html .md-content {
