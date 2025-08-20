@@ -4,6 +4,7 @@
 
 - Improved visibility of highlighted spans and layout of boxes with mixed inset/outset nesting
 - Improved autocompletion experience for table suggestion inputs
+- Improved tokenization of text, now allowed to split around dashes (-).
 
 ## v1.0.0.beta1
 
