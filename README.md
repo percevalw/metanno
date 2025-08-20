@@ -59,7 +59,7 @@ Metanno takes a different approach: a modular, Python‑first framework that ada
 
 ## Demo
 
-See the [demos](/demos).
+Check out the [demos](https://percevalw.github.io/metanno/latest/demos/)!
 
 ## Todo
 

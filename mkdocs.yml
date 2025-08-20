@@ -32,6 +32,11 @@ nav:
   - Demos:
       - demos/index.md
       - demos/quaero-explorer.md
+  - Tutorials:
+      - tutorials/index.md
+      - tutorials/new-project.md
+      - tutorials/run-quaero-explorer.md
+      - tutorials/customize-explorer.md
   - Building Blocks:
       - components/index.md
       - Pret: https://percevalw.github.io/pret" target="_blank
@@ -87,6 +92,7 @@ plugins:
             merge_init_into_class: true
           inventories:
             - https://percevalw.github.io/pret/main/objects.inv
+            - https://aphp.github.io/edsnlp/latest/objects.inv
   - bibtex:
       bibtex_file: "docs/references.bib"
   - clickable_code:
@@ -96,13 +102,15 @@ watch:
   - CHANGELOG.md
   - pret
   - metanno
+  - examples
 
 markdown_extensions:
   - pymdownx.highlight
   - admonition
   - pymdownx.superfences
   - pymdownx.inlinehilite
-  - pymdownx.snippets
+  - pymdownx.snippets:
+      dedent_subsections: true
   - pymdownx.tabbed:
       alternate_style: true
       slugify: !!python/object/apply:pymdownx.slugs.slugify
