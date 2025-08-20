@@ -190,7 +190,7 @@ function tokenizeTextChunks(text_chunks: TextChunk[]): TokenData[][] {
     tokens =
       text_chunk.text.length > 0 // && token_annotations.length > 0
         ? text_chunk.text
-            .match(/\n|[^ \n]+|[ ]+/g)
+            .match(/\n|-|[^ \n-]+|[ ]+/g)
             .filter((text) => text.length > 0)
         : [text_chunk.text];
 
