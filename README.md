@@ -1,3 +1,7 @@
+![Tests](https://img.shields.io/github/actions/workflow/status/percevalw/metanno/tests.yml?branch=main&label=tests&style=flat-square)
+[![Documentation](https://img.shields.io/github/actions/workflow/status/percevalw/metanno/docs.yml?branch=main&label=docs&style=flat-square)](https://percevalw.github.io/metanno/latest/)
+[![PyPI](https://img.shields.io/pypi/v/metanno?color=blue&style=flat-square)](https://pypi.org/project/metanno/)
+
 <h1 align="center">
   <img alt="Metanno" width="250" src="https://raw.githubusercontent.com/percevalw/metanno/main/docs/assets/images/logo.png" />
 </h1>
@@ -41,6 +45,14 @@ Develop and test in a notebook. If you prefer, you can also run it as a standalo
 
 ```bash { data-md-color-scheme="slate" }
 pip install metanno
+```
+
+To use it with Jupyter, if you install the library in a custom environment (conda, venv, or other),
+you will likely need to tell Jupyter where to find the front-end files.
+You can do this by running the following command (only once):
+
+```bash
+pret update-jupyter-config --apply
 ```
 
 Unlike other alternatives, Metanno requires no additional ports and no separate server process when used in JupyterLab. Write your app in Python and benefit from a fast React front end under the hood.
