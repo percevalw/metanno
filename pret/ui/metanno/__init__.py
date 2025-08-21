@@ -3,8 +3,8 @@ import sys
 from typing import Any, Union, List, TypedDict, Optional, Dict, Callable
 from pret.render import stub_component
 from pret.marshal import js, make_stub_js_module, marshal_as
+from metanno import __version__
 
-__version__ = "1.0.0-beta.1"
 _py_package_name = "metanno"
 _js_package_name = "metanno"
 _js_global_name = "Metanno"
@@ -54,6 +54,7 @@ def AnnotatedImage(*children, annotations: Any, annotation_styles: Any, image: s
     Examples
     --------
 
+    <!-- blacken-docs:off -->
     ```python { .render-with-pret style="height: 300px" }
     from pret import component, create_store, use_store_snapshot, use_event_callback
     from pret.ui.metanno import AnnotatedImage
@@ -122,6 +123,7 @@ def AnnotatedImage(*children, annotations: Any, annotation_styles: Any, image: s
 
     MyImage()
     ```
+    <!-- blacken-docs:on -->
 
     Parameters
     ----------
@@ -230,7 +232,7 @@ def Table(
 
     Examples
     --------
-
+    <!-- blacken-docs:off -->
     ```python { .render-with-pret style="min-height: 300px" }
     from pret import component, create_store, use_store_snapshot, use_event_callback
     from pret.ui.metanno import Table
@@ -277,6 +279,7 @@ def Table(
 
     MyTable()
     ```
+    <!-- blacken-docs:on -->
 
     Parameters
     ----------
@@ -392,7 +395,13 @@ def AnnotatedText(
     --------
 
     ```python { .render-with-pret }
-    from pret import component, create_store, use_store_snapshot, use_event_callback, use_state
+    from pret import (
+        component,
+        create_store,
+        use_store_snapshot,
+        use_event_callback,
+        use_state,
+    )
     from pret.ui.metanno import AnnotatedText
     from pret.ui.joy import Button, Box
 
@@ -402,20 +411,27 @@ def AnnotatedText(
     )
 
     # One span covering the word “Metanno”
-    spans = create_store([{
-        "id": f"span-0-7",
-        "begin": 0,
-        "end": 7,
-        "label": "OBJ",
-        "highlighted": False,
-    }])
+    spans = create_store(
+        [
+            {
+                "id": f"span-0-7",
+                "begin": 0,
+                "end": 7,
+                "label": "OBJ",
+                "highlighted": False,
+            }
+        ]
+    )
 
-    txt_annotation_styles = create_store({
-        "OBJ": {
-            "color": "red",
-            "shape": "underline",
+    txt_annotation_styles = create_store(
+        {
+            "OBJ": {
+                "color": "red",
+                "shape": "underline",
+            }
         }
-    })
+    )
+
 
     @component
     def MyText():
@@ -425,14 +441,16 @@ def AnnotatedText(
         @use_event_callback
         def handle_select(ranges, modkeys):
             for sp in ranges:
-                spans.extend([
-                    {
-                        "id": f"span-{sp['begin']}-{sp['end']}",
-                        "begin": sp["begin"],
-                        "end": sp["end"],
-                        "label": "OBJ",
-                    }
-                ])
+                spans.extend(
+                    [
+                        {
+                            "id": f"span-{sp['begin']}-{sp['end']}",
+                            "begin": sp["begin"],
+                            "end": sp["end"],
+                            "label": "OBJ",
+                        }
+                    ]
+                )
 
         def on_mouse_enter_span(span_id, modkeys):
             for i, sp in enumerate(spans):
@@ -461,8 +479,14 @@ def AnnotatedText(
                 on_mouse_leave_span=on_mouse_leave_span,
                 style={"gridColumn": "1 / -1"},
             ),
-            sx={"p": 1, "display": "grid", "gridTemplateColumns": "repeat(2, auto)", "gap": 1},
+            sx={
+                "p": 1,
+                "display": "grid",
+                "gridTemplateColumns": "repeat(2, auto)",
+                "gap": 1,
+            },
         )
+
 
     MyText()
     ```

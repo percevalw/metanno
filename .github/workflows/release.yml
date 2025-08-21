@@ -1,20 +1,50 @@
-name: Build documentation
+name: Release
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ main, master ]
-env:
-  BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+  release:
+    types: [published]
+
+permissions:
+  id-token: write
 
 jobs:
-  docs:
-    name: Build documentation
+  publish:
+    name: Build and Publish Package
     runs-on: ubuntu-latest
+    steps:
+      - name: 'Checkout'
+        uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
 
-    env:
-      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/pw-browsers
+      - name: 'Set up Node'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: 'Install hatch'
+        run: pip install hatch
+
+      - name: "Build source distribution"
+        run: |
+          hatch build -t sdist
+
+      - name: "Build wheel distribution"
+        run: |
+          hatch build -t wheel
+
+      - name: Publish package
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  docs:
+    name: Documentation
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -48,8 +78,7 @@ jobs:
           # install setuptools < 81 to fix issue with pkg_resources
           uv pip install -e . --group docs "setuptools<81"
 
-      - name: 'Build docs'
+      - name: Build documentation
         run: |
           git fetch origin gh-pages
-          mike delete $BRANCH_NAME
-          mike deploy --push $BRANCH_NAME
+          mike deploy --push --no-redirect --update-aliases $GITHUB_REF_NAME latest
