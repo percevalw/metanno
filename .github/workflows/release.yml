@@ -5,13 +5,13 @@ on:
   release:
     types: [published]
 
-permissions:
-  id-token: write
-
 jobs:
   publish:
     name: Build and Publish Package
     runs-on: ubuntu-latest
+    permissions:
+      # Trusted Publishing to PyPI
+      id-token: write
     steps:
       - name: 'Checkout'
         uses: actions/checkout@v4
@@ -81,4 +81,4 @@ jobs:
       - name: Build documentation
         run: |
           git fetch origin gh-pages
-          mike deploy --push --no-redirect --update-aliases $GITHUB_REF_NAME latest
+          mike deploy --push --alias-type=copy --update-aliases $GITHUB_REF_NAME latest

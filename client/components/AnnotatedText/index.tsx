@@ -18,6 +18,11 @@ import {
 
 import "./style.css";
 
+const isMobileDevice = (): boolean => {
+    if (typeof window === "undefined" || typeof navigator === "undefined") return false;
+    return /Mobi|Android|iPhone|iPad|iPod|Windows Phone|IEMobile|Opera Mini/i.test(navigator.userAgent || "");
+};
+
 const toLuminance = (color: Color, y: number = 0.6) => {
   // This is mostly used to adapt to light/dark mode
 
@@ -539,34 +544,45 @@ export class AnnotatedText extends React.Component<TextData & TextMethods> {
   }
 
   componentDidMount() {
-    document.addEventListener('selectionchange', this._boundSelectionChange);
+    if (!isMobileDevice()) return;
+    document.addEventListener("selectionchange", this._boundSelectionChange);
   }
 
   componentWillUnmount() {
-    document.removeEventListener('selectionchange', this._boundSelectionChange);
+    if (!isMobileDevice()) return;
+    document.removeEventListener("selectionchange", this._boundSelectionChange);
   }
 
   private isNodeInside = (node: Node | null) => {
     const container = this.containerRef.current;
-    return !!container && !!node && (node === container || container.contains(node as Node));
+    return (
+      !!container &&
+      !!node &&
+      (node === container || container.contains(node as Node))
+    );
   };
 
   handleSelectionChange = () => {
     if (this._ignoreSelectionChange) return;
-    const sel = typeof window !== 'undefined' ? window.getSelection?.() : null;
+    const sel = typeof window !== "undefined" ? window.getSelection?.() : null;
     if (!sel || sel.isCollapsed) return;
-    if (!this.isNodeInside(sel.anchorNode) && !this.isNodeInside(sel.focusNode)) return;
+    if (!this.isNodeInside(sel.anchorNode) && !this.isNodeInside(sel.focusNode))
+      return;
     // Wait a tick so the browser finalizes the selection on mobile
     setTimeout(() => {
       const spans = getDocumentSelectedRanges();
       if (spans && spans.length > 0) {
         this._ignoreSelectionChange = true;
         this.props.onMouseSelect?.(spans, makeModKeys({} as any));
-        try { window.getSelection()?.removeAllRanges(); } catch {}
-        setTimeout(() => { this._ignoreSelectionChange = false; }, 0);
+        try {
+          window.getSelection()?.removeAllRanges();
+        } catch {}
+        setTimeout(() => {
+          this._ignoreSelectionChange = false;
+        }, 0);
       }
     }, 0);
-  }
+  };
 
   handleKeyUp = (event: React.KeyboardEvent) => {
     // if (event.metaKey || event.key === 'Meta' || event.shiftKey || event.key === 'Shift') {
@@ -590,18 +606,35 @@ export class AnnotatedText extends React.Component<TextData & TextMethods> {
     }
   };
 
-  handleMouseUp = (
+  handleTouchUp = (
     event: React.MouseEvent<HTMLElement> | React.TouchEvent<HTMLElement>
   ) => {
     const spans = getDocumentSelectedRanges();
     this._ignoreSelectionChange = true; // prevent our own clear from retriggering
-    try { window.getSelection()?.removeAllRanges(); } catch {}
+    try {
+      window.getSelection()?.removeAllRanges();
+    } catch {}
     if (spans.length > 0) {
       this.props.onMouseSelect?.(spans, makeModKeys(event as any));
     } else {
       this.props.onMouseSelect?.([], makeModKeys(event as any));
     }
-    setTimeout(() => { this._ignoreSelectionChange = false; }, 0);
+    setTimeout(() => {
+      this._ignoreSelectionChange = false;
+    }, 0);
+  };
+
+  handleMouseUp = (event: React.MouseEvent<HTMLElement>) => {
+    if (event.type === "mouseup") {
+      const spans = getDocumentSelectedRanges();
+      window.getSelection().removeAllRanges();
+      if (spans.length > 0) {
+        //this.props.onMouseSelect([...this.props.mouse_selection, ...spans]);
+        this.props.onMouseSelect?.(spans, makeModKeys(event));
+      } else {
+        this.props.onMouseSelect?.([], makeModKeys(event));
+      }
+    }
   };
 
   handleClickSpan = (event, span_id) => {
@@ -669,7 +702,10 @@ export class AnnotatedText extends React.Component<TextData & TextMethods> {
         className="metanno-text-view"
         ref={this.containerRef}
         onMouseUp={this.handleMouseUp}
-        onTouchEnd={(e) => { e.persist?.(); setTimeout(() => this.handleMouseUp(e as any), 0); }}
+        onTouchEnd={(e) => {
+          e.persist?.();
+          setTimeout(() => this.handleTouchUp(e as any), 0);
+        }}
         onTouchCancel={(e) => this.props.onMouseSelect?.([], makeModKeys(e))}
         onKeyDown={this.handleKeyDown}
         onKeyUp={this.handleKeyUp}

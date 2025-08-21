@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.0.0.beta3
+
+- Fix AnnotatedText bug in text selection on desktop browsers
+
 ## v1.0.0.beta2
 
 - Improved visibility of highlighted spans and layout of boxes with mixed inset/outset nesting
