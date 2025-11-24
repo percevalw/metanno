@@ -5,9 +5,12 @@ from pret import component, create_store, use_store_snapshot
 from pret.hooks import use_effect, use_event_callback, use_memo
 from pret.render import Renderable
 from pret.store import snapshot, subscribe, transact
-from pret.ui.joy import Button, ButtonGroup, Divider
-from pret.ui.metanno import AnnotatedText, Table
+
+# Pending deprecation, prefer pret.react
 from pret.ui.react import div
+from pret_joy import Button, ButtonGroup, Divider
+
+from metanno import AnnotatedText, Table
 
 
 def build_columns(
@@ -145,7 +148,7 @@ class DatasetApp:
         """
         Build and register a table view backed by the app's reactive stores.
 
-        This helper wires a [`Table`][pret.ui.metanno.Table] component to the data
+        This helper wires a [`Table`][metanno.ui.Table] component to the data
         stored at `store_key`, infers column types, and synchronizes
         selection/filter state with other registered views in the application. The
         returned value is a Pret component you can mount in your layout.
@@ -348,7 +351,7 @@ class DatasetApp:
         """
         Build and register a text + spans view backed by the app's reactive stores.
 
-        This helper wires an [`AnnotatedText`][pret.ui.metanno.AnnotatedText]
+        This helper wires an [`AnnotatedText`][metanno.ui.AnnotatedText]
         component to textual documents stored under *`store_text_key`* and span
         annotations stored under *`store_spans_key`*. It also renders a small
         label toolbar (optional shortcuts) to create spans from the current mouse

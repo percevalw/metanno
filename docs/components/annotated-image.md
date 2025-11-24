@@ -1,6 +1,6 @@
-# AnnotatedImage {: #pret.ui.metanno.AnnotatedImage }
+# AnnotatedImage {: #metanno.ui.AnnotatedImage }
 
-::: pret.ui.metanno.AnnotatedImage
+::: metanno.ui.AnnotatedImage
     options:
         heading_level: 2
         show_bases: false

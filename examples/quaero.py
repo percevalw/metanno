@@ -3,12 +3,14 @@ from collections import Counter
 from pathlib import Path
 
 import edsnlp
+from pret import component, use_store_snapshot
+
+# Pending deprecation, prefer pret.react
+from pret.ui.react import div
+from pret_markdown import Markdown
+from pret_simple_dock import Layout, Panel
 
 from metanno.recipes.explorer import DatasetApp
-from pret import component, use_store_snapshot
-from pret.ui.markdown import Markdown
-from pret.ui.react import div
-from pret.ui.simple_dock import Layout, Panel
 
 # <--8<-- [end:imports]
 

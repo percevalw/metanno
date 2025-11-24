@@ -1,4 +1,6 @@
 from pret import component, create_store, use_state, use_store_snapshot
+
+# Pending deprecation, prefer pret.react
 from pret.ui.react import div, input, label, p
 
 state = create_store(

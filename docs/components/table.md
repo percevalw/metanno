@@ -1,6 +1,6 @@
-# Table {: #pret.ui.metanno.Table }
+# Table {: #metanno.ui.Table }
 
-::: pret.ui.metanno.Table
+::: metanno.ui.Table
     options:
         heading_level: 2
         show_bases: false

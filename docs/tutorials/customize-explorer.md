@@ -13,7 +13,7 @@ Reuse the same environment you prepared in the **[Run Quaero Explorer tutorial](
 ## Adding new fields
 
 You control which attributes appear in the UI by editing the data you import and by listing those attributes in the table views.
-Check out the [Table][pret.ui.metanno.Table] component documentation for more details about the types of attributes you can add.
+Check out the [Table][metanno.ui.Table] component documentation for more details about the types of attributes you can add.
 
 #### Load the data
 

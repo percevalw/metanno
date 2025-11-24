@@ -70,7 +70,7 @@ exclude = [
     ".pytest_cache",
     ".venv",
     "build",
-    "pret/ui/metanno/__init__.py"
+    "metanno/ui.py"
 ]
 line-length = 88
 lint.select = [
@@ -85,10 +85,13 @@ lint.fixable = ["E", "F", "W", "I"]
 # Also ignore `E402` in all `__init__.py` files.
 "__init__.py" = ["E402", "F401"]
 
+[tool.ruff.lint.isort]
+known-third-party = ["pret"]
+order-by-type = true
 
 # ----- Build configuration -----
 [tool.hatch.version]
-path = "metanno/__init__.py"
+path = "metanno/version.py"
 
 [build-system]
 requires = ["hatchling", "jupyterlab<4.0.0", "pip<=24.0"]
@@ -97,7 +100,7 @@ build-backend = "hatchling.build"
 [tool.hatch.build.hooks.jupyter-builder]
 dependencies = ["hatch-jupyter-builder"]
 build-function = "hatch_jupyter_builder.npm_builder"
-ensured-targets = ["pret/ui/metanno/js-extension/package.json"]
+ensured-targets = ["metanno/js-extension/package.json"]
 install-pre-commit-hook = true
 optional-editable-build = false
 build-kwargs = { "build_cmd" = "build", "npm" = ["jlpm"] }
@@ -111,12 +114,12 @@ artifacts = [
 
 [tool.hatch.build.targets.wheel]
 packages = [
+    "metanno",
     "pret",
-    "metanno"
 ]
 
 [tool.hatch.build.targets.wheel.shared-data]
-"pret/ui/metanno/js-extension" = "share/jupyter/labextensions/metanno"
+"metanno/js-extension" = "share/jupyter/labextensions/metanno"
 
 [tool.hatch.metadata]
 allow-direct-references = true

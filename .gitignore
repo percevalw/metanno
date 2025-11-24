@@ -154,8 +154,8 @@ package-lock.json
 **/coverage/
 
 # Compiled JS
-pret/ui/metanno/js-extension
-pret/ui/metanno/js-base
+metanno/js-extension
+metanno/js-base
 client/**/*.js
 client/**/*.js.map
 
