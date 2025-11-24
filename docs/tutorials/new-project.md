@@ -87,7 +87,7 @@ You can manage your project dependencies with a pyproject.toml or a requirements
 
 ```python { .render-with-pret }
 from pret import component
-from pret.ui.joy import Button
+from pret_joy import Button
 
 
 @component
@@ -108,7 +108,7 @@ Ensure that you are in an environment where you can open ports (for instance por
 
 ```python
 from pret import run, component
-from pret.ui.joy import Button
+from pret_joy import Button
 
 
 @component

@@ -1,6 +1,6 @@
-# AnnotatedText {: #pret.ui.metanno.AnnotatedText }
+# AnnotatedText {: #metanno.ui.AnnotatedText }
 
-::: pret.ui.metanno.AnnotatedText
+::: metanno.ui.AnnotatedText
     options:
         heading_level: 2
         show_bases: false

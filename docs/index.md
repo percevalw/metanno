@@ -18,9 +18,9 @@ Metanno currently focuses on text and images with richly structured entities. It
 
 In addition to the Pret ecosystem component suite, Metanno provides components for common annotation views:
 
-- **[AnnotatedText][pret.ui.metanno.AnnotatedText]**: display text with highlighted, nestable spans
-- **[AnnotatedImage][pret.ui.metanno.AnnotatedImage]**: draw shapes (boxes, polygons, etc.) over images.
-- **[Table][pret.ui.metanno.Table]**: an editable, filterable spreadsheet‑style grid for inspecting and editing annotations.
+- **[AnnotatedText][metanno.ui.AnnotatedText]**: display text with highlighted, nestable spans
+- **[AnnotatedImage][metanno.ui.AnnotatedImage]**: draw shapes (boxes, polygons, etc.) over images.
+- **[Table][metanno.ui.Table]**: an editable, filterable spreadsheet‑style grid for inspecting and editing annotations.
 
 You can compose these views of the same underlying annotations to get a better grasp of the data you are annotating or inspecting.
 
@@ -79,7 +79,7 @@ Below is a small example that lets you annotate text spans and view them in a sy
 
 ```python { .render-with-pret .code--expandable }
 from pret import component, create_store, use_store_snapshot, use_event_callback
-from pret.ui.metanno import AnnotatedText
+from metanno import AnnotatedText
 
 state = create_store(
     [
@@ -148,7 +148,7 @@ The annotations are reflected in the table below. Both views stay in sync becaus
 ```python { .render-with-pret .code--expandable style="height: 200px;" }
 # ↑ Complete the code above with the following snippet ↑
 from pret import component, use_store_snapshot, use_event_callback
-from pret.ui.metanno import Table
+from metanno import Table
 
 columns = [
     {"key": "id", "kind": "text", "name": "id", "filterable": True},

@@ -48,7 +48,7 @@ done
 
 # Run the tests
 echo "Running playwright tests"
-yarn playwright test tests/jupyter
+yarn playwright test tests/jupyter "$@"
 
 # Store return code
 RET_CODE=$?

@@ -1,10 +1,14 @@
 # Changelog
 
-## v1.0.0.beta3
+## Unreleased
+
+- Moved `pret.ui.metanno` to `metanno.ui` (accessible via `from metanno import ...`)
+
+## v1.0.0.beta3 (2025-08-21)
 
 - Fix AnnotatedText bug in text selection on desktop browsers
 
-## v1.0.0.beta2
+## v1.0.0.beta2 (2025-08-18)
 
 - Improved visibility of highlighted spans and layout of boxes with mixed inset/outset nesting
 - Improved autocompletion experience for table suggestion inputs
@@ -15,7 +19,7 @@
     - Run the Quaero Explorer app
     - Customize the explorer
 
-## v1.0.0.beta1
+## v1.0.0.beta1 (2025-06-06)
 
 - Complete refacto of the framework: the Python-JS synchronized app mechanisms have been moved to a new library: [Pret](https://github.com/percevalw/pret) !
 - Text and Table components are now callable directly from python, along other components built around MUI Joy. This gives the user the ability to easily build simple apps, and iterate on the design step by step.

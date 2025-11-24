@@ -1,1 +1,2 @@
-__version__ = "1.0.0-beta.3"
+from .ui import AnnotatedText, AnnotatedImage, Table  # noqa: F401,F403
+from .version import __version__  # noqa: F401

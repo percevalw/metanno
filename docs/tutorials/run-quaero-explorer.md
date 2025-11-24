@@ -47,7 +47,7 @@ We then build two Python lists: `notes` and `entities` with the fields we’ll d
 
 #### 2) Check unique entity IDs
 
-The [Table][pret.ui.metanno.Table] component requires unique IDs for each row. We check if the entity IDs are unique and raise an error if not, or deduplicate them automatically.
+The [Table][metanno.ui.Table] component requires unique IDs for each row. We check if the entity IDs are unique and raise an error if not, or deduplicate them automatically.
 
 ```python
 --8<-- "examples/quaero.py:unicity"
@@ -63,7 +63,7 @@ We compute a stable list of labels, assign a color for each, and auto‑pick a o
 
 #### 4) Instantiate the manager
 
-We create a [DatasetApp][metanno.recipes.explorer.DatasetApp] (a ready‑to‑customize recipe, you may also see it referred to as a "Dataset Explorer" in the docs). Under the hood, it composes Metanno components such as [Table][pret.ui.metanno.Table], [AnnotatedText][pret.ui.metanno.AnnotatedText], buttons with a bit of app logic.
+We create a [DatasetApp][metanno.recipes.explorer.DatasetApp] (a ready‑to‑customize recipe, you may also see it referred to as a "Dataset Explorer" in the docs). Under the hood, it composes Metanno components such as [Table][metanno.ui.Table], [AnnotatedText][metanno.ui.AnnotatedText], buttons with a bit of app logic.
 
 ```python
 --8<-- "examples/quaero.py:instantiate"
