@@ -48,11 +48,11 @@ dev = [
     "hatchling",
     "hatch-jupyter-builder",
     "pret>=0.4.0",
+    "edsnlp",
 ]
 docs = [
     "mkdocs-eds @ git+https://github.com/percevalw/mkdocs-eds.git@main#egg=mkdocs-eds",
-    "pret>=0.4.0",
-    "edsnlp",
+    { include-group = "dev" },
 ]
 
 # ----- CLI configuration -----
