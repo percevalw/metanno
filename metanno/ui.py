@@ -34,11 +34,13 @@ props_mapping = {
  "on_filters_change": "onFiltersChange",
  "on_mouse_enter_row": "onMouseEnterRow",
  "on_mouse_leave_row": "onMouseLeaveRow",
+ "on_mouse_hover_row": "onMouseHoverRow",
  "on_position_change": "onPositionChange",
  "on_subset_change": "onSubsetChange",
  "on_click_span": "onClickSpan",
  "on_mouse_enter_span": "onMouseEnterSpan",
- "on_mouse_leave_span": "onMouseLeaveSpan"
+ "on_mouse_leave_span": "onMouseLeaveSpan",
+ "on_mouse_hover_spans": "onMouseHoverSpans",
 }
 
 @stub_component(js.Metanno.AnnotatedImage, props_mapping)
@@ -222,6 +224,7 @@ def Table(
     on_key_press: Callable,
     on_mouse_enter_row: Callable,
     on_mouse_leave_row: Callable,
+    on_mouse_hover_row: Callable,
     on_position_change: Callable,
     on_subset_change: Callable,
 ):
@@ -358,6 +361,11 @@ def Table(
 
         - `row_idx`: Index of the row being hovered.
         - `mod_keys`: List of modifier keys pressed during the event.
+    on_mouse_hover_row: Callable[[Optional[int], List[str]], None]
+        Callback triggered when the mouse hovers over a row. Will be called with the following parameters:
+
+        - `row_idx`: Index of the row being hovered, or `None` if not applicable.
+        - `mod_keys`: List of modifier keys pressed during the event.
     on_position_change: Callable[[Optional[int], Optional[str], str, str], None]
         Callback triggered when the cursor position changes. Will be called with the following parameters:
 
@@ -386,6 +394,7 @@ def AnnotatedText(
         on_key_press: Callable[[str, List[Dict[str, int]], List[str]], None],
         on_mouse_enter_span: Callable[[str, List[str]], None],
         on_mouse_leave_span: Callable[[str, List[str]], None],
+        on_mouse_hover_spans: Callable[[List[str], List[str]], None],
         on_mouse_select: Callable[[List[Dict[str, int]], List[str]], None]
 ):
     """
@@ -547,6 +556,11 @@ def AnnotatedText(
         Called when the mouse pointer leaves a span.
 
         - `span_id` – Identifier of the span left
+        - `modkeys` – Pressed modifier keys
+    on_mouse_hover_spans: Callable[[List[TextRange], List[str]], None]
+        Triggered every time the set of hovered spans changes.
+
+        - `span_ids` – List of currently hovered span identifiers
         - `modkeys` – Pressed modifier keys
     on_mouse_select: Callable[[List[TextRange], List[str]], None]
         Triggered when the user finishes selecting text with the mouse.

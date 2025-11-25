@@ -69,6 +69,7 @@ export type TextMethods = {
     onClickSpan?: (span_id: any, modkeys: string[]) => void;
     onMouseEnterSpan?: (span_id: any, modkeys: string[]) => void;
     onMouseLeaveSpan?: (span_id: any, modkeys: string[]) => void;
+    onMouseHoverSpans?: (span_ids: string[], modkeys: string[]) => void;
     onMouseSelect?: (ranges: TextRange[], modkeys: string[]) => void
 }
 
@@ -157,6 +158,7 @@ export type TableMethods = {
     onClickCellContent?: (row_idx: number, name: string, value?: any) => boolean | void;
     onMouseEnterRow?: (row_idx: number, mod_keys: string[]) => void;
     onMouseLeaveRow?: (row_idx: number, mod_keys: string[]) => void;
+    onMouseHoverRow?: (row_idx: number|null, mod_keys: string[]) => void;
     onCellChange?: (row_idx: number, name: string, value: any) => void;
     onInputChange: (row_idx: number, name: string, value: any, cause: string) => void;
     onScrollBottom: (event: React.UIEvent<HTMLDivElement> | { isAtBottom: boolean }) => any;
