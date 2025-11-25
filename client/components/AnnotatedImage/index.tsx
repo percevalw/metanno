@@ -1,5 +1,5 @@
 import Konva from "konva";
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useImperativeHandle } from "react";
 import {
   Stage,
   Layer,
@@ -42,6 +42,8 @@ export const AnnotatedImage: React.FC<ImageData & ImageMethods> = (props) => {
     observer.observe(containerRef.current);
     return () => observer.disconnect();
   }, []);
+
+  useImperativeHandle(props.handle, () => ({}), []);
 
   let scale = 1;
   let offsetX = 0;

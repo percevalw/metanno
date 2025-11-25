@@ -492,26 +492,20 @@ export class AnnotatedText extends React.Component<TextData & TextMethods> {
   private _ignoreSelectionChange: boolean;
   private _boundSelectionChange: () => void;
 
-  constructor(props) {
+  constructor(props: TextData & TextMethods) {
     super(props);
-    if (props.actions) {
-      // Problem: props.actions may be an object OR a mapping, I don't know when it is which
-      setOnMapping(
-        props.actions,
-        "scroll_to_line",
-        (line, behavior: ScrollBehavior = "smooth") => {
+    if (props.handle) {
+      // Problem: props.handle may be an object OR a mapping, I don't know when it is which
+      props.handle.current = {
+        scroll_to_line: (line: number, behavior: ScrollBehavior = "smooth") => {
           if (line >= 0 && line < this.linesRef.length && this.linesRef[line]) {
             this.linesRef[line].current?.scrollIntoView({
               behavior: behavior,
               block: "center",
             });
           }
-        }
-      );
-      setOnMapping(
-        props.actions,
-        "scroll_to_span",
-        (span_id, behavior: ScrollBehavior = "smooth") => {
+        },
+        scroll_to_span: (span_id: string, behavior: ScrollBehavior = "smooth") => {
           setTimeout(() => {
             if (this.spansRef[span_id]) {
               this.spansRef[span_id].current?.scrollIntoView({
@@ -520,11 +514,11 @@ export class AnnotatedText extends React.Component<TextData & TextMethods> {
               });
             }
           }, 10);
+         },
+        clear_current_mouse_selection: () => {
+          window.getSelection().removeAllRanges();
         }
-      );
-      setOnMapping(props.actions, "clear_current_mouse_selection", () => {
-        window.getSelection().removeAllRanges();
-      });
+      }
     }
     this.linesRef = [];
     this.spansRef = {};
@@ -549,6 +543,10 @@ export class AnnotatedText extends React.Component<TextData & TextMethods> {
   }
 
   componentWillUnmount() {
+      // Clean up handle
+    if (this.props.handle) {
+      this.props.handle.current = null;
+    }
     if (!isMobileDevice()) return;
     document.removeEventListener("selectionchange", this._boundSelectionChange);
   }

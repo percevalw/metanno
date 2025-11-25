@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Moved `pret.ui.metanno` to `metanno.ui` (accessible via `from metanno import ...`)
+- Renamed `actions` props to `handle` and manage them like true refs (i.e., users should access its content via `handle.current.xxx`)
 
 ## v1.0.0.beta3 (2025-08-21)
 

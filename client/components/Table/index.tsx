@@ -9,6 +9,7 @@ import React, {
   FocusEvent,
   useCallback,
   memo,
+  useImperativeHandle,
 } from "react";
 import { DndProvider, DndContext } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
@@ -96,15 +97,18 @@ export const Table = function Table(props: TableData & TableMethods) {
   const effectiveSubset = props.subset !== undefined ? props.subset : localSubset;
 
   // Update actions to work with absolute indices.
-  useEffect(() => {
-    if (props.actions) {
-      setOnMapping(props.actions, "scroll_to_row", (absRowIdx: number) => {
-        const relativeIdx = effectiveSubset ? effectiveSubset.indexOf(absRowIdx) : absRowIdx;
+  useImperativeHandle(
+    props.handle,
+    () => ({
+      scroll_to_row: (absRowIdx: number) => {
+        const relativeIdx = effectiveSubset
+          ? effectiveSubset.indexOf(absRowIdx)
+          : absRowIdx;
         if (relativeIdx !== -1) {
           gridRef.current?.scrollToRow(relativeIdx);
         }
-      });
-      setOnMapping(props.actions, "focus", () => {
+      },
+      focus: () => {
         const input = inputRef.current?.input || inputRef.current;
         const event = getCurrentEvent();
         event.preventDefault();
@@ -113,9 +117,10 @@ export const Table = function Table(props: TableData & TableMethods) {
         } else {
           gridRef.current?.element.focus();
         }
-      });
-    }
-  }, [props.actions, props.rows, props.rowKey, effectiveSubset]);
+      },
+    }),
+    [props.handle, props.rows, props.rowKey, effectiveSubset]
+  );
 
   // Compute visibleRows using the effectiveSubset.
   // (We simply slice the props.rows array instead of decorating rows with an absolute index.)
