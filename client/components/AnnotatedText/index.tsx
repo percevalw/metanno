@@ -293,6 +293,7 @@ const Line = React.memo(
     spansRef,
     handleMouseEnterSpan,
     handleMouseLeaveSpan,
+    handleMouseHoverSpans,
     handleClickSpan,
     divRef,
   }: {
@@ -310,6 +311,10 @@ const Line = React.memo(
     handleClickSpan: (
       event: React.MouseEvent<HTMLSpanElement>,
       id: string
+    ) => void;
+    handleMouseHoverSpans?: (
+      event: React.MouseEvent<HTMLSpanElement>,
+      ids: string[]
     ) => void;
     spansRef: { [key: string]: React.MutableRefObject<HTMLSpanElement> };
     divRef: React.RefObject<HTMLDivElement>;
@@ -345,15 +350,28 @@ const Line = React.memo(
         })
         .filter((e) => !!e);
       let newSet = new Set(hitElements.map((e) => e.getAttribute("span_key")));
+      let changed = false;
       // @ts-ignore
       hoveredKeys.current.forEach(
-        (x) => !newSet.has(x) && handleMouseLeaveSpan(e, x)
+        (x) => {
+          if (newSet.has(x)) return;
+          changed = true;
+          handleMouseLeaveSpan(e, x)
+        }
       );
       // @ts-ignore
       newSet.forEach(
-        (x) => !hoveredKeys.current.has(x) && handleMouseEnterSpan(e, x)
+        (x) => {
+          if (hoveredKeys.current.has(x)) return;
+          changed = true;
+          handleMouseEnterSpan(e, x)
+        }
       );
+      if (!changed) return;
       hoveredKeys.current = newSet;
+      if (handleMouseHoverSpans) {
+        handleMouseHoverSpans(e, [...newSet]);
+      }
     };
     /*onMouseEnter={(event) => token_annotations.map(annotation => handleMouseEnterSpan(event, annotation.id))}*/
     const onMouseLeave = (event) => {
@@ -653,6 +671,13 @@ export class AnnotatedText extends React.Component<TextData & TextMethods> {
     this.props.onMouseLeaveSpan?.(span_id, makeModKeys(event));
   };
 
+  handleMouseHoverSpans = (
+    event: React.MouseEvent<HTMLElement>,
+    span_ids: any[]
+  ) => {
+    this.props.onMouseHoverSpans?.(span_ids, makeModKeys(event));
+  }
+
   render() {
     const styles = this.processStyles(this.props.annotationStyles);
     const text = this.props.text || "";
@@ -721,6 +746,7 @@ export class AnnotatedText extends React.Component<TextData & TextMethods> {
               styles={styles}
               handleMouseEnterSpan={this.handleMouseEnterSpan}
               handleMouseLeaveSpan={this.handleMouseLeaveSpan}
+              handleMouseHoverSpans={this.handleMouseHoverSpans}
               handleClickSpan={this.handleClickSpan}
             />
           ))}

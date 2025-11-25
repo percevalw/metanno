@@ -58,6 +58,7 @@ export const Table = function Table(props: TableData & TableMethods) {
   const [isLoading, setIsLoading] = useState(false);
   // If filters are not controlled via props, we use local state
   const [localFilters, setLocalFilters] = useState<{ [key: string]: string }>({});
+  const currentHoveredRow = useRef<number | null>(null);
   const effectiveFilters = props.filters === undefined ? localFilters : props.filters;
 
   // Helper: convert relative row index (from DataGrid) to an absolute row index.
@@ -394,8 +395,28 @@ export const Table = function Table(props: TableData & TableMethods) {
           <Row
             {...p}
             ref={ref}
-            onMouseEnter={(event) => props.onMouseEnterRow?.(getAbsoluteRowIdx(p.rowIdx), makeModKeys(event))}
-            onMouseLeave={(event) => props.onMouseLeaveRow?.(getAbsoluteRowIdx(p.rowIdx), makeModKeys(event))}
+            onMouseEnter={(event) => {
+              const rowIdx = getAbsoluteRowIdx(p.rowIdx);
+              if (currentHoveredRow.current === rowIdx) {
+                return;
+              }
+              props.onMouseEnterRow?.(rowIdx, makeModKeys(event));
+              props.onMouseHoverRow?.(rowIdx, makeModKeys(event));
+              if (currentHoveredRow.current !== null) {
+                props.onMouseLeaveRow?.(currentHoveredRow.current, makeModKeys(event));
+              }
+              currentHoveredRow.current = rowIdx;
+            }}
+            onMouseLeave={(event) => {
+              const rowIdx = getAbsoluteRowIdx(p.rowIdx);
+              setTimeout(() => {
+                if (currentHoveredRow.current === rowIdx) {
+                  props.onMouseLeaveRow?.(currentHoveredRow.current, makeModKeys(event));
+                  props.onMouseHoverRow?.(null, makeModKeys(event));
+                  currentHoveredRow.current = null;
+                }
+              }, 50);
+            }}
             className={`metanno-row ${p.className}`}
           />
         ))
