@@ -42,7 +42,7 @@ props_mapping = {
 }
 
 @stub_component(js.Metanno.AnnotatedImage, props_mapping)
-def AnnotatedImage(*children, annotations: Any, annotation_styles: Any, image: str, mouse_selection: Any, style: Any, actions: Any, key: Union[str, int], on_click: Any, on_key_press: Any, on_mouse_enter_shape: Any, on_mouse_leave_shape: Any, on_mouse_select: Any):
+def AnnotatedImage(*children, annotations: Any, annotation_styles: Any, image: str, mouse_selection: Any, style: Any, handle: Any, key: Union[str, int], on_click: Any, on_key_press: Any, on_mouse_enter_shape: Any, on_mouse_leave_shape: Any, on_mouse_select: Any):
     """
     An interactive image viewer that supports drawing, selecting, and styling
     geometric shapes (polygons, rectangles, points...) as annotations.
@@ -157,9 +157,8 @@ def AnnotatedImage(*children, annotations: Any, annotation_styles: Any, image: s
     style: Dict[str, Any]
         Inline CSS-compatible style overrides for the root element of the
         component.
-    actions: Dict[str, Any]
-        Optional imperative handles (e.g. `actions["scroll_to_shape"](idx)`)
-        that the parent may call.  Reserved for future expansion.
+    handle: Dict[str, Any]
+        Optional imperative handle that the parent may call (empty for now).
     key: Union[str, int]
         React key for stable reconciliation.
     on_click: Callable[[Any, List[str]], None]
@@ -206,7 +205,7 @@ def Table(
     highlighted_rows: List[int],
     row_key: str,
     rows: List[Dict[str, Any]],
-    actions: Dict[str, Any],
+    handle: Dict[str, Any],
     auto_filter: bool,
     input_value: Union[str, Hyperlink],
     suggestions: List[Any],
@@ -299,8 +298,11 @@ def Table(
         The key used to uniquely identify each row in the table.
     rows: List[Dict[str, Any]]
         The data for each row in the table, where each row is a dictionary mapping column keys to their values.
-    actions: Dict[str, Any]
-        Actions that can be performed on the table, such as scrolling.
+    handle: Dict[str, Any]
+        Imperative handle for actions that can be performed on the table, such as scrolling:
+
+        - `scroll_to_row(row_idx: int)`: Scrolls the table to the specified row index.
+        - `focus()`: Sets focus on the currently open cell or full table if no cell is open.
     auto_filter: bool
         Whether to automatically apply filters as the user types.
     input_value: Union[str, Hyperlink]
@@ -378,7 +380,7 @@ def AnnotatedText(
         annotation_styles: Dict[str, Dict[str, Any]],
         mouse_selection: List[Dict[str, int]],
         style: Dict[str, Any],
-        actions: Dict[str, Any],
+        handle: Dict[str, Any],
         key: Union[str, int],
         on_click_span: Callable[[str, List[str]], None],
         on_key_press: Callable[[str, List[Dict[str, int]], List[str]], None],
@@ -517,8 +519,12 @@ def AnnotatedText(
         Passed to `on_mouse_select` when the action completes.
     style: Dict[str, Any]
         CSS style overrides for the outer element.
-    actions: Dict[str, Any]
-        Optional imperative helpers (`scroll_to_span` …, `clear_current_mouse_selection`).
+    handle: Dict[str, Any]
+        Imperative handle for actions that can be performed on the component:
+
+        - `scroll_to_line(line_idx: int, behavior: "smooth" | "instant" | "auto")`: Scrolls to the given line index.
+        - `scroll_to_span(span_id: str, behavior: "smooth" | "instant" | "auto")`: Scrolls to the given span.
+        - `clear_current_mouse_selection()`: Clears the current mouse selection.
     key: Union[str, int]
         React reconciliation key.
     on_click_span: Callable[[Any, List[str]], None]

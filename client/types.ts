@@ -1,4 +1,4 @@
-import React, {CSSProperties} from "react";
+import React, { CSSProperties, MutableRefObject, RefObject } from "react";
 
 export type Hyperlink = {
     key: string;
@@ -60,11 +60,11 @@ export type TextData = {
 }
 
 export type TextMethods = {
-    actions?: {
-        scroll_to_line?: (number) => void,
-        scroll_to_span?: () => void,
+    handle?: MutableRefObject<{
+        scroll_to_line?: (line: number, behavior: ScrollBehavior) => void,
+        scroll_to_span?: (span_id: string, behavior: ScrollBehavior) => void,
         clear_current_mouse_selection?: () => void,
-    } | any;
+    }>;
     onKeyPress?: (key: string, ranges: TextRange[], modkeys: string[]) => void;
     onClickSpan?: (span_id: any, modkeys: string[]) => void;
     onMouseEnterSpan?: (span_id: any, modkeys: string[]) => void;
@@ -105,7 +105,7 @@ export type ImageData = {
 }
 
 export type ImageMethods = {
-    actions?: {};
+    handle?: MutableRefObject<{}>;
     onKeyPress?: (key: string, modkeys: string[]) => void;
     onClick?: (shape_id: any, modkeys: string[]) => void;
     onMouseEnterShape?: (shape_id: any, modkeys: string[]) => void;
@@ -148,10 +148,10 @@ export type TableData = {
 
 
 export type TableMethods = {
-    actions?: {
+    handle?: MutableRefObject<{
         scroll_to_row?: (number) => void,
         focus?: () => void,
-    } | any;
+    } | any>;
     onPositionChange?: (row_idx: number, name: string, mode: string, cause: string) => void;
     onFiltersChange?: (values: {[key: string]: string}, column: string) => void;
     onClickCellContent?: (row_idx: number, name: string, value?: any) => boolean | void;

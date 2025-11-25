@@ -330,7 +330,7 @@ class DatasetApp:
                 on_mouse_leave_row=handle_mouse_leave_row,
                 auto_filter=True,
                 style=style,
-                actions=view["actions"],
+                handle=view["actions"].current,
             )
             return res
 
@@ -546,7 +546,9 @@ class DatasetApp:
                                         app_state[store_text_key]["idx"] = doc_idx
                                         app_state[store_text_key]["last_idx"] = doc_idx
                                         scroll_behavior = "instant"
-                            view["actions"]["scroll_to_span"](span_id, scroll_behavior)
+                            view["actions"].current["scroll_to_span"](
+                                span_id, scroll_behavior
+                            )
                         if (
                             len(event.path) == 1
                             and event.path[0] == store_text_key
@@ -646,7 +648,7 @@ class DatasetApp:
                     on_mouse_leave_span=on_mouse_leave_span,
                     on_mouse_select=on_mouse_select,
                     mouse_selection=text_state["selected_ranges"],
-                    actions=view["actions"],
+                    handle=view["actions"],
                     style={"flex": 1, "overflow": "scroll", **style},
                 ),
                 style={
