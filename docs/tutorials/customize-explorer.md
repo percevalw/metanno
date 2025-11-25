@@ -24,7 +24,7 @@ notes = [
     {
         "note_id": doc._.note_id,
         "note_text": doc.text,
-        # This is an example. Make sure that your data actually has this attribute
+        # This is an example
 +       "note_type": doc._.note_type, #(1)!
     }
     for doc in data
@@ -41,13 +41,15 @@ entities = [
         "end": e.end_char,
         "label": e.label_,
         "concept": e._.cui,
-        # This is an example. Make sure that your data actually has this attribute
+        # This is an example
 +       "negation": e._.negation, #(1)!
     }
     for doc in data
     for e in sorted(doc.spans["entities"])
 ]
 ```
+
+1. Make sure that your data actually has these attributes. You may need to modify the EDS-NLP pipeline to add them (e.g., `nlp.add_pipe("eds.negation")`)
 
 #### Show these fields
 
@@ -58,8 +60,8 @@ Metanno will automatically detect that the negation attribute is boolean and wil
 - first_columns=["note_id", "seen", "note_text"],
 + first_columns=["note_id", "seen", "note_type", "note_text"],
 ...
-- editable_columns=["seen"],
-+ editable_columns=["seen", "review_status"],
+- editable_columns=[],
++ editable_columns=["note_type"],
 ```
 
 ```diff
@@ -67,7 +69,7 @@ Metanno will automatically detect that the negation attribute is boolean and wil
 + first_columns=["id", "note_id", "text", "label", "concept", "begin", "end", "negation"],
 ...
 - editable_columns=["label", "concept"],
-+ editable_columns=["label", "concept", "source"],
++ editable_columns=["label", "concept", "negation"],
 ```
 
 !!! tip "Dropdown input"
