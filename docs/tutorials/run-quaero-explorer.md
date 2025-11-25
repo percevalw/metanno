@@ -29,7 +29,8 @@ Or in JupyterLab, run the following cell:
 ```python
 from quaero import app
 
-app()
+view, handles = app()
+view
 ```
 
 ## Code breakdown
@@ -63,13 +64,13 @@ We compute a stable list of labels, assign a color for each, and auto‑pick a o
 
 #### 4) Instantiate the manager
 
-We create a [DatasetApp][metanno.recipes.explorer.DatasetApp] (a ready‑to‑customize recipe, you may also see it referred to as a "Dataset Explorer" in the docs). Under the hood, it composes Metanno components such as [Table][metanno.ui.Table], [AnnotatedText][metanno.ui.AnnotatedText], buttons with a bit of app logic.
+We create a [DatasetExplorerWidgetFactory][metanno.recipes.explorer.DatasetExplorerWidgetFactory] (a ready‑to‑customize recipe). Under the hood, it composes Metanno components such as [Table][metanno.ui.Table], [AnnotatedText][metanno.ui.AnnotatedText], buttons with a bit of app logic.
 
 ```python
 --8<-- "examples/quaero.py:instantiate"
 ```
 
-#### 5) Build the views
+#### 5) Build the views and define their interactions
 
 We define the views that will be rendered in the app. Each view is a component that displays a specific part of the data.
 
@@ -107,7 +108,7 @@ Metanno (via Pret) can sync app state across clients and optionally persist it.
 Pass `sync=True` when creating the app to enable real‑time collaboration without saving to disk:
 
 ```python
-app = DatasetApp(
+app = DatasetExplorerWidgetFactory(
     {
         "notes": notes,
         "entities": entities,
@@ -123,7 +124,7 @@ Open the same notebook twice or the same app URL in two tabs: edits in one tab a
 Provide a file path to append every change to an on‑disk log:
 
 ```python
-app = DatasetApp(
+app = DatasetExplorerWidgetFactory(
     {
         "notes": notes,
         "entities": entities,

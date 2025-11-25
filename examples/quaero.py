@@ -3,14 +3,14 @@ from collections import Counter
 from pathlib import Path
 
 import edsnlp
-from pret import component, use_store_snapshot
+from pret import component, create_store, use_ref, use_store_snapshot
 
 # Pending deprecation, prefer pret.react
-from pret.ui.react import div
+from pret.react import div
 from pret_markdown import Markdown
 from pret_simple_dock import Layout, Panel
 
-from metanno.recipes.explorer import DatasetApp
+from metanno.recipes.explorer import DatasetExplorerWidgetFactory
 
 # <--8<-- [end:imports]
 
@@ -95,7 +95,7 @@ def app(save_path=None, deduplicate=False):
     )
     notes = [
         {
-            "note_id": doc._.note_id,
+            "note_id": str(doc._.note_id),
             "note_text": doc.text,
             "seen": False,
         }
@@ -103,8 +103,8 @@ def app(save_path=None, deduplicate=False):
     ]
     entities = [
         {
-            "id": f"#-{doc._.note_id}-{e.start_char}-{e.end_char}-{e.label_}",
-            "note_id": doc._.note_id,
+            "id": f"#{doc._.note_id}-{e.start_char}-{e.end_char}-{e.label_}",
+            "note_id": str(doc._.note_id),
             "text": str(e),
             "begin": e.start_char,
             "end": e.end_char,
@@ -121,11 +121,11 @@ def app(save_path=None, deduplicate=False):
     if deduplicate:
         entities = list({v["id"]: v for v in entities}.values())
     else:
-        counter = Counter(e["id"] for e in entities)
-        if any(count > 1 for count in counter.values()):
+        ctr = Counter(e["id"] for e in entities)
+        if any(count > 1 for count in ctr.values()):
             raise ValueError(
                 "Duplicate IDs found in the dataset: "
-                + ", ".join(f"{id_} (x{n})" for id_, n in counter.items() if n > 1)
+                + ", ".join(f"{i} (x{n})" for i, n in ctr.items() if n > 1)
             )
     # --8<-- [end:unicity]
 
@@ -134,17 +134,18 @@ def app(save_path=None, deduplicate=False):
     all_labels = list(dict.fromkeys(e["label"] for e in entities))
     shortcuts = set()
     labels_config = {}
-    for i, label in enumerate(all_labels):
-        labels_config[label] = {}
+    for i, lab in enumerate(all_labels):
+        labels_config[lab] = {}
         if i < len(PALETTE):
-            labels_config[label]["color"] = PALETTE[i]
-        letter = next(c for c in label.lower() if c not in shortcuts)
-        shortcuts.add(letter)
-        labels_config[label]["shortcut"] = letter
+            labels_config[lab]["color"] = PALETTE[i]
+        letter = next((c for c in lab.lower() if c not in shortcuts), None)
+        if letter:
+            shortcuts.add(letter)
+            labels_config[lab]["shortcut"] = letter
     # --8<-- [end:label-config]
 
     # --8<-- [start:instantiate]
-    app = DatasetApp(
+    factory = DatasetExplorerWidgetFactory(
         {
             "notes": notes,
             "entities": entities,
@@ -153,32 +154,79 @@ def app(save_path=None, deduplicate=False):
     )
     # --8<-- [end:instantiate]
 
-    # Render the main layout with the tables and text viewer
-    # <--8<-- [start:render-views]
-    notes_view = app.render_table(
-        view_name="notes",
+    # Interaction Logic
+    # --8<-- [start:render-views]
+    # Create handles to control the widgets imperatively
+    notes_handle = use_ref()
+    entities_handle = use_ref()
+    note_text_handle = use_ref()
+
+    # State for the header
+    top_level_state = create_store({"note_id": notes[0]["note_id"] if notes else None})
+
+    def on_note_selected_in_table(note_id, row_idx, col, mode, cause):
+        # When user clicks a note row:
+        # Update NoteHeader (we could also use a handle with setNoteId in NoteHeader)
+        top_level_state["note_id"] = note_id
+        # Update text view
+        note_text_handle.current.set_document_by_id(note_id)
+        # Filter entity table to show only this note's entities
+        entities_handle.current.set_filter("note_id", str(note_id))
+
+    def on_entity_selected_in_table(entity_id, row_idx, col, mode, cause):
+        # When user clicks an entity row
+        note_text_handle.current.scroll_to_span(entity_id)
+
+    def on_change_text_id(note_id):
+        # When user uses arrow keys in text view:
+        # Update NoteHeader (we could also use a handle with setNoteId in NoteHeader)
+        top_level_state["note_id"] = note_id
+        # Sync the entities table
+        entities_handle.current.set_filter("note_id", str(note_id))
+        # Scroll to note in note view
+        notes_handle.current.scroll_to_key(note_id)
+        # Set highlighted note in notes table
+        notes_handle.current.set_highlighted([note_id])
+
+    def on_hover_spans(span_ids):
+        # When user hovers spans in text view:
+        # Highlight corresponding entities in entity table
+        entities_handle.current.set_highlighted(span_ids)
+
+    def on_hover_entity_row(span_idx, span_id, mod_keys):
+        # When user hovers an entity row in entity table:
+        # Highlight corresponding span in text view
+        note_text_handle.current.set_highlighted_spans([span_id])
+
+    notes_view = factory.create_table_widget(
+        handle=notes_handle,
+        on_position_change=on_note_selected_in_table,
         store_key="notes",
         pkey_column="note_id",
-        id_columns=["note_id"],
         first_columns=["note_id", "seen", "note_text"],
-        editable_columns=[],
-        categorical_columns=[],
+        id_columns=["note_id"],
+        editable_columns=["seen"],
         hidden_columns=[],
         style={"--min-notebook-height": "300px"},
     )
-    entities_view = app.render_table(
-        view_name="entities",
+
+    entities_view = factory.create_table_widget(
+        handle=entities_handle,
+        on_position_change=on_entity_selected_in_table,
+        on_mouse_hover_row=on_hover_entity_row,
         store_key="entities",
         pkey_column="id",
-        first_columns=["id", "note_id", "text", "label", "concept", "begin", "end"],
+        first_columns=["id", "note_id", "text", "label", "concept"],
         id_columns=["id", "note_id"],
         editable_columns=["label", "concept"],
         categorical_columns=["label", "concept"],
         style={"--min-notebook-height": "300px"},
     )
-    note_text_view = app.render_text(
-        view_name="note_text",
-        # Where to look for text data in the app data
+
+    note_text_view = factory.create_text_widget(
+        handle=note_text_handle,
+        on_change_text_id=on_change_text_id,
+        on_hover_spans=on_hover_spans,
         store_text_key="notes",
         text_column="note_text",
         text_pkey_column="note_id",
@@ -188,38 +236,26 @@ def app(save_path=None, deduplicate=False):
         style={"--min-notebook-height": "300px"},
         labels=labels_config,
     )
-    # <--8<-- [end:render-views]
+    # --8<-- [end:render-views]
 
-    # Small trick to expose app state and data without requiring to
-    # embed "app" into the NoteHeader function scope.
-    # <--8<-- [start:layout]
-    app_state = app.state
-    app_data = app.data
-
+    # --8<-- [start:layout]
     @component
     def NoteHeader():
-        doc_idx = use_store_snapshot(app_state["notes"])["last_idx"]
-
-        if doc_idx is None:
-            return "Note"
-        return f"Note ({app_data['notes'][doc_idx]['note_id']})"
+        note_id = use_store_snapshot(top_level_state)["note_id"]
+        return f"Note ({note_id})" if note_id else "Note"
 
     layout = div(
         Layout(
             Panel(div(Markdown(DESC), style={"margin": "10px"}), key="Description"),
-            Panel(notes_view, header="Notes", key="notes"),
-            Panel(entities_view, header="Entities", key="entities"),
-            Panel(note_text_view, header=NoteHeader(), key="note_text"),
+            Panel(notes_view, key="Notes"),
+            Panel(entities_view, key="Entities"),
+            Panel(note_text_view, header=NoteHeader(), key="Note Text"),
             # Describe how the panels should be arranged by default
             default_config={
                 "kind": "row",
-                "children": [
-                    "Description",
-                    {"children": ["notes", "entities"]},
-                    "note_text",
-                ],
+                "children": ["Description", ["Notes", "Entities"], "Note Text"],
             },
-            collapse_tabs_on_mobile=["note_text", "Description", "notes", "entities"],
+            collapse_tabs_on_mobile=["Note Text", "Description", "Notes", "Entities"],
         ),
         style={
             "background": "var(--joy-palette-background-level2, #f0f0f0)",
@@ -229,8 +265,17 @@ def app(save_path=None, deduplicate=False):
             "--sd-background-color": "transparent",
         },
     )
-    return layout
-    # <--8<-- [end:layout]
+    return (
+        # Return the pret component
+        layout,
+        # and expose handles for further manipulation if needed
+        {
+            "notes": notes_handle,
+            "entities": entities_handle,
+            "note_text": note_text_handle,
+        },
+    )
+    # --8<-- [end:layout]
 
 
 if __name__ == "__main__":
@@ -256,4 +301,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
     port = args.port
     save_path = args.save_path
-    run(app(save_path=save_path, deduplicate=True), port=port)
+    run(app(save_path=save_path, deduplicate=True)[0], port=port)

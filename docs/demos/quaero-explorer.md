@@ -4,5 +4,5 @@
 from examples.quaero import app
 
 
-app(deduplicate=True)
+app(deduplicate=True)[0]
 ```
