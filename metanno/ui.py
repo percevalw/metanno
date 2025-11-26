@@ -1,5 +1,6 @@
 import sys
-from typing import Any, Union, List, TypedDict, Optional, Dict, Callable
+from typing import Any, Union, List, Optional, Dict, Callable
+from typing_extensions import TypedDict
 from pret.render import stub_component
 from pret.marshal import js, make_stub_js_module, marshal_as
 from .version import __version__
