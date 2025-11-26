@@ -206,7 +206,8 @@ class DatasetExplorerWidgetFactory:
                 if row_idx is not None:
                     row_id = data[row_idx].get(pkey_column)
                     set_highlighted([row_id])
-                    on_mouse_hover_row(row_idx, row_id, modkeys)
+                    if on_mouse_hover_row:
+                        on_mouse_hover_row(row_idx, row_id, modkeys)
                 else:
                     set_highlighted([])
 
@@ -254,7 +255,7 @@ class DatasetExplorerWidgetFactory:
                     ButtonGroup(
                         Button(
                             label,
-                            on_click=lambda lab=label: on_add_span(lab),
+                            on_click=lambda event, lab=label: on_add_span(lab),
                             size="sm",
                             variant="soft",
                             sx=sx,
