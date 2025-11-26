@@ -37,28 +37,14 @@ test.describe("Quaero Explorer Tests", () => {
     // We run them sequentially.
     await page.waitForTimeout(1000);
 
-    // Run import cell
-    await page.notebook.runCell(0, true);
+    await page.notebook.runCellByCell();
     await page.waitForTimeout(500);
-
-    // Run the app initialization (Download/Extract step)
-    // This might take time (downloading dataset), so we extend the timeout slightly for this step
-    await page.notebook.runCell(1, true);
-    await page.waitForTimeout(500);
-
-    // Wait for the download/extraction log to appear in output to ensure it's done
-    // Looking for "Extracting Quaero dataset" as seen in the logs
     await page.waitForSelector(".jp-OutputArea-output >> text=The BRAT directory contains", { timeout: 30000 });
-    await page.waitForTimeout(500);
-
-    // 3. Render the View
-    // Run the cell containing `view`
-    await page.notebook.runCell(2, true);
-    await page.waitForTimeout(500);
 
     // Await for the main Metanno/Pret container to appear
     const mainView = await page.waitForSelector(".pret-view");
     expect(mainView).toBeTruthy();
+    await page.waitForTimeout(1000);
 
     // 4. Verify UI Elements
 
