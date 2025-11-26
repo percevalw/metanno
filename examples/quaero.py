@@ -36,18 +36,12 @@ This app features a simple interface, built with
 [Metanno](https://github.com/percevalw/metanno),
 on top of [Pret](https://github.com/percevalw/pret), to view and edit notes and entities
 in the dataset.
-It contains three panels:
+It contains three panels, that you can rearrange as you like:
 
 - one table view for notes, showing the note ID, text, and a mutable column to mark
   notes as seen or not.
 - one table view for entities, showing the entity ID, note ID, text, label, concept, etc
 - one text viewer for the note text, with the entities highlighted and editable.
-
-You can click on notes or entities in the tables to focus on the corresponding text in
-the viewer. Use the filters in the tables to narrow down the displayed elements.
-
-You can resize the panels, or click and move their handle to rearrange the layout as you
-like. You can also "hide" them by moving their handle in the tab bar of another panel.
 
 Happy exploring!
 """
@@ -152,6 +146,7 @@ def app(save_path=None, deduplicate=False):
         },
         sync=save_path,
     )
+    data = factory.data
     # --8<-- [end:instantiate]
 
     # Interaction Logic
@@ -175,7 +170,18 @@ def app(save_path=None, deduplicate=False):
 
     def on_entity_selected_in_table(entity_id, row_idx, col, mode, cause):
         # When user clicks an entity row
+        note_id = data["entities"][row_idx]["note_id"]
+        if top_level_state["note_id"] != note_id:
+            # Update NoteHeader
+            top_level_state["note_id"] = note_id
+            # Update text view
+            note_text_handle.current.set_document_by_id(note_id)
+            # Sync the notes table
+            notes_handle.current.scroll_to_key(note_id)
+            notes_handle.current.set_highlighted([note_id])
+        # Scroll to entity in text view and highlight it
         note_text_handle.current.scroll_to_span(entity_id)
+        note_text_handle.current.set_highlighted_spans([entity_id])
 
     def on_change_text_id(note_id):
         # When user uses arrow keys in text view:
