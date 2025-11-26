@@ -36,14 +36,14 @@ Develop and test in a notebook. If you prefer, you can also run it as a standalo
 ### Easy setup
 
 ```bash { data-md-color-scheme="slate" }
-pip install metanno==1.0.0-beta.2
+pip install metanno==1.0.0-beta.4
 ```
 
 To use it with Jupyter, if you install the library in a custom environment (conda, venv, or other),
 you will likely need to tell Jupyter where to find the front-end files.
-You can do this by running the following command (only once):
+You can do this by running the following command (only once), and restart your Jupyterlab server:
 
-```bash
+```bash { data-md-color-scheme="slate" }
 pret update-jupyter-config --apply
 ```
 

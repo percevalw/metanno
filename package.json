@@ -1,6 +1,6 @@
 {
   "name": "metanno",
-  "version": "1.0.0-beta.1",
+  "version": "1.0.0-beta.4",
   "description": "Modular annotator building framework in Python",
   "main": "client/index.ts",
   "repository": "https://github.com/percevalw/metanno",
