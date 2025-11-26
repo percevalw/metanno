@@ -39,7 +39,7 @@ jobs:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        python-version: [ "3.7", "3.8", "3.9", "3.10" ]
+        python-version: [ "3.8", "3.9", "3.10", "3.11" ]
 
     steps:
       - name: 'Compute git fetch depth'
@@ -58,8 +58,6 @@ jobs:
         with:
           node-version: "20.x"
 
-      # UV fails to install python 3.7 so with use the base python action
-      # and let UV use the installed python
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -83,7 +81,6 @@ jobs:
         run: yarn playwright install --with-deps
 
       - name: 'Run tests for JupyterLab 4'
-        if: ${{ matrix.python-version != '3.7' }}
         run: |
           uv pip install pip "jupyterlab>=4"
           sh tests/jupyter/run.sh
