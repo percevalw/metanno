@@ -5,6 +5,7 @@
 ![Tests](https://img.shields.io/github/actions/workflow/status/percevalw/metanno/tests.yml?branch=main&label=tests&style=flat-square)
 [![Documentation](https://img.shields.io/github/actions/workflow/status/percevalw/metanno/docs.yml?branch=main&label=docs&style=flat-square)](https://percevalw.github.io/metanno/latest/)
 [![PyPI](https://img.shields.io/pypi/v/metanno?color=blue&style=flat-square)](https://pypi.org/project/metanno/)
+[![metanno](https://labextensions.dev/api/badge/metanno?metric=downloads&leftColor=%23555&rightColor=%23F37620&style=flat)](https://labextensions.dev/extensions/metanno)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.16922240.svg)](https://zenodo.org/doi/10.5281/zenodo.10689826)
 
 --------------------------------------------------------------------------------

@@ -6,9 +6,9 @@ authors = [
 ]
 readme = "README.md"
 license = { file = "LICENSE" }
-urls.homepage = "https://github.com/perceval/metanno/"
-urls.repository = "https://github.com/perceval/metanno/"
-urls.documentation = "https://perceval.github.io/metanno/"
+urls.homepage = "https://github.com/percevalw/metanno/"
+urls.repository = "https://github.com/percevalw/metanno/"
+urls.documentation = "https://percevalw.github.io/metanno/"
 dynamic = ["version"]
 classifiers = [
     "Development Status :: 4 - Beta",
