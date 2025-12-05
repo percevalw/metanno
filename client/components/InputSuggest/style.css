@@ -95,10 +95,11 @@
 
 .rdg-cell ul > li.react-autosuggest__suggestion {
     cursor: pointer;
-    padding: 0 8px;
-    margin-left: 0;
+    padding: 0 6px;
+    margin-left: 2px;
+    margin-right: 2px;
     margin-bottom: 0;
-
+    color: #106ba3;
 }
 
 .rdg-cell .react-autosuggest__suggestion--highlighted {
