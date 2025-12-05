@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Table input suggestions are now more visible (with a blueish outline)
+
 ## v1.0.0-beta.4 (2025-11-26)
 
 - Moved `pret.ui.metanno` to `metanno.ui` (accessible via `from metanno import ...`)

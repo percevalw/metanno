@@ -53,6 +53,7 @@
 .rdg-editor-container > div > .react-autosuggest__container--open > .react-autosuggest__suggestions-container {
     left: -1px;
     right: 0px;
+    box-shadow: inset 0 0 0 2px var(--selection-color)
 }
 
 .rdg-cell .react-autosuggest__suggestions-container--open {
