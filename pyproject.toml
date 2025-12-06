@@ -72,7 +72,7 @@ exclude = [
     "build",
     "metanno/ui.py"
 ]
-line-length = 88
+line-length = 100
 lint.select = [
     "E",
     "F",

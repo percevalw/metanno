@@ -491,12 +491,26 @@ export class AnnotatedText extends React.Component<TextData & TextMethods> {
     mouseSelection: [],
     text: "",
     annotationStyles: {},
+    beginKey: "begin",
+    endKey: "end",
+    labelKey: "label",
+    styleKey: "style",
+    highlightedKey: "highlighted",
+    selectedKey: "selected",
+    primaryKey: "id",
   };
 
   private readonly tokenize: (
-    spans: TextAnnotation[],
+    spans: {[key: string]: any}[],
     text: string,
-    styles: { [key: string]: PreprocessedStyle }
+    styles: { [key: string]: PreprocessedStyle },
+    beginKey: string,
+    endKey: string,
+    labelKey: string,
+    styleKey: string,
+    highlightedKey: string,
+    selectedKey: string,
+    primaryKey: string,
   ) => { ids: any[]; lines: TokenData[][] };
   private readonly containerRef: React.RefObject<HTMLDivElement>;
   private readonly spansRef: {
@@ -523,7 +537,10 @@ export class AnnotatedText extends React.Component<TextData & TextMethods> {
             });
           }
         },
-        scroll_to_span: (span_id: string, behavior: ScrollBehavior = "smooth") => {
+        scroll_to_span: (
+          span_id: string,
+          behavior: ScrollBehavior = "smooth"
+        ) => {
           setTimeout(() => {
             if (this.spansRef[span_id]) {
               this.spansRef[span_id].current?.scrollIntoView({
@@ -532,11 +549,11 @@ export class AnnotatedText extends React.Component<TextData & TextMethods> {
               });
             }
           }, 10);
-         },
+        },
         clear_current_mouse_selection: () => {
           window.getSelection().removeAllRanges();
-        }
-      }
+        },
+      };
     }
     this.linesRef = [];
     this.spansRef = {};
@@ -561,7 +578,7 @@ export class AnnotatedText extends React.Component<TextData & TextMethods> {
   }
 
   componentWillUnmount() {
-      // Clean up handle
+    // Clean up handle
     if (this.props.handle) {
       this.props.handle.current = null;
     }
@@ -676,7 +693,7 @@ export class AnnotatedText extends React.Component<TextData & TextMethods> {
     span_ids: any[]
   ) => {
     this.props.onMouseHoverSpans?.(span_ids, makeModKeys(event));
-  }
+  };
 
   render() {
     const styles = this.processStyles(this.props.annotationStyles);
@@ -703,7 +720,14 @@ export class AnnotatedText extends React.Component<TextData & TextMethods> {
         ...this.props.spans,
       ],
       text,
-      styles
+      styles,
+      this.props.beginKey,
+      this.props.endKey,
+      this.props.labelKey,
+      this.props.styleKey,
+      this.props.highlightedKey,
+      this.props.selectedKey,
+      this.props.primaryKey,
     );
 
     // Define the right number of references

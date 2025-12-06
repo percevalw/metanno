@@ -1,6 +1,6 @@
 # Customize the data explorer app
 
-In this tutorial, we are going to expose different ways to customize the [Data Explorer][metanno.recipes.explorer.DatasetApp] app (demoed with the Quaero dataset in [the previous tutorial](./run-quaero-explorer.md):
+In this tutorial, we are going to expose different ways to customize the [Data Explorer][metanno.recipes.explorer.DatasetExplorerWidgetFactory] app (demoed with the Quaero dataset in [the previous tutorial](./run-quaero-explorer.md):
 
 - **Add new fields** to the data model and display them in the UI.
 - **Pre-annotate** entities using EDS-NLP.
@@ -53,28 +53,28 @@ entities = [
 
 #### Show these fields
 
-Update the table/text renderers in the [Build the views section](#5-build-the-views) to include the new attributes.
+Update the table/text renderers in the [Build the views section][5-build-the-views-and-define-their-interactions] to include the new attributes.
 Metanno will automatically detect that the negation attribute is boolean and will display it as a checkbox.
 
 ```diff
-- first_columns=["note_id", "seen", "note_text"],
-+ first_columns=["note_id", "seen", "note_type", "note_text"],
+- first_keys=["note_id", "seen", "note_text"],
++ first_keys=["note_id", "seen", "note_type", "note_text"],
 ...
-- editable_columns=[],
-+ editable_columns=["note_type"],
+- editable_keys=[],
++ editable_keys=["note_type"],
 ```
 
 ```diff
-- first_columns=["id", "note_id", "text", "label", "concept", "begin", "end"],
-+ first_columns=["id", "note_id", "text", "label", "concept", "begin", "end", "negation"],
+- first_keys=["id", "note_id", "text", "label", "concept", "begin", "end"],
++ first_keys=["id", "note_id", "text", "label", "concept", "begin", "end", "negation"],
 ...
-- editable_columns=["label", "concept"],
-+ editable_columns=["label", "concept", "negation"],
+- editable_keys=["label", "concept"],
++ editable_keys=["label", "concept", "negation"],
 ```
 
 !!! tip "Dropdown input"
 
-    Add any new columns to `categorical_columns` if they should show a dropdown filter like the `concept` column.
+    Add any new columns to `categorical_keys` if they should show a dropdown filter like the `concept` column.
 
 
 ## Pre-annotation

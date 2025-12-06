@@ -17,31 +17,37 @@ else:
     from typing_extensions import Literal
 
 props_mapping = {
- "annotation_styles": "annotationStyles",
- "mouse_selection": "mouseSelection",
- "on_click": "onClick",
- "on_key_press": "onKeyPress",
- "on_mouse_enter_shape": "onMouseEnterShape",
- "on_mouse_leave_shape": "onMouseLeaveShape",
- "on_mouse_select": "onMouseSelect",
- "highlighted_rows": "highlightedRows",
- "input_value": "inputValue",
- "on_input_change": "onInputChange",
- "on_scroll_bottom": "onScrollBottom",
- "row_key": "rowKey",
- "auto_filter": "autoFilter",
- "on_cell_change": "onCellChange",
- "on_click_cell_content": "onClickCellContent",
- "on_filters_change": "onFiltersChange",
- "on_mouse_enter_row": "onMouseEnterRow",
- "on_mouse_leave_row": "onMouseLeaveRow",
- "on_mouse_hover_row": "onMouseHoverRow",
- "on_position_change": "onPositionChange",
- "on_subset_change": "onSubsetChange",
- "on_click_span": "onClickSpan",
- "on_mouse_enter_span": "onMouseEnterSpan",
- "on_mouse_leave_span": "onMouseLeaveSpan",
- "on_mouse_hover_spans": "onMouseHoverSpans",
+    "annotation_styles": "annotationStyles",
+    "mouse_selection": "mouseSelection",
+    "on_click": "onClick",
+    "on_key_press": "onKeyPress",
+    "on_mouse_enter_shape": "onMouseEnterShape",
+    "on_mouse_leave_shape": "onMouseLeaveShape",
+    "on_mouse_select": "onMouseSelect",
+    "highlighted_rows": "highlightedRows",
+    "input_value": "inputValue",
+    "on_input_change": "onInputChange",
+    "on_scroll_bottom": "onScrollBottom",
+    "auto_filter": "autoFilter",
+    "on_cell_change": "onCellChange",
+    "on_click_cell_content": "onClickCellContent",
+    "on_filters_change": "onFiltersChange",
+    "on_mouse_enter_row": "onMouseEnterRow",
+    "on_mouse_leave_row": "onMouseLeaveRow",
+    "on_mouse_hover_row": "onMouseHoverRow",
+    "on_position_change": "onPositionChange",
+    "on_subset_change": "onSubsetChange",
+    "on_click_span": "onClickSpan",
+    "on_mouse_enter_span": "onMouseEnterSpan",
+    "on_mouse_leave_span": "onMouseLeaveSpan",
+    "on_mouse_hover_spans": "onMouseHoverSpans",
+    "begin_key": "beginKey",
+    "end_key": "endKey",
+    "label_key": "labelKey",
+    "style_key": "styleKey",
+    "highlighted_key": "highlightedKey",
+    "selected_key": "selectedKey",
+    "primary_key": "primaryKey",
 }
 
 @stub_component(js.Metanno.AnnotatedImage, props_mapping)
@@ -167,20 +173,20 @@ def AnnotatedImage(*children, annotations: Any, annotation_styles: Any, image: s
     on_click: Callable[[Any, List[str]], None]
         Invoked when the user clicks on an existing shape.
 
-        - `shape_id` – Identifier of the clicked annotation
-        - `modkeys` – List of pressed modifier keys (e.g. `["Shift"]`)
+        - `shape_id`: Identifier of the clicked annotation
+        - `modkeys`: List of pressed modifier keys (e.g. `["Shift"]`)
     on_key_press: Callable[[str, List[str]], None]
         Invoked when the component has focus and the user presses a key.
 
-        - `key` – The key name (`"Escape"`, `"Delete"` …)
-        - `modkeys` – Concurrently pressed modifier keys
+        - `key`: The key name (`"Escape"`, `"Delete"` …)
+        - `modkeys`: Concurrently pressed modifier keys
     on_mouse_enter_shape / on_mouse_leave_shape: Callable[[Any, List[str]], None]
         Hover callbacks fired when the mouse pointer enters or leaves a shape.
     on_mouse_select: Callable[[List[str], List[Shape]], None]
         Fired after the user completes a drag selection.
 
-        - `modkeys` – Modifier keys pressed during selection
-        - `shapes` – All shapes inside the lasso / rectangle
+        - `modkeys`: Modifier keys pressed during selection
+        - `shapes`: All shapes inside the lasso / rectangle
     """
 
 class Hyperlink(TypedDict):
@@ -203,11 +209,11 @@ class Position(TypedDict):
 @stub_component(js.Metanno.Table, props_mapping)
 def Table(
     *children,
+    rows: List[Dict[str, Any]],
     columns: ColumnData,
+    primary_key: str,
     filters: Dict[str, str],
     highlighted_rows: List[int],
-    row_key: str,
-    rows: List[Dict[str, Any]],
     handle: Dict[str, Any],
     auto_filter: bool,
     input_value: Union[str, Hyperlink],
@@ -222,7 +228,6 @@ def Table(
     on_cell_change: Callable,
     on_click_cell_content: Callable,
     on_filters_change: Callable,
-    on_key_press: Callable,
     on_mouse_enter_row: Callable,
     on_mouse_leave_row: Callable,
     on_mouse_hover_row: Callable,
@@ -268,11 +273,12 @@ def Table(
     @component
     def MyTable():
         @use_event_callback
-        def on_cell_change(row_idx, col, new_value):
+        def on_cell_change(row_id, row_idx, col, new_value):
             table_state[row_idx][col] = new_value
 
         view_state = use_store_snapshot(table_state)
         return Table(
+            primary_key="id",
             rows=view_state,
             columns=columns,
             auto_filter=True,
@@ -285,6 +291,8 @@ def Table(
 
     Parameters
     ----------
+    rows: List[Dict[str, Any]]
+        The data for each row in the table, where each row is a dictionary mapping column keys to their values.
     columns: "List[ColumnData]"
         The columns to display in the table:
 
@@ -294,18 +302,17 @@ def Table(
         - `editable`: Whether the column is editable.
         - `filterable`: Whether the column can be filtered.
         - `choices`: Optional list of choices for the column (if applicable).
+    primary_key: str
+        The key used to uniquely identify each row in the table.
     filters: Dict[str, str]
         The current filters applied to the table, mapping column keys to filter values.
     highlighted_rows: List[int]
         List of row indices that should be highlighted.
-    row_key: str
-        The key used to uniquely identify each row in the table.
-    rows: List[Dict[str, Any]]
-        The data for each row in the table, where each row is a dictionary mapping column keys to their values.
     handle: Dict[str, Any]
         Imperative handle for actions that can be performed on the table, such as scrolling:
 
-        - `scroll_to_row(row_idx: int)`: Scrolls the table to the specified row index.
+        - `scroll_to_row_idx(row_idx: int)`: Scrolls the table to the specified row index.
+        - `scroll_to_row_id(row_id: str)`: Scrolls the table to the specified row ID.
         - `focus()`: Sets focus on the currently open cell or full table if no cell is open.
     auto_filter: bool
         Whether to automatically apply filters as the user types.
@@ -317,6 +324,7 @@ def Table(
     position: Position
         The current position of the cursor in the table, including:
 
+        - row_id: Key of the row where the cursor is located.
         - row_idx: Index of the row where the cursor is located.
         - col: Key of the column where the cursor is located.
         - mode: Mode of interaction, either "EDIT" or "SELECT".
@@ -324,58 +332,65 @@ def Table(
         Custom styles for the table component.
     key: Union[str, int]
         A unique key for the component instance, used for React's reconciliation.
-    on_input_change: Callable[[int, str, Any, str], None]
-        Callback triggered when the input value changes in a cell. Will be called with the following parameters:
+    on_input_change: Callable[[str, int, str, Any, str], None]
+        Callback triggered when the input value changes in a cell:
 
+        - `row_id`: Key of the row being edited.
         - `row_idx`: Index of the row being edited.
         - `name`: Key of the column being edited.
         - `value`: New value entered by the user.
         - `cause`: Reason for the change (e.g., "blur", "enter").
     on_scroll_bottom: Callable[[Union[UIEvent, Dict[str, bool]]], Any]
-        Callback triggered when the user scrolls to the bottom of the table. Will be called with the following parameters:
+        Callback triggered when the user scrolls to the bottom of the table:
 
         - `event`: Scroll event or a dictionary indicating if the user is at the bottom.
-    on_cell_change: Callable[[int, str, Any], None]
-        Callback triggered when a cell's value changes. Will be called with the following parameters:
+    on_cell_change: Callable[[str, int, str, Any], None]
+        Callback triggered when a cell's value changes:
 
+        - `row_id`: Key of the row being edited.
         - `row_idx`: Index of the row being edited.
         - `name`: Key of the column being edited.
         - `value`: New value of the cell.
-    on_click_cell_content: Callable[[int, str, Optional[Any]], Union[bool, None]]
-        Callback triggered when the content of a cell is clicked (like a hyperlink). Will be called with the following parameters:
+    on_click_cell_content: Callable[[str, int, str, Optional[Any]], Union[bool, None]]
+        Callback triggered when the content of a cell is clicked (like a hyperlink):
 
+        - `row_id`: Key of the row containing the clicked cell.
         - `row_idx`: Index of the row containing the clicked cell.
         - `name`: Key of the column containing the clicked cell.
         - `value`: Optional value of the clicked cell.
     on_filters_change: Callable[[Dict[str, str], str], None]
-        Callback triggered when filters are updated. Will be called with the following parameters:
+        Callback triggered when filters are updated:
 
         - `values`: Dictionary mapping column keys to filter values.
         - `column`: Key of the column being filtered.
-    on_mouse_enter_row: Callable[[int, List[str]], None]
-        Callback triggered when the mouse enters a row. Will be called with the following parameters:
+    on_mouse_enter_row: Callable[[str, int, List[str]], None]
+        Callback triggered when the mouse enters a row:
 
+        - `row_id`: Key of the row being hovered.
         - `row_idx`: Index of the row being hovered.
         - `mod_keys`: List of modifier keys pressed during the event.
-    on_mouse_leave_row: Callable[[int, List[str]], None]
-        Callback triggered when the mouse leaves a row. Will be called with the following parameters:
+    on_mouse_leave_row: Callable[[str, int, List[str]], None]
+        Callback triggered when the mouse leaves a row:
 
+        - `row_id`: Key of the row being hovered.
         - `row_idx`: Index of the row being hovered.
         - `mod_keys`: List of modifier keys pressed during the event.
-    on_mouse_hover_row: Callable[[Optional[int], List[str]], None]
-        Callback triggered when the mouse hovers over a row. Will be called with the following parameters:
+    on_mouse_hover_row: Callable[[Optional[str], [Optional[int], List[str]], None]
+        Callback triggered when the mouse hovers over a row:
 
+        - `row_id`: Key of the row being hovered, or `None` if not applicable.
         - `row_idx`: Index of the row being hovered, or `None` if not applicable.
         - `mod_keys`: List of modifier keys pressed during the event.
     on_position_change: Callable[[Optional[int], Optional[str], str, str], None]
-        Callback triggered when the cursor position changes. Will be called with the following parameters:
+        Callback triggered when the cursor position changes:
 
+        - `row_id`: Key of the row where the cursor is located, or `None` if not applicable.
         - `row_idx`: Index of the row where the cursor is located, or `None` if not applicable.
         - `name`: Key of the column where the cursor is located, or `None` if not applicable.
         - `mode`: Interaction mode, either "EDIT" or "SELECT".
         - `cause`: Reason for the position change (e.g., "key", "blur").
     on_subset_change: Callable[[List[int]], None]
-        Callback triggered when the subset of visible rows changes. Will be called with the following parameters:
+        Callback triggered when the subset of visible rows changes:
 
         - `subset`: List of indices representing the new subset of rows.
     """
@@ -383,20 +398,27 @@ def Table(
 
 @stub_component(js.Metanno.AnnotatedText, props_mapping)
 def AnnotatedText(
-        *children,
-        text: str,
-        spans: List[Dict[str, Any]],
-        annotation_styles: Dict[str, Dict[str, Any]],
-        mouse_selection: List[Dict[str, int]],
-        style: Dict[str, Any],
-        handle: Dict[str, Any],
-        key: Union[str, int],
-        on_click_span: Callable[[str, List[str]], None],
-        on_key_press: Callable[[str, List[Dict[str, int]], List[str]], None],
-        on_mouse_enter_span: Callable[[str, List[str]], None],
-        on_mouse_leave_span: Callable[[str, List[str]], None],
-        on_mouse_hover_spans: Callable[[List[str], List[str]], None],
-        on_mouse_select: Callable[[List[Dict[str, int]], List[str]], None]
+    *children,
+    text: str,
+    spans: List[Dict[str, Any]],
+    annotation_styles: Dict[str, Dict[str, Any]],
+    mouse_selection: List[Dict[str, int]],
+    style: Dict[str, Any],
+    handle: Dict[str, Any],
+    begin_key: str = "begin",
+    end_key: str = "end",
+    label_key: str = "label",
+    style_key: str = "style",
+    highlighted_key: str = "highlighted",
+    primary_key: str = "id",
+
+    on_click_span: Callable[[str, List[str]], None],
+    on_key_press: Callable[[str, List[Dict[str, int]], List[str]], None],
+    on_mouse_enter_span: Callable[[str, List[str]], None],
+    on_mouse_leave_span: Callable[[str, List[str]], None],
+    on_mouse_hover_spans: Callable[[List[str], List[str]], None],
+    on_mouse_select: Callable[[List[Dict[str, int]], List[str]], None],
+    key: Union[str, int],
 ):
     """
     The `AnnotatedText` is a rich text viewer that supports span-level annotations, nested token
@@ -426,7 +448,7 @@ def AnnotatedText(
         [
             {
                 "id": f"span-0-7",
-                "begin": 0,
+                "start": 0,
                 "end": 7,
                 "label": "OBJ",
                 "highlighted": False,
@@ -456,7 +478,7 @@ def AnnotatedText(
                     [
                         {
                             "id": f"span-{sp['begin']}-{sp['end']}",
-                            "begin": sp["begin"],
+                            "start": sp["begin"],
                             "end": sp["end"],
                             "label": "OBJ",
                         }
@@ -489,6 +511,7 @@ def AnnotatedText(
                 on_mouse_enter_span=on_mouse_enter_span,
                 on_mouse_leave_span=on_mouse_leave_span,
                 style={"gridColumn": "1 / -1"},
+                begin_key="start",  # Custom field names
             ),
             sx={
                 "p": 1,
@@ -507,14 +530,18 @@ def AnnotatedText(
     text: str
         Raw text content shown in the viewer.
     spans: List[TextAnnotation]
-        Span-level annotations over `text`.  Each span *must* include
-        `begin` and `end` character offsets, with optional fields:
+        Span-level annotations over `text`.  Each span *must* include:
 
-        - `id`: Optional unique identifier.
-        - `label`: Category name displayed next to / above the span.
-        - `style`: Key referencing `annotation_styles`.
-        - `selected` (bool): styled as selected by the user.
-        - `highlighted` (bool): styled as highlighted by the user.
+        - `begin` (or the value of `begin_key`): Begin character offset (inclusive).
+        - `end` (or the value of `end_key`): End character offset (exclusive).
+
+        and may optionally include:
+
+        - `id` (or the value of `primary_key`): Optional unique span identifier.
+        - `label` (or the value of `label_key`): Category name displayed next to / above the span.
+        - `style` (or the value of `style_key`): Key referencing `annotation_styles`.
+        - `selected` (or the value of `selected_key`): styled as selected by the user.
+        - `highlighted` (or the value of `label_key`): styled as highlighted by the user.
     annotation_styles: Dict[str, TextAnnotationStyle]
         Named style presets that control span background color, border, label
         placement, etc. Each style may define properties such as:
@@ -535,37 +562,53 @@ def AnnotatedText(
         - `scroll_to_line(line_idx: int, behavior: "smooth" | "instant" | "auto")`: Scrolls to the given line index.
         - `scroll_to_span(span_id: str, behavior: "smooth" | "instant" | "auto")`: Scrolls to the given span.
         - `clear_current_mouse_selection()`: Clears the current mouse selection.
-    key: Union[str, int]
-        React reconciliation key.
+    begin_key: str
+        Name of the field in `spans` that contains the begin character offset.
+    end_key: str
+        Name of the field in `spans` that contains the end character offset.
+    primary_key: str
+        Name of the field in `spans` that contains the unique span identifier.
+    label_key: str
+        Name of the field in `spans` that contains the human-readable label.
+    style_key: str
+        Name of the field in `spans` that contains the style key. This key will
+        be used to look up visual properties in `annotation_styles`. If no style
+        field is provided for a span, the style key will default to `label`.
+    highlighted_key: str
+        Name of the field in `spans` that indicates whether the span is
+        highlighted.
     on_click_span: Callable[[Any, List[str]], None]
         Called when the user clicks on a span.
 
-        - `span_id` – Identifier of the clicked annotation
-        - `modkeys` – Pressed modifier keys
+        - `span_id`: Identifier of the clicked annotation
+        - `modkeys`: Pressed modifier keys
     on_key_press: Callable[[str, List[TextRange], List[str]], None]
         Called when a key is pressed with focus inside the component.
 
-        - `key` – Key name
-        - `ranges` – Current selection ranges
-        - `modkeys` – Modifier keys
+        - `key`: Key name
+        - `ranges`: Current selection ranges
+        - `modkeys`: Modifier keys
     on_mouse_enter_span: Callable[[Any, List[str]], None]
         Called when the mouse pointer enters a span.
 
-        - `span_id` – Identifier of the span entered
-        - `modkeys` – Pressed modifier keys
+        - `span_id`: Identifier of the span entered
+        - `modkeys`: Pressed modifier keys
     on_mouse_leave_span: Callable[[Any, List[str]], None]
         Called when the mouse pointer leaves a span.
 
-        - `span_id` – Identifier of the span left
-        - `modkeys` – Pressed modifier keys
+        - `span_id`: Identifier of the span left
+        - `modkeys`: Pressed modifier keys
     on_mouse_hover_spans: Callable[[List[TextRange], List[str]], None]
         Triggered every time the set of hovered spans changes.
 
-        - `span_ids` – List of currently hovered span identifiers
-        - `modkeys` – Pressed modifier keys
+        - `span_ids`: List of currently hovered span identifiers
+        - `modkeys`: Pressed modifier keys
     on_mouse_select: Callable[[List[TextRange], List[str]], None]
         Triggered when the user finishes selecting text with the mouse.
 
-        - `ranges` – Final list of selected ranges
-        - `modkeys` – Modifier keys
+        - `ranges`: Final list of selected ranges
+        - `modkeys`: Modifier keys
+    key: Union[str, int]
+        React reconciliation key (not the same as the previous `_key` props), this should be used to uniquely identify
+        the component instance if there are multiple instances next to each other.
     """
