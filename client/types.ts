@@ -57,6 +57,13 @@ export type TextData = {
     mouseSelection: TextRange[];
     annotationStyles: { [styleName: string]: TextAnnotationStyle };
     style: CSSProperties;
+    beginKey: string;
+    endKey: string;
+    labelKey: string;
+    styleKey: string;
+    highlightedKey: string;
+    selectedKey: string;
+    primaryKey: string;
 }
 
 export type TextMethods = {
@@ -135,7 +142,7 @@ export type Filters = {
 
 export type TableData = {
     rows: RowData[];
-    rowKey: string;
+    primaryKey: string;
     highlightedRows: string[];
     columns: ColumnData[];
     suggestions?: (Hyperlink | string)[],
@@ -150,17 +157,18 @@ export type TableData = {
 
 export type TableMethods = {
     handle?: MutableRefObject<{
-        scroll_to_row?: (number) => void,
+        scroll_to_row_idx?: (number) => void,
+        scroll_to_row_id?: (string) => void,
         focus?: () => void,
     } | any>;
-    onPositionChange?: (row_idx: number, name: string, mode: string, cause: string) => void;
     onFiltersChange?: (values: {[key: string]: string}, column: string) => void;
-    onClickCellContent?: (row_idx: number, name: string, value?: any) => boolean | void;
-    onMouseEnterRow?: (row_idx: number, mod_keys: string[]) => void;
-    onMouseLeaveRow?: (row_idx: number, mod_keys: string[]) => void;
-    onMouseHoverRow?: (row_idx: number|null, mod_keys: string[]) => void;
-    onCellChange?: (row_idx: number, name: string, value: any) => void;
-    onInputChange: (row_idx: number, name: string, value: any, cause: string) => void;
+    onPositionChange?: (row_id: string, row_idx: number, name: string, mode: string, cause: string) => void;
+    onClickCellContent?: (row_id: string, row_idx: number, name: string, value?: any) => boolean | void;
+    onMouseEnterRow?: (row_id: string, row_idx: number, mod_keys: string[]) => void;
+    onMouseLeaveRow?: (row_id: string, row_idx: number, mod_keys: string[]) => void;
+    onMouseHoverRow?: (row_id: string, row_idx: number|null, mod_keys: string[]) => void;
+    onCellChange?: (row_id: string, row_idx: number, name: string, value: any) => void;
+    onInputChange: (row_id: string, row_idx: number, name: string, value: any, cause: string) => void;
     onScrollBottom: (event: React.UIEvent<HTMLDivElement> | { isAtBottom: boolean }) => any;
     onSubsetChange?: (subset: number[]) => void;
 }

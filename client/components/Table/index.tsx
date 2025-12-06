@@ -13,16 +13,30 @@ import React, {
 } from "react";
 import { DndProvider, DndContext } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
-import DataGrid, { CalculatedColumn, DataGridHandle, EditorProps, Row, RowRendererProps } from "react-data-grid";
+import DataGrid, {
+  CalculatedColumn,
+  DataGridHandle,
+  EditorProps,
+  Row,
+  RowRendererProps,
+} from "react-data-grid";
 
 import "./style.css";
 import { makeModKeys, memoize } from "../../utils";
 
 import HeaderRenderer from "../DraggableHeaderRenderer";
-import { InputTag, SingleInputSuggest, MultiInputSuggest } from "../InputSuggest";
+import {
+  InputTag,
+  SingleInputSuggest,
+  MultiInputSuggest,
+} from "../InputSuggest";
 import BooleanInput from "../BooleanInput";
 import { ColumnData, RowData, TableData, TableMethods } from "../../types";
-import { getCurrentEvent, useEventCallback, useCachedReconcile } from "../../utils";
+import {
+  getCurrentEvent,
+  useEventCallback,
+  useCachedReconcile,
+} from "../../utils";
 
 const ROW_HEIGHT = 25;
 const HEADER_ROW_HEIGHT = 65;
@@ -43,23 +57,43 @@ const SuggestionsContext = React.createContext<any>(undefined);
 SuggestionsContext.displayName = "SuggestionsContext";
 DndContext.displayName = "DndContext";
 
-const setOnMapping = (mapping: Map<string, any> | { [key: string]: any }, key: string, value: any) => {
-  if (mapping instanceof Map) {
-    mapping.set(key, value);
-  } else {
-    mapping[key] = value;
-  }
-};
-
-
-export const Table = function Table(props: TableData & TableMethods) {
-  const [columnsOrder, setColumnsOrder] = useState(props.columns.map((column) => column.key));
-  const [position, setPosition] = useState<TableData["position"] | undefined>(undefined);
+export const Table = function Table({
+  primaryKey,
+  rows,
+  position,
+  filters,
+  columns,
+  autoFilter,
+  subset,
+  onSubsetChange,
+  handle,
+  onInputChange,
+  inputValue,
+  onMouseEnterRow,
+  onMouseLeaveRow,
+  onMouseHoverRow,
+  highlightedRows,
+  style,
+  onFiltersChange,
+  onPositionChange,
+  onCellChange,
+  onScrollBottom,
+  onClickCellContent,
+  suggestions,
+}: TableData & TableMethods) {
+  const [columnsOrder, setColumnsOrder] = useState(
+    columns.map((column) => column.key)
+  );
+  const [localPosition, setLocalPosition] = useState<
+    TableData["position"] | undefined
+  >(undefined);
   const [isLoading, setIsLoading] = useState(false);
   // If filters are not controlled via props, we use local state
-  const [localFilters, setLocalFilters] = useState<{ [key: string]: string }>({});
+  const [localFilters, setLocalFilters] = useState<{ [key: string]: string }>(
+    {}
+  );
   const currentHoveredRow = useRef<number | null>(null);
-  const effectiveFilters = props.filters === undefined ? localFilters : props.filters;
+  const effectiveFilters = filters === undefined ? localFilters : filters;
 
   // Helper: convert relative row index (from DataGrid) to an absolute row index.
   const getAbsoluteRowIdx = useEventCallback((relativeIdx: number): number =>
@@ -70,9 +104,19 @@ export const Table = function Table(props: TableData & TableMethods) {
   const inputRef = useRef<any>(null);
   const lastScrollTopRef = useRef(0);
 
-  // --- Update subset when filters change ---
+  // Keep rows in a ref to have always the latest version in event handlers
+  const rowsRef = useRef(rows);
+  useEffect(() => {
+    rowsRef.current = rows;
+  }, [rows]);
+
+  // Update subset when filters change
   const localSubset = useMemo(() => {
-    if (props.autoFilter && effectiveFilters && (props.subset === undefined || props.onSubsetChange)) {
+    if (
+      autoFilter &&
+      effectiveFilters &&
+      (subset === undefined || onSubsetChange)
+    ) {
       const lowercaseFilters = memoize((filters: { [key: string]: string }) =>
         Object.fromEntries(
           Object.entries(filters)
@@ -80,28 +124,40 @@ export const Table = function Table(props: TableData & TableMethods) {
             .map(([key, value]) => [key, value.toLowerCase()])
         )
       )(effectiveFilters);
-      const newSubset = props.rows
+      const newSubset = rows
         .map((row, idx) => ({ row, idx }))
         .filter(({ row }) =>
           Object.entries(lowercaseFilters).every(
             ([key, value]) =>
-              row[key] !== undefined && row[key] !== null && row[key].toString().toLowerCase().includes(value)
+              row[key] !== undefined &&
+              row[key] !== null &&
+              row[key].toString().toLowerCase().includes(value)
           )
         )
         .map(({ idx }) => idx);
-      props.onSubsetChange?.(newSubset);
+      onSubsetChange?.(newSubset);
       return newSubset;
     } else {
       return undefined;
     }
-  }, [effectiveFilters, props.rows, props.autoFilter, props.filters]);
-  const effectiveSubset = props.subset !== undefined ? props.subset : localSubset;
+  }, [effectiveFilters, rows, autoFilter, filters]);
+  const effectiveSubset = subset !== undefined ? subset : localSubset;
 
   // Update actions to work with absolute indices.
   useImperativeHandle(
-    props.handle,
+    handle,
     () => ({
-      scroll_to_row: (absRowIdx: number) => {
+      scroll_to_row_idx: (absRowIdx: number) => {
+        const relativeIdx = effectiveSubset
+          ? effectiveSubset.indexOf(absRowIdx)
+          : absRowIdx;
+        if (relativeIdx !== -1) {
+          gridRef.current?.scrollToRow(relativeIdx);
+        }
+      },
+      scroll_to_row_id: (key: string) => {
+        if (!primaryKey) return;
+        const absRowIdx = rowsRef.current.findIndex((row) => row[primaryKey] === key);
         const relativeIdx = effectiveSubset
           ? effectiveSubset.indexOf(absRowIdx)
           : absRowIdx;
@@ -120,29 +176,43 @@ export const Table = function Table(props: TableData & TableMethods) {
         }
       },
     }),
-    [props.handle, props.rows, props.rowKey, effectiveSubset]
+    [handle, primaryKey, effectiveSubset]
   );
 
   // Compute visibleRows using the effectiveSubset.
-  // (We simply slice the props.rows array instead of decorating rows with an absolute index.)
+  // (We simply slice the rows array instead of decorating rows with an absolute index.)
   const visibleRows = useMemo(() => {
     if (effectiveSubset !== undefined) {
-      return effectiveSubset.map((idx) => props.rows[idx]);
+      return effectiveSubset.map((idx) => rows[idx]);
     }
-    return props.rows;
-  }, [props.rows, effectiveSubset]);
+    return rows;
+  }, [rows, effectiveSubset]);
 
   const makeInputChangeHandler =
-    (relativeRowIdx: number, column: ColumnData | CalculatedColumn<RowData, RowData>) => (value: any, cause: any) => {
+    (
+      relativeRowIdx: number,
+      column: ColumnData | CalculatedColumn<RowData, RowData>
+    ) =>
+    (value: any, cause: any) => {
       const absRowIdx = getAbsoluteRowIdx(relativeRowIdx);
-      props.onInputChange?.(absRowIdx, column.key, value, cause);
+      onInputChange?.(
+        primaryKey && absRowIdx !== null ? rowsRef.current[absRowIdx][primaryKey] : null,
+        absRowIdx,
+        column.key,
+        value,
+        cause
+      );
     };
 
   const onHeaderDrop = (source: string, target: string) => {
     const columnSourceIndex = columnsOrder.indexOf(source);
     const columnTargetIndex = columnsOrder.indexOf(target);
     const reorderedColumns = [...columnsOrder];
-    reorderedColumns.splice(columnTargetIndex, 0, reorderedColumns.splice(columnSourceIndex, 1)[0]);
+    reorderedColumns.splice(
+      columnTargetIndex,
+      0,
+      reorderedColumns.splice(columnSourceIndex, 1)[0]
+    );
     setColumnsOrder(reorderedColumns);
   };
 
@@ -158,8 +228,8 @@ export const Table = function Table(props: TableData & TableMethods) {
                 ...effectiveFilters,
                 [column.key]: e.target.value,
               };
-              props.onFiltersChange?.(newFilters, column.key);
-              if (props.filters === undefined) {
+              onFiltersChange?.(newFilters, column.key);
+              if (filters === undefined) {
                 setLocalFilters((prev) => ({
                   ...prev,
                   [column.key]: e.target.value,
@@ -171,45 +241,79 @@ export const Table = function Table(props: TableData & TableMethods) {
         )
       : null;
 
-  const buildFormatter = (type: string, readonly: boolean, filterable: boolean) => {
+  const buildFormatter = (
+    type: string,
+    readonly: boolean,
+    filterable: boolean
+  ) => {
     switch (type) {
       case "hyperlink":
         return {
           editor: readonly
             ? null
-            : forwardRef(({ row, column, onRowChange, onClose, rowIdx }: EditorProps<RowData, RowData>, ref: any) => {
-                const suggestions = React.useContext(SuggestionsContext);
-                return (
-                  <SingleInputSuggest
-                    ref={ref}
-                    // EditorProps provide rowIdx.
-                    row_id={getAbsoluteRowIdx(rowIdx)}
-                    inputRef={inputRef}
-                    value={row[column.key]}
-                    column={column.key}
-                    inputValue={props.inputValue}
-                    onInputChange={makeInputChangeHandler(rowIdx, column)}
-                    suggestions={suggestions === undefined ? props.columns[column.idx].choices : suggestions}
-                    onRowChange={onRowChange}
-                    onClose={onClose}
-                    hyperlink
-                  />
-                );
-              }),
-          headerCellClass: filterable ? "metanno-table-header-filter" : undefined,
+            : forwardRef(
+                (
+                  {
+                    row,
+                    column,
+                    onRowChange,
+                    onClose,
+                    rowIdx,
+                  }: EditorProps<RowData, RowData>,
+                  ref: any
+                ) => {
+                  const suggestions = React.useContext(SuggestionsContext);
+                  return (
+                    <SingleInputSuggest
+                      ref={ref}
+                      // EditorProps provide rowIdx.
+                      row_id={getAbsoluteRowIdx(rowIdx)}
+                      inputRef={inputRef}
+                      value={row[column.key]}
+                      column={column.key}
+                      inputValue={inputValue}
+                      onInputChange={makeInputChangeHandler(rowIdx, column)}
+                      suggestions={
+                        suggestions === undefined
+                          ? columns[column.idx].choices
+                          : suggestions
+                      }
+                      onRowChange={onRowChange}
+                      onClose={onClose}
+                      hyperlink
+                    />
+                  );
+                }
+              ),
+          headerCellClass: filterable
+            ? "metanno-table-header-filter"
+            : undefined,
           headerRenderer: (p: any) => (
             <HeaderRenderer {...p} onColumnsReorder={onHeaderDrop}>
               {makeFilterInput(p.column)}
             </HeaderRenderer>
           ),
-          formatter: ({ row, rowIdx, column }: { row: RowData; rowIdx: number; column: ColumnData }) => {
+          formatter: ({
+            row,
+            rowIdx,
+            column,
+          }: {
+            row: RowData;
+            rowIdx: number;
+            column: ColumnData;
+          }) => {
             const value = row[column.key];
             const text = value?.text || value;
             const href = value?.key || value;
             return value ? (
               <a
                 onClick={(event) => {
-                  const res = props.onClickCellContent?.(rowIdx, column.key, href);
+                  const res = onClickCellContent?.(
+                    primaryKey ? row[primaryKey] : null,
+                    rowIdx,
+                    column.key,
+                    href
+                  );
                   if (res) {
                     event.preventDefault();
                     event.stopPropagation();
@@ -225,25 +329,42 @@ export const Table = function Table(props: TableData & TableMethods) {
         return {
           editor: readonly
             ? null
-            : forwardRef(({ row, rowIdx, column, onRowChange, onClose }: EditorProps<RowData, RowData>, ref: any) => {
-                const suggestions = React.useContext(SuggestionsContext);
-                return (
-                  <MultiInputSuggest
-                    ref={ref}
-                    row_id={getAbsoluteRowIdx(rowIdx)}
-                    inputRef={inputRef}
-                    value={row[column.key]}
-                    inputValue={props.inputValue}
-                    column={column.key}
-                    suggestions={suggestions === undefined ? props.columns[column.idx].choices : suggestions}
-                    onRowChange={onRowChange}
-                    onInputChange={makeInputChangeHandler(rowIdx, column)}
-                    onClose={onClose}
-                    hyperlink
-                  />
-                );
-              }),
-          headerCellClass: filterable ? "metanno-table-header-filter" : undefined,
+            : forwardRef(
+                (
+                  {
+                    row,
+                    rowIdx,
+                    column,
+                    onRowChange,
+                    onClose,
+                  }: EditorProps<RowData, RowData>,
+                  ref: any
+                ) => {
+                  const suggestions = React.useContext(SuggestionsContext);
+                  return (
+                    <MultiInputSuggest
+                      ref={ref}
+                      row_id={getAbsoluteRowIdx(rowIdx)}
+                      inputRef={inputRef}
+                      value={row[column.key]}
+                      inputValue={inputValue}
+                      column={column.key}
+                      suggestions={
+                        suggestions === undefined
+                          ? columns[column.idx].choices
+                          : suggestions
+                      }
+                      onRowChange={onRowChange}
+                      onInputChange={makeInputChangeHandler(rowIdx, column)}
+                      onClose={onClose}
+                      hyperlink
+                    />
+                  );
+                }
+              ),
+          headerCellClass: filterable
+            ? "metanno-table-header-filter"
+            : undefined,
           headerRenderer: (p: any) => (
             <HeaderRenderer {...p} onColumnsReorder={onHeaderDrop}>
               {makeFilterInput(p.column)}
@@ -254,7 +375,14 @@ export const Table = function Table(props: TableData & TableMethods) {
               autocontain
               readOnly
               hyperlink
-              onClick={(value: any) => props.onClickCellContent?.(rowIdx, column.key, value)}
+              onClick={(value: any) =>
+                onClickCellContent?.(
+                  primaryKey ? row[primaryKey] : null,
+                  rowIdx,
+                  column.key,
+                  value
+                )
+              }
               value={row[column.key]}
             />
           ),
@@ -263,24 +391,41 @@ export const Table = function Table(props: TableData & TableMethods) {
         return {
           editor: readonly
             ? null
-            : forwardRef(({ row, column, rowIdx, onRowChange, onClose }: EditorProps<RowData, RowData>, ref: any) => {
-                const suggestions = React.useContext(SuggestionsContext);
-                return (
-                  <SingleInputSuggest
-                    ref={ref}
-                    row_id={getAbsoluteRowIdx(rowIdx)}
-                    inputRef={inputRef}
-                    value={row[column.key]}
-                    column={column.key}
-                    inputValue={props.inputValue}
-                    onInputChange={makeInputChangeHandler(rowIdx, column)}
-                    suggestions={suggestions === undefined ? props.columns[column.idx].choices : suggestions}
-                    onRowChange={onRowChange}
-                    onClose={onClose}
-                  />
-                );
-              }),
-          headerCellClass: filterable ? "metanno-table-header-filter" : undefined,
+            : forwardRef(
+                (
+                  {
+                    row,
+                    column,
+                    rowIdx,
+                    onRowChange,
+                    onClose,
+                  }: EditorProps<RowData, RowData>,
+                  ref: any
+                ) => {
+                  const suggestions = React.useContext(SuggestionsContext);
+                  return (
+                    <SingleInputSuggest
+                      ref={ref}
+                      row_id={getAbsoluteRowIdx(rowIdx)}
+                      inputRef={inputRef}
+                      value={row[column.key]}
+                      column={column.key}
+                      inputValue={inputValue}
+                      onInputChange={makeInputChangeHandler(rowIdx, column)}
+                      suggestions={
+                        suggestions === undefined
+                          ? columns[column.idx].choices
+                          : suggestions
+                      }
+                      onRowChange={onRowChange}
+                      onClose={onClose}
+                    />
+                  );
+                }
+              ),
+          headerCellClass: filterable
+            ? "metanno-table-header-filter"
+            : undefined,
           headerRenderer: (p: any) => (
             <HeaderRenderer {...p} onColumnsReorder={onHeaderDrop}>
               {makeFilterInput(p.column)}
@@ -292,43 +437,75 @@ export const Table = function Table(props: TableData & TableMethods) {
         return {
           editor: readonly
             ? null
-            : forwardRef(({ row, rowIdx, column, onRowChange, onClose }: EditorProps<RowData, RowData>, ref: any) => {
-                const suggestions = React.useContext(SuggestionsContext);
-                return (
-                  <MultiInputSuggest
-                    ref={ref}
-                    row_id={getAbsoluteRowIdx(rowIdx)}
-                    inputRef={inputRef}
-                    value={row[column.key]}
-                    column={column.key}
-                    inputValue={props.inputValue}
-                    onInputChange={makeInputChangeHandler(rowIdx, column)}
-                    suggestions={suggestions === undefined ? props.columns[column.idx].choices : suggestions}
-                    onRowChange={onRowChange}
-                    onClose={onClose}
-                  />
-                );
-              }),
-          headerCellClass: filterable ? "metanno-table-header-filter" : undefined,
+            : forwardRef(
+                (
+                  {
+                    row,
+                    rowIdx,
+                    column,
+                    onRowChange,
+                    onClose,
+                  }: EditorProps<RowData, RowData>,
+                  ref: any
+                ) => {
+                  const suggestions = React.useContext(SuggestionsContext);
+                  return (
+                    <MultiInputSuggest
+                      ref={ref}
+                      row_id={getAbsoluteRowIdx(rowIdx)}
+                      inputRef={inputRef}
+                      value={row[column.key]}
+                      column={column.key}
+                      inputValue={inputValue}
+                      onInputChange={makeInputChangeHandler(rowIdx, column)}
+                      suggestions={
+                        suggestions === undefined
+                          ? columns[column.idx].choices
+                          : suggestions
+                      }
+                      onRowChange={onRowChange}
+                      onClose={onClose}
+                    />
+                  );
+                }
+              ),
+          headerCellClass: filterable
+            ? "metanno-table-header-filter"
+            : undefined,
           headerRenderer: (p: any) => (
             <HeaderRenderer {...p} onColumnsReorder={onHeaderDrop}>
               {makeFilterInput(p.column)}
             </HeaderRenderer>
           ),
           formatter: (propsInner: any) => (
-            <InputTag autocontain readOnly {...propsInner} value={propsInner.row[propsInner.column.key]} />
+            <InputTag
+              autocontain
+              readOnly
+              {...propsInner}
+              value={propsInner.row[propsInner.column.key]}
+            />
           ),
         };
       case "boolean":
         return {
-          formatter: ({ row, rowIdx, column, onRowChange, isCellSelected }: any) => (
+          formatter: ({
+            row,
+            rowIdx,
+            column,
+            onRowChange,
+            isCellSelected,
+          }: any) => (
             <BooleanInput
               isCellSelected={isCellSelected}
               value={row[column.key]}
-              onChange={(value: any) => onRowChange({ ...row, [column.key]: value })}
+              onChange={(value: any) =>
+                onRowChange({ ...row, [column.key]: value })
+              }
             />
           ),
-          headerCellClass: filterable ? "metanno-table-header-filter" : undefined,
+          headerCellClass: filterable
+            ? "metanno-table-header-filter"
+            : undefined,
           headerRenderer: (p: any) => (
             <HeaderRenderer {...p} onColumnsReorder={onHeaderDrop}>
               {makeFilterInput(p.column)}
@@ -338,7 +515,17 @@ export const Table = function Table(props: TableData & TableMethods) {
       case "button":
         return {
           formatter: ({ row, rowIdx, column }: any) => (
-            <button onClick={() => props.onClickCellContent?.(rowIdx, column.key)}>{column.key}</button>
+            <button
+              onClick={() =>
+                onClickCellContent?.(
+                  primaryKey && rowIdx !== null ? rowsRef.current[rowIdx][primaryKey] : null,
+                  rowIdx,
+                  column.key
+                )
+              }
+            >
+              {column.key}
+            </button>
           ),
         };
       default:
@@ -347,8 +534,12 @@ export const Table = function Table(props: TableData & TableMethods) {
   };
 
   const builtColumns = useMemo(() => {
-    const columnObjects = props.columns.map((column) => {
-      const { formatter, editor, ...columnProps } = buildFormatter(column.kind, !column.editable, column.filterable);
+    const columnObjects = columns.map((column) => {
+      const { formatter, editor, ...columnProps } = buildFormatter(
+        column.kind,
+        !column.editable,
+        column.filterable
+      );
       return {
         [column.key]: {
           key: column.key,
@@ -358,7 +549,8 @@ export const Table = function Table(props: TableData & TableMethods) {
           editable: !!editor,
           filterable: column.filterable,
           editorOptions: {
-            commitOnOutsideClick: column.kind !== "hyperlink" && column.kind !== "multi-hyperlink",
+            commitOnOutsideClick:
+              column.kind !== "hyperlink" && column.kind !== "multi-hyperlink",
           },
           ...(formatter ? { formatter } : {}),
           ...(editor ? { editor } : {}),
@@ -368,19 +560,28 @@ export const Table = function Table(props: TableData & TableMethods) {
     });
     const nameToCol = Object.assign({}, ...columnObjects);
     return columnsOrder.map((name) => nameToCol[name]);
-  }, [props.columns, columnsOrder, effectiveFilters, props.inputValue]);
+  }, [columns, columnsOrder, effectiveFilters, inputValue]);
 
   const onRowsChange = useEventCallback((newRows: RowData[]) => {
     const updatedRows = newRows
       .map((newRow, relativeIdx) => {
-        const absRowIdx = effectiveSubset ? effectiveSubset[relativeIdx] : relativeIdx;
+        const absRowIdx = effectiveSubset
+          ? effectiveSubset[relativeIdx]
+          : relativeIdx;
         return { oldRow: visibleRows[relativeIdx], newRow, absRowIdx };
       })
       .filter(({ newRow, oldRow }) => newRow !== oldRow);
     if (updatedRows.length === 1) {
       const { newRow, oldRow, absRowIdx } = updatedRows[0];
-      const changedKeys = Object.keys(newRow).filter((key) => newRow[key] !== oldRow[key]);
-      props.onCellChange?.(absRowIdx, changedKeys[0], newRow[changedKeys[0]]);
+      const changedKeys = Object.keys(newRow).filter(
+        (key) => newRow[key] !== oldRow[key]
+      );
+      onCellChange?.(
+        primaryKey ? oldRow[primaryKey] : null,
+        absRowIdx,
+        changedKeys[0],
+        newRow[changedKeys[0]]
+      );
     }
   });
 
@@ -400,10 +601,22 @@ export const Table = function Table(props: TableData & TableMethods) {
               if (currentHoveredRow.current === rowIdx) {
                 return;
               }
-              props.onMouseEnterRow?.(rowIdx, makeModKeys(event));
-              props.onMouseHoverRow?.(rowIdx, makeModKeys(event));
+              onMouseEnterRow?.(
+                primaryKey ? rowsRef.current[rowIdx][primaryKey] : null,
+                rowIdx,
+                makeModKeys(event)
+              );
+              onMouseHoverRow?.(
+                primaryKey ? rowsRef.current[rowIdx][primaryKey] : null,
+                rowIdx,
+                makeModKeys(event)
+              );
               if (currentHoveredRow.current !== null) {
-                props.onMouseLeaveRow?.(currentHoveredRow.current, makeModKeys(event));
+                onMouseLeaveRow?.(
+                  rowsRef.current[currentHoveredRow.current][primaryKey],
+                  currentHoveredRow.current,
+                  makeModKeys(event)
+                );
               }
               currentHoveredRow.current = rowIdx;
             }}
@@ -411,8 +624,12 @@ export const Table = function Table(props: TableData & TableMethods) {
               const rowIdx = getAbsoluteRowIdx(p.rowIdx);
               setTimeout(() => {
                 if (currentHoveredRow.current === rowIdx) {
-                  props.onMouseLeaveRow?.(currentHoveredRow.current, makeModKeys(event));
-                  props.onMouseHoverRow?.(null, makeModKeys(event));
+                  onMouseLeaveRow?.(
+                    primaryKey ? rowsRef.current[currentHoveredRow.current][primaryKey] : null,
+                    currentHoveredRow.current,
+                    makeModKeys(event)
+                  );
+                  onMouseHoverRow?.(null, null, makeModKeys(event));
                   currentHoveredRow.current = null;
                 }
               }, 50);
@@ -421,20 +638,24 @@ export const Table = function Table(props: TableData & TableMethods) {
           />
         ))
       ),
-    [props.onMouseEnterRow, props.onMouseLeaveRow]
+    [onMouseEnterRow, onMouseLeaveRow]
   );
 
   const renderRow = useCallback(
     (p: RowRendererProps<RowData, RowData>) => (
       <MetannoRow
         {...p}
-        className={props.highlightedRows?.includes(p.row[props.rowKey]) ? "metanno-row--highlighted" : ""}
+        className={
+          primaryKey && highlightedRows?.includes(p.row[primaryKey])
+            ? "metanno-row--highlighted"
+            : ""
+        }
       />
     ),
-    [props.highlightedRows, props.rowKey]
+    [highlightedRows, primaryKey]
   );
 
-  const rowKeyGetter = useCallback((row: any) => row[props.rowKey], [props.rowKey]);
+  const rowKeyGetter = useCallback((row: any) => row[primaryKey], [primaryKey]);
 
   const handlePositionChange = useEventCallback(
     ({
@@ -448,11 +669,18 @@ export const Table = function Table(props: TableData & TableMethods) {
       mode: "EDIT" | "SELECT";
       cause?: string;
     }) => {
-      const absoluteRowIdx = rowIdx !== null && rowIdx >= 0 ? getAbsoluteRowIdx(rowIdx) : null;
+      const absoluteRowIdx =
+        rowIdx !== null && rowIdx >= 0 ? getAbsoluteRowIdx(rowIdx) : null;
       const col = idx !== null && idx >= 0 ? columnsOrder[idx] : null;
-      props.onPositionChange?.(absoluteRowIdx, col, mode, cause);
-      if (props.position === undefined) {
-        setPosition({
+      onPositionChange?.(
+        primaryKey && absoluteRowIdx !== null ? rowsRef.current[absoluteRowIdx][primaryKey] : null,
+        absoluteRowIdx,
+        col,
+        mode,
+        cause
+      );
+      if (position === undefined) {
+        setLocalPosition({
           row_idx: absoluteRowIdx,
           col: col,
           mode,
@@ -464,14 +692,19 @@ export const Table = function Table(props: TableData & TableMethods) {
   const getPositionIndices = useCachedReconcile((positionParam: any) => {
     if (!positionParam) return undefined;
     const { row_idx, col, mode } = positionParam;
-    const relativeRowIdx = row_idx === null ? -1 : effectiveSubset ? effectiveSubset.indexOf(row_idx) : row_idx;
+    const relativeRowIdx =
+      row_idx === null
+        ? -1
+        : effectiveSubset
+        ? effectiveSubset.indexOf(row_idx)
+        : row_idx;
     const idx = col ? columnsOrder.findIndex((name) => col === name) : -2;
     return { rowIdx: relativeRowIdx, idx, mode };
   });
 
   const onBlur = useEventCallback((event: FocusEvent<HTMLDivElement>) => {
     if (event.currentTarget.contains(event.relatedTarget)) return;
-    const effectivePosition = props.position !== undefined ? props.position : position;
+    const effectivePosition = position !== undefined ? position : localPosition;
     if (effectivePosition?.mode === "EDIT") return;
     handlePositionChange({
       idx: null,
@@ -481,36 +714,43 @@ export const Table = function Table(props: TableData & TableMethods) {
     });
   });
 
-  const handleScrollBottom = useEventCallback((event: UIEvent<HTMLDivElement>) => {
-    const currentTarget = event.currentTarget;
-    const isGoingDown = currentTarget.scrollTop > lastScrollTopRef.current;
-    const approachesBottom =
-      currentTarget.scrollTop + 10 >= currentTarget.scrollHeight - currentTarget.clientHeight * 2;
-    lastScrollTopRef.current = currentTarget.scrollTop;
+  const handleScrollBottom = useEventCallback(
+    (event: UIEvent<HTMLDivElement>) => {
+      const currentTarget = event.currentTarget;
+      const isGoingDown = currentTarget.scrollTop > lastScrollTopRef.current;
+      const approachesBottom =
+        currentTarget.scrollTop + 10 >=
+        currentTarget.scrollHeight - currentTarget.clientHeight * 2;
+      lastScrollTopRef.current = currentTarget.scrollTop;
 
-    if (isLoading || !approachesBottom || !isGoingDown || !props.onScrollBottom) {
-      return;
+      if (isLoading || !approachesBottom || !isGoingDown || !onScrollBottom) {
+        return;
+      }
+      setIsLoading(true);
+      const result = onScrollBottom(event);
+      if (result instanceof Promise) {
+        result.then(() => setIsLoading(false));
+      } else {
+        setIsLoading(false);
+      }
     }
-    setIsLoading(true);
-    const result = props.onScrollBottom(event);
-    if (result instanceof Promise) {
-      result.then(() => setIsLoading(false));
-    } else {
-      setIsLoading(false);
-    }
-  });
+  );
 
   useEffect(() => {
     (inputRef.current?.input || inputRef.current)?.focus();
   });
 
-  const headerRowHeight = props.columns.some((col) => col.filterable) ? HEADER_ROW_HEIGHT : ROW_HEIGHT;
+  const headerRowHeight = columns.some((col) => col.filterable)
+    ? HEADER_ROW_HEIGHT
+    : ROW_HEIGHT;
 
-  const selectedPosition = getPositionIndices(props.position !== undefined ? props.position : position);
+  const selectedPosition = getPositionIndices(
+    position !== undefined ? position : localPosition
+  );
 
   return (
-    <SuggestionsContext.Provider value={props.suggestions}>
-      <div className="metanno-table" style={props.style} onBlur={onBlur}>
+    <SuggestionsContext.Provider value={suggestions}>
+      <div className="metanno-table" style={style} onBlur={onBlur}>
         <DndProvider backend={HTML5Backend}>
           <DataGrid
             ref={gridRef}

@@ -226,13 +226,30 @@ function tokenizeTextChunks(text_chunks: TextChunk[]): TokenData[][] {
 }
 
 export default function tokenize(
-  spans: TextAnnotation[],
+  spans: {[key: string]: any}[],
   text: string,
-  styles: { [key: string]: PreprocessedStyle }
+  styles: { [key: string]: PreprocessedStyle },
+  beginKey: string,
+  endKey: string,
+  labelKey: string,
+  styleKey: string,
+  highlightedKey: string,
+  selectedKey: string,
+  idKey: string,
 ): {
   lines: TokenData[][];
   ids: any[];
 } {
+  spans = spans.map((span, span_i) => ({
+    begin: span[beginKey],
+    end: span[endKey],
+    mouseSelected: span["mouseSelected"] || false,
+    label: span[labelKey] || null,
+    style: span[styleKey] || null,
+    highlighted: span[highlightedKey] || false,
+    selected: span[selectedKey] || false,
+    id: span[idKey] || span_i,
+  }));
   // Sort the original spans to display by:
   // 1. mouseSelected spans first
   // 2. begin (left to right)
@@ -254,8 +271,8 @@ export default function tokenize(
     )
     .map((span) => ({ ...span, text: text.slice(span.begin, span.end) }));
 
-  const text_chunks = chunkText(spans, text);
-  styleTextChunks_(text_chunks, spans, styles);
+  const text_chunks = chunkText(spans as TextAnnotation[], text);
+  styleTextChunks_(text_chunks, spans as TextAnnotation[], styles);
 
   const ids = spans.map((span) => span.id);
   const linesOfTokens = tokenizeTextChunks(text_chunks);

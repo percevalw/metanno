@@ -95,7 +95,7 @@ You can either **serve it** or **display it** in a notebook, following the instr
 
     In notebooks, Pret layouts cannot be "mixed" with JupyterLab’s own UI system, and will always be embedded in a single JupyterLab tab. You may prefer displaying specific views in separate cells.
 
-    Simply display the variables `notes_view`, `entities_view`, `note_text_view` (the return values of `app.render_text` and `app.render_table`) in different cells.
+    Simply display the variables `notes_view`, `entities_view`, `note_text_view` (the return values of [`factory.create_table_widget`][metanno.recipes.explorer.DatasetExplorerWidgetFactory.create_table_widget], [`factory.create_form_widget`][metanno.recipes.explorer.DatasetExplorerWidgetFactory.create_form_widget] and [`factory.create_text_widget`][metanno.recipes.explorer.DatasetExplorerWidgetFactory.create_text_widget]) in separate cells.
 
 <!-- blacken-docs:on -->
 

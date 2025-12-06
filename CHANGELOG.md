@@ -3,6 +3,33 @@
 ## Unreleased
 
 - Table input suggestions are now more visible (with a blueish outline)
+- Update `Table` props and events: use pkey instead of row_key. Imperative handle now exposes scroll_to_row_idx and scroll_to_row_id. All row callbacks now receive row_id first, followed by row_idx, column, etc., and row_id can be None when unset. Adjust your handlers and highlighted-row keys to match.
+- Dataset explorer factory inputs (metanno/recipes/explorer.py):
+  - create_table_widget is keyword-only and uses the new Table API and handle (TableWidgetHandle with scroll/filter/highlight helpers). If you passed handlers, update them to the new signatures with row_id.
+  - New form widget: create_form_widget renders a single record with text, select, and boolean inputs.
+- Text handle keys are renamed to set_doc_by_id, get_doc_id, scroll_to_span, set_highlighted_spans, and set_doc_by_id. New on_click_span callback added and hover callback now passes (span_ids, mod_keys).
+- Added `begin_key`, `end_key`, `primary_key`, `style_key`, `label_key` and `highlighted_key` to allow the user to customize the provenance of these attributes in the `AnnotatedText` component span data.
+- :boom: Breaking API change in `metanno.recipes.explorer`:
+  - `create_table_widget`:
+    - `store_key` -> `store_name`
+    - `pkey_column` -> `primary_key`
+    - `hidden_columns` -> `hidden_keys`
+    - `id_columns` -> `id_keys`
+    - `editable_columns` -> `editable_keys`
+    - `categorical_columns` -> `categorical_keys`
+    - `first_columns` -> `first_keys`
+  - `create_text_widget`:
+    - `store_text_key` -> `text_store_name`
+    - `store_spans_key` -> `spans_store_name`
+    - `text_pkey_column` -> `text_primary_key`
+    - `spans_pkey_column` -> `text_primary_key`
+    - new `primary_key`
+    - new `begin_key`
+    - new `end_key`
+    - new `style_key`
+    - new `label_key`
+    - new `highlighted_key`
+- Minor documentation fixes.
 
 ## v1.0.0-beta.4 (2025-11-26)
 
