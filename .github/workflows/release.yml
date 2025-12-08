@@ -31,10 +31,6 @@ jobs:
       - name: 'Install hatch'
         run: pip install hatch
 
-      - name: "Build source distribution"
-        run: |
-          hatch build -t sdist
-
       - name: "Build wheel distribution"
         run: |
           hatch build -t wheel
