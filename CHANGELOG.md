@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.0.0-beta.5 (2025-12-09)
 
 - Table input suggestions are now more visible (with a blueish outline)
 - Update `Table` props and events: use pkey instead of row_key. Imperative handle now exposes scroll_to_row_idx and scroll_to_row_id. All row callbacks now receive row_id first, followed by row_idx, column, etc., and row_id can be None when unset. Adjust your handlers and highlighted-row keys to match.
@@ -11,7 +11,6 @@
 - Added `begin_key`, `end_key`, `primary_key`, `style_key`, `label_key` and `highlighted_key` to allow the user to customize the provenance of these attributes in the `AnnotatedText` component span data.
 - :boom: Breaking API change in `metanno.recipes.explorer`:
   - `create_table_widget`:
-    - `store_key` -> `store_name`
     - `pkey_column` -> `primary_key`
     - `hidden_columns` -> `hidden_keys`
     - `id_columns` -> `id_keys`
@@ -19,8 +18,6 @@
     - `categorical_columns` -> `categorical_keys`
     - `first_columns` -> `first_keys`
   - `create_text_widget`:
-    - `store_text_key` -> `text_store_name`
-    - `store_spans_key` -> `spans_store_name`
     - `text_pkey_column` -> `text_primary_key`
     - `spans_pkey_column` -> `text_primary_key`
     - new `primary_key`
