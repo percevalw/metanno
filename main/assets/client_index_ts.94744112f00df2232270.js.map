@@ -1,0 +1,1 @@
+{"version":3,"file":"client_index_ts.94744112f00df2232270.js","mappings":";;;;;;;;;;;;AAAuB;AAEF","sources":["webpack://metanno/./client/index.ts"],"sourcesContent":["import '@pret-globals';\n\nimport \"./style.css\";\n"],"names":[],"ignoreList":[],"sourceRoot":""}
