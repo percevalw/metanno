@@ -51,7 +51,7 @@ dev = [
     "edsnlp",
 ]
 docs = [
-    "mkdocs-eds @ git+https://github.com/percevalw/mkdocs-eds.git@main#egg=mkdocs-eds",
+    'mkdocs-eds @ git+https://github.com/percevalw/mkdocs-eds.git@main#egg=mkdocs-eds; python_version >= "3.9"',
     { include-group = "dev" },
 ]
 
