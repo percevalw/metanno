@@ -1,0 +1,1684 @@
+import warnings
+from asyncio import Future
+from os import PathLike
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
+
+from pret import component, create_store, use_store_snapshot
+from pret.hooks import (
+    RefType,
+    use_effect,
+    use_event_callback,
+    use_imperative_handle,
+    use_memo,
+    use_ref,
+    use_state,
+)
+from pret.react import b as bold
+from pret.react import div
+from pret.render import Renderable
+from pret_joy import (
+    Autocomplete,
+    Button,
+    ButtonGroup,
+    Checkbox,
+    FormControl,
+    FormLabel,
+    Input,
+    Option,
+    Radio,
+    RadioGroup,
+    Select,
+    Stack,
+)
+from typing_extensions import TypedDict
+
+from metanno import AnnotatedText, Table
+
+
+def use_awaitable_state(initial):
+    """
+    Like `use_state`, but the setter returns a Future/Coroutine that can be awaited
+    to wait for the state to be applied and the component to re-render.
+    """
+    state, set_state = use_state(initial)
+    resolver_ref = use_ref(None)
+
+    def on_after_render():
+        if resolver_ref.current is not None:
+            resolver_ref.current(state)
+            resolver_ref.current = None
+
+    use_effect(on_after_render)
+
+    def set_state_awaitable(value) -> Any:
+        future = Future()
+        # Short-circuit if the value is unchanged
+        if value is state:
+            future.set_result(value)
+            return future
+        set_state(value)
+        resolver_ref.current = future.set_result
+        return future
+
+    return state, set_state_awaitable
+
+
+def infer_fields(
+    rows,
+    hidden_keys=(),
+    visible_keys=None,
+    id_keys=(),
+    editable_keys=(),
+    categorical_keys=(),
+    categories=None,
+    first_keys=(),
+    column_names=None,
+):
+    """
+    Infer Metanno field metadata from a list-like collection of row dicts.
+
+    Parameters
+    ----------
+    rows : Sequence[Dict[str, Any]]
+        Input records used to infer available keys and value types.
+    hidden_keys : Sequence[str]
+        Keys to exclude from the resulting fields.
+    visible_keys : Sequence[str] | None
+        Explicit allow-list of keys to render. When set, only these keys are
+        included, ordered by `visible_keys` unless `first_keys` is provided.
+    id_keys : Sequence[str]
+        Keys treated as identifiers, rendered as hyperlinks.
+    editable_keys : Sequence[str]
+        Keys marked as editable.
+    categorical_keys : Sequence[str]
+        Keys treated as categorical, with options inferred from values.
+    categories : Dict[str, Sequence[Any]] | None
+        Optional mapping of key to precomputed candidate values.
+    first_keys : Sequence[str]
+        Keys promoted to the front of the ordering. When `visible_keys` is
+        provided, it reorders only those keys that are present.
+    column_names : Dict[str, str] | None
+        Optional mapping of key to display label.
+
+    Returns
+    -------
+    List[Dict[str, Any]]
+        Field specifications compatible with Metanno widgets.
+    """
+    rows = rows.to_py() if hasattr(rows, "to_py") else list(rows)
+    if categories is None:
+        categories = {}
+
+    all_keys = list(
+        {
+            **dict.fromkeys(first_keys),
+            **dict.fromkeys(k for row in rows for k in row),
+        }
+    )
+    if visible_keys is None:
+        ordered_keys = all_keys
+    else:
+        visible_keys = list(dict.fromkeys(visible_keys))
+        if first_keys:
+            first_visible = [k for k in first_keys if k in visible_keys]
+            remaining_visible = [k for k in visible_keys if k not in first_visible]
+            ordered_keys = [*first_visible, *remaining_visible]
+        else:
+            ordered_keys = visible_keys
+    visible_keys = [k for k in ordered_keys if k not in hidden_keys]
+
+    def non_null_values(key):
+        return list(dict.fromkeys(val for row in rows if (val := row.get(key)) is not None))
+
+    def infer_scalar_type(values):
+        if not values:
+            return "other"
+        if all(isinstance(v, bool) for v in values):
+            return "bool"
+        if all(isinstance(v, int) and not isinstance(v, bool) for v in values):
+            return "int"
+        if all(isinstance(v, float) for v in values):
+            return "float"
+        if all(isinstance(v, str) for v in values):
+            return "string"
+        return "other"
+
+    columns = []
+    for key in visible_keys:
+        values = categories[key] if key in categories else non_null_values(key)
+        s_type = infer_scalar_type(values)
+
+        if s_type == "bool":
+            metanno_type = "boolean"
+        elif key in id_keys:
+            metanno_type = "hyperlink"
+        else:
+            metanno_type = "text"
+
+        options = None
+        if key in categorical_keys:
+            options = list(dict.fromkeys(values))
+            if metanno_type == "text":
+                if len(options) < 4:
+                    metanno_type = "radio"
+                elif len(options) < 15:
+                    metanno_type = "select"
+                else:
+                    metanno_type = "autocomplete"
+
+        columns.append(
+            {
+                "key": key,
+                "name": column_names.get(key, key) if column_names else key,
+                "kind": metanno_type,
+                "editable": key in editable_keys,
+                "filterable": True,
+                "options": options,
+            }
+        )
+
+    return columns
+
+
+class TextWidgetHandle(TypedDict):
+    """
+    Imperative handle for interacting with a text annotation widget.
+    """
+
+    scroll_to_span: Callable[[str], None]
+    set_doc_idx: Callable[[int], None]
+    get_doc_idx: Callable[[], Optional[int]]
+    set_highlighted_spans: Callable[[List[str]], None]
+    set_selected_span: Callable[[str], None]
+
+
+class TableWidgetHandle(TypedDict):
+    """
+    Imperative handle for interacting with a table widget.
+    """
+
+    scroll_to_row_id: Callable[[Any], None]
+    scroll_to_row_idx: Callable[[int], None]
+    set_filter: Callable[[str, Any], None]
+    get_filters: Callable[[], Dict[str, Any]]
+    clear_filters: Callable[[], None]
+    set_highlighted: Callable[[List[Any]], None]
+    get_adjacent_row_id: Callable[[Any, int], Any]
+    get_adjacent_row_idx: Callable[[Optional[int], int], Optional[int]]
+
+
+class FormWidgetHandle(TypedDict):
+    """
+    Imperative handle for interacting with a form widget.
+    """
+
+    get_row_idx: Callable[[], Optional[int]]
+    set_row_idx: Callable[[int], None]
+
+
+def render_select_field(
+    key: str,
+    label: Any,
+    kind: str,
+    value: Any,
+    editable: bool,
+    options: Sequence[Any],
+    on_field_change: Callable,
+    min_input_width: Optional[str],
+    align_self: Optional[str] = None,
+    all_label: Optional[str] = None,
+):
+    select_options = list(options)
+    if kind == "autocomplete":
+        if all_label is not None:
+            select_options = [all_label, *select_options]
+            value = all_label if value in (None, "") else value
+
+        def _on_change(event, val, k=key):
+            if all_label is not None and val == all_label:
+                on_field_change(k, "")
+            else:
+                on_field_change(k, val)
+
+        return FormControl(
+            FormLabel(label),
+            Autocomplete(
+                options=select_options,
+                value=value,
+                on_change=_on_change,
+                disabled=not editable,
+                size="sm",
+            ),
+            sx={
+                "minWidth": min_input_width or 0,
+                "width": "fit-content",
+                "alignSelf": align_self,
+            },
+        )
+    elif kind == "select":
+        if all_label is not None and value in (None, ""):
+            value = ""
+        select_default_option = [Option(all_label, value="")] if all_label is not None else []
+        return FormControl(
+            FormLabel(label),
+            Select(
+                *select_default_option,
+                *(Option(str(c), value=c) for c in select_options),
+                value=value,
+                on_change=lambda event, val: on_field_change(key, val),
+                disabled=not editable,
+                size="sm",
+            ),
+            sx={
+                "minWidth": min_input_width,
+                "alignSelf": align_self,
+            },
+        )
+    elif kind == "radio":
+        return FormControl(
+            FormLabel(label),
+            RadioGroup(
+                *(Radio(label=str(c), value=c, size="sm") for c in options),
+                value=value,
+                on_change=lambda event: on_field_change(key, event.target.value),
+                disabled=not editable,
+                size="sm",
+            ),
+        )
+    else:
+        print(f"Unsupported select field kind: {kind}")
+
+
+def render_text_field(
+    key: str,
+    label: Any,
+    value: Any,
+    editable: bool,
+    on_field_change: Callable,
+    min_input_width: Optional[str],
+    align_self: Optional[str] = None,
+):
+    def _on_change(event=None, k=key):
+        target = getattr(event, "target", None)
+        on_field_change(k, getattr(target, "value", ""))
+
+    return FormControl(
+        FormLabel(label),
+        Input(
+            value="" if value is None else value,
+            on_change=_on_change,
+            read_only=not editable,
+            disabled=not editable,
+            size="sm",
+        ),
+        sx={"minWidth": min_input_width, "alignSelf": align_self},
+    )
+
+
+def render_boolean_field(
+    key: str,
+    label: Any,
+    value: Any,
+    editable: bool,
+    on_field_change: Callable,
+    min_input_width: Optional[str],
+    align_self: Optional[str] = None,
+):
+    def _on_change(event=None, checked=None, k=key):
+        new_val = (
+            bool(checked)
+            if checked is not None
+            else getattr(getattr(event, "target", None), "checked", None)
+        )
+        on_field_change(k, bool(new_val))
+
+    return FormControl(
+        FormLabel(label),
+        Checkbox(
+            checked=bool(value),
+            on_change=_on_change,
+            disabled=not editable,
+            size="md",
+            sx={"flex": 1, "alignItems": "center"},
+        ),
+        sx={"minWidth": min_input_width, "alignSelf": align_self or "flex-start"},
+    )
+
+
+def render_field(
+    current_row,
+    col: Dict[str, Any],
+    on_field_change: Callable,
+    min_input_width: Optional[str],
+    align_self: Optional[str] = None,
+):
+    key = col["key"]
+    value = current_row.get(key) if current_row is not None else None
+    options = col.get("options")
+    editable = col.get("editable", False)
+    label = col.get("name", key)
+    kind = col.get("kind", "text")
+
+    if kind in ("select", "radio", "autocomplete") and options is not None:
+        return render_select_field(
+            key, label, kind, value, editable, options, on_field_change, min_input_width, align_self
+        )
+    if col.get("kind") == "boolean":
+        return render_boolean_field(
+            key, label, value, editable, on_field_change, min_input_width, align_self
+        )
+    return render_text_field(
+        key, label, value, editable, on_field_change, min_input_width, align_self
+    )
+
+
+class DataWidgetFactory:
+    """
+    The `DataWidgetFactory` is a helper widget factory for building
+    interactive annotation and exploration applications using Metanno components. It
+    manages data stores, shared state, and multiple synchronized views such as tables
+    and annotated text views.
+
+    Parameters
+    ----------
+    data : Dict[str, List[Dict[str, Any]]]
+        Initial dataset as a mapping from store keys to list-like records.
+    sync : Union[bool, str, PathLike] | None
+        Whether and how to sync and persist the data:
+
+        - False / None: no persistence (in-memory browser only).
+        - True: data will be synced between browser and server,
+          but not persisted on the server.
+        - str or PathLike: path where the store should be saved.
+          This we also enable syncing multiple notebook kernels or
+          server together.
+    """
+
+    def __init__(
+        self,
+        data: Dict[str, List[Dict[str, Any]]],
+        sync: Optional[Union[bool, str, PathLike]] = None,
+    ):
+        self.data = create_store(data, sync=sync)
+        if not isinstance(sync, (str, PathLike)):
+            warnings.warn(
+                "DataWidgetFactory persistence is disabled: modifications on the data will not be "
+                "saved ! Use `sync` parameter with a file path to enable persistence.",
+            )
+        self.handles = {}
+        self.primary_keys = {}
+        self.selected_idx = {}  # store_key -> currently shown row index
+
+    def _register_primary_key(self, store_key, primary_key: str):
+        if store_key is None or primary_key is None:
+            return
+        if store_key in self.primary_keys:
+            return
+        self.primary_keys[store_key] = primary_key
+        self.selected_idx[store_key] = create_store({"idx": 0})
+
+    def _register_table_columns(
+        self,
+        store_key,
+        columns: Sequence[Dict[str, Any]],
+        rows: Optional[Sequence[Dict[str, Any]]] = None,
+    ):
+        if store_key is None:
+            return
+        keys = {col.get("key") for col in columns if col.get("key")}
+        if rows and len(rows) > 0 and isinstance(rows[0], dict):
+            keys.update(rows[0].keys())
+
+    def make_filter_related_tables(self):
+        handles = self.handles
+
+        def filter_related_tables(
+            filter_key: str,
+            filter_value: Any,
+            source_store_key,
+            source_handle,
+        ):
+            for other_store_key, handle_list in handles.items():
+                if other_store_key == source_store_key:
+                    continue
+                for other_handle, other_kind in handle_list:
+                    if other_kind != "table" or other_handle.current is None:
+                        continue
+                    if other_handle == source_handle:
+                        continue
+                    other_handle.current.set_filter(filter_key, str(filter_value))
+
+        return filter_related_tables
+
+    def make_sync_store_selection(self, filter_related_tables=None):
+        handles = self.handles
+        primary_keys = self.primary_keys
+        filter_related_tables = filter_related_tables or self.make_filter_related_tables()
+        data_by_store = self.data
+
+        def sync_store_selection(
+            store_key,
+            row_idx,
+            source_handle,
+            sync_related_tables,
+        ):
+            if row_idx is None:
+                return
+            data = data_by_store[store_key]
+            row = data[row_idx]
+            primary_key = primary_keys[store_key]
+            row_id = row[primary_key]
+            for other_handle, other_kind in handles.get(store_key, []):
+                if other_handle.current is None:
+                    continue
+                if other_handle == source_handle:
+                    continue
+                if other_kind == "form":
+                    other_handle.current.set_row_idx(row_idx)
+                elif other_kind == "text":
+                    other_handle.current.set_doc_idx(row_idx)
+                elif other_kind == "spans":
+                    other_handle.current.scroll_to_span(row_id)
+                    other_handle.current.set_highlighted_spans([row_id])
+                    other_handle.current.set_selected_span(row_id)
+                elif other_kind == "table":
+                    other_handle.current.scroll_to_row_id(row_id)
+                    other_handle.current.set_highlighted([row_id])
+
+            if sync_related_tables:
+                filter_related_tables(
+                    primary_key,
+                    row_id,
+                    store_key,
+                    source_handle,
+                )
+
+        return sync_store_selection
+
+    def make_sync_parent_widgets(self, sync_store_selection=None):
+        primary_keys = self.primary_keys
+        sync_store_selection = sync_store_selection or self.make_sync_store_selection()
+        data_by_store = self.data
+
+        def sync_parent_widgets(store_key, row_idx):
+            if row_idx is None:
+                return
+            data = data_by_store[store_key]
+            row = data[row_idx]
+            for parent_store_key, parent_key in primary_keys.items():
+                if parent_store_key == store_key:
+                    continue
+                parent_id = row.get(parent_key)
+                if parent_id is None:
+                    continue
+                parent_data = data_by_store[parent_store_key]
+                parent_pk = primary_keys[parent_store_key]
+                parent_idx = next(
+                    (
+                        i
+                        for i, item in enumerate(parent_data)
+                        if str(item.get(parent_pk)) == str(parent_id)
+                    ),
+                    None,
+                )
+                if parent_idx is None:
+                    continue
+                sync_store_selection(parent_store_key, parent_idx, None, False)
+
+        return sync_parent_widgets
+
+    def create_selected_field_view(
+        self,
+        *,
+        store_key,
+        shown_key,
+        fallback: Optional[str] = "",
+    ) -> Renderable:
+        """
+        Render a single field from the currently selected row in a store.
+
+        Parameters
+        ----------
+        store_key : Any
+            Key pointing to the collection to display.
+        shown_key : Any
+            Field key to show from the current row.
+        fallback : str | None
+            Value returned when no row is available.
+
+        Returns
+        -------
+        Renderable
+            Pret component instance displaying the selected field value.
+        """
+        data_store = self.data[store_key]
+        selected_idx_store = self.selected_idx[store_key]
+
+        @component
+        def SelectedFieldView():
+            row_idx = use_store_snapshot(selected_idx_store)["idx"]
+            current_idx = None
+            if data_store and 0 <= row_idx < len(data_store):
+                current_idx = row_idx
+            elif data_store:
+                current_idx = 0
+            if current_idx is None:
+                return fallback
+            row = use_store_snapshot(data_store[current_idx])
+            return row[shown_key]
+
+        return SelectedFieldView()
+
+    def create_filters_view(
+        self,
+        *,
+        store_key,
+        fields: Sequence[Dict[str, Any]],
+        style: Optional[Dict[str, Any]] = None,
+        min_input_width: Optional[str] = None,
+        all_label: str = "All",
+        label_bold: bool = False,
+    ) -> Renderable:
+        """
+        Render filtering controls for a table linked to a store.
+
+        Parameters
+        ----------
+        store_key : Any
+            Key pointing to the collection to filter.
+        fields : Sequence[Dict[str, Any]]
+            Field metadata used for rendering filter inputs. Expects:
+
+            - `key`: Field key.
+            - `name`: Field display name.
+            - `kind`: Field data kind:
+
+                - `"text"`: Plain text.
+                - `"boolean"`: Boolean values.
+                - `"select"/"radio"/"autocomplete"`: Multi choice selection.
+
+            - `filterable`: If False, no filter control will be rendered.
+            - `options`: If present, a dropdown/autocomplete will be used.
+        style : Dict[str, Any] | None
+            Inline style overrides for the wrapping container.
+        min_input_width : str | None
+            Minimum width applied to each input control.
+        all_label : str
+            Label used to reset a filter (no filtering).
+        label_bold : bool
+            Whether to render labels in bold.
+
+        Returns
+        -------
+        Renderable
+            Pret component instance rendering the filter controls.
+        """
+        handles = self.handles
+        fields = list(fields)
+
+        @component
+        def FiltersView():
+            filters, set_filters = use_state({})
+
+            def apply_filter(key, raw_value):
+                cleaned = dict(filters)
+                if raw_value is None or raw_value == "":
+                    cleaned.pop(key, None)
+                    raw_value = None
+                else:
+                    cleaned[key] = raw_value
+                set_filters(cleaned)
+                for other_handle, other_kind in handles.get(store_key, []):
+                    if other_kind != "table" or other_handle.current is None:
+                        continue
+                    other_handle.current.set_filter(key, raw_value)
+
+            def render_filter(field):
+                if field.get("filterable", True) is False:
+                    return None
+                key = field["key"]
+                label = field.get("name", key)
+                if label_bold and isinstance(label, str):
+                    label = bold(label)
+                options = field.get("options")
+                kind = field.get("kind")
+                current_value = filters.get(key, "")
+
+                if options is None and kind == "boolean":
+                    options = [True, False]
+
+                if options is not None:
+                    return render_select_field(
+                        key=key,
+                        label=label,
+                        kind="autocomplete" if len(options) > 15 else "select",
+                        value=current_value,
+                        editable=True,
+                        options=options,
+                        on_field_change=apply_filter,
+                        min_input_width=min_input_width,
+                        all_label=all_label,
+                    )
+
+                return render_text_field(
+                    key=key,
+                    label=label,
+                    value=current_value,
+                    editable=True,
+                    on_field_change=apply_filter,
+                    min_input_width=min_input_width,
+                )
+
+            filters_view = [render_filter(field) for field in fields]
+            return Stack(
+                *[item for item in filters_view if item is not None],
+                direction="column",
+                spacing=1,
+                use_flex_gap=True,
+                style=style,
+            )
+
+        return FiltersView()
+
+    def create_table_widget(
+        self,
+        *,
+        store_key,
+        primary_key: str,
+        fields: Sequence[Dict[str, Any]],
+        style: Optional[Dict[str, Any]] = None,
+        handle: RefType[TableWidgetHandle] = None,
+        on_position_change: Optional[Callable[[Any, int, str, str, Any], None]] = None,
+        on_mouse_hover_row: Optional[Callable[[Any, int, List[str]], None]] = None,
+        on_click_cell_content: Optional[Callable[[Any, int, str, Any], None]] = None,
+    ) -> Tuple[Renderable, Renderable]:
+        """
+        Create a [`Table`][metanno.ui.Table] widget bound to a store entry.
+        Field metadata is inferred from the underlying data, with optional
+        callbacks for position changes, hover, and cell content clicks. An
+        imperative handle can be exposed for scrolling and filtering.
+
+        Parameters
+        ----------
+        store_key : Any
+            Key pointing to the list-like store to render.
+        primary_key : str
+            Field name that uniquely identifies each row (primary key).
+        fields : Sequence[Dict[str, Any]]
+            Field metadata used for rendering and editing. Expects:
+
+            - `key`: Field key.
+            - `name`: Field display name.
+            - `kind`: Field data kind:
+
+                - `"text"`: Plain text.
+                - `"boolean"`: Boolean values.
+                - `"hyperlink"`: Clickable hyperlink.
+                - `"select"/"radio"/"autocomplete"`: Multi choice selection.
+
+            - `options`: If present, a dropdown/autocomplete/radio will be used.
+            - `editable`: If True, cells in this column are editable.
+            - `filterable`: If False, no filter control will be rendered.
+        style : Dict[str, Any] | None
+            Inline style overrides applied to the table container.
+        handle : RefType[TableWidgetHandle] | None
+            Imperative handle exposing helpers :
+
+            - `scroll_to_row_id(row_id)`: Scroll to the row with the given primary key
+            - `scroll_to_row_idx(row_idx)`: Scroll to the specified row index.
+            - `set_filter(col, value)`: Apply a filter on the given column.
+            - `get_filters()`: Retrieve the current filter mapping.
+            - `clear_filters()`: Clear all active filters.
+            - `set_highlighted(row_ids)`: Highlight the specified rows by their IDs.
+            - `get_adjacent_row_id(current_row_id, delta)`: Retrieve the next/previous
+              row ID within the filtered view, wrapping around.
+            - `get_adjacent_row_idx(current_row_idx, delta)`: Retrieve the next/previous
+              row index within the filtered view, wrapping around.
+        on_position_change : Callable[[Any, int, str, str, Any], None] | None
+            Called when focus moves inside the table.
+
+            - `row_id`: Primary key of the focused row.
+            - `row_idx`: Index of the focused row.
+            - `col`: Field key receiving focus.
+            - `mode`: Interaction mode, such as `"EDIT"` or `"SELECT"`.
+            - `cause`: What triggered the move (e.g. `"key"`, `"mouse"`).
+        on_mouse_hover_row : Callable[[Any, int, List[str]], None] | None
+            Called when the mouse hovers over a row.
+
+            - `row_id`: Primary key for that row.
+            - `row_idx`: Index of the row under the pointer.
+            - `modkeys`: Pressed modifier keys during the hover.
+        on_click_cell_content : Callable[[Any, int, str, Any], None] | None
+            Called when hyperlink-like content inside a cell is clicked.
+
+            - `row_id`: Primary key of the clicked row.
+            - `row_idx`: Index of the clicked row.
+            - `col`: Field key containing the clickable content.
+            - `value`: Value associated with the clicked cell.
+
+        Returns
+        -------
+        Renderable
+            A Pret component instance rendering the configured table.
+        """
+        # Server-side prep
+        data_store = self.data[store_key]
+
+        # Table only support a subset of kinds for editing/viewing values
+        KIND_MAP = {
+            "radio": "text",
+            "checkbox": "boolean",
+            "select": "text",
+            "autocomplete": "text",
+        }
+        columns = [{**c, "kind": KIND_MAP.get(c["kind"], c["kind"])} for c in fields]
+
+        # Register handle
+        handles = self.handles
+        handle = handle or use_ref()
+        if store_key not in handles:
+            handles[store_key] = []
+        handles[store_key].append([handle, "table"])
+        self._register_primary_key(store_key, primary_key)
+        self._register_table_columns(store_key, columns, data_store)
+        filter_related_tables = self.make_filter_related_tables()
+        sync_store_selection = self.make_sync_store_selection(filter_related_tables)
+        sync_parent_widgets = self.make_sync_parent_widgets(sync_store_selection)
+
+        @component
+        def TableWidget():
+            data = use_store_snapshot(data_store)
+            filters, set_filters = use_state({})
+            highlighted, set_highlighted = use_state([])
+            suggestions, set_suggestions = use_state([])
+            table_ref = use_ref()
+
+            def row_matches_filters(row, active_filters):
+                for key, raw_value in (active_filters or {}).items():
+                    if raw_value is None or key not in row:
+                        continue
+                    needle = str(raw_value).lower()
+                    if needle == "":
+                        continue
+                    if needle not in str(row.get(key, "")).lower():
+                        return False
+                return True
+
+            def get_filtered_indices():
+                if not filters:
+                    return list(range(len(data)))
+                return [i for i, row in enumerate(data) if row_matches_filters(row, filters)]
+
+            def get_adjacent_row_id(current_row_id, delta):
+                indices = get_filtered_indices()
+                if not indices:
+                    return None
+                current_pos = None
+                if current_row_id is not None:
+                    for pos, idx in enumerate(indices):
+                        if str(data[idx].get(primary_key)) == str(current_row_id):
+                            current_pos = pos
+                            break
+                if current_pos is None:
+                    current_pos = 0 if delta >= 0 else len(indices) - 1
+                next_idx = indices[(current_pos + delta) % len(indices)] if len(indices) > 0 else 0
+                return data[next_idx].get(primary_key)
+
+            def get_adjacent_row_idx(current_row_idx, delta):
+                indices = get_filtered_indices()
+                if not indices:
+                    return None
+                current_pos = None
+                if current_row_idx is not None and current_row_idx in indices:
+                    current_pos = indices.index(current_row_idx)
+                if current_pos is None:
+                    current_pos = 0 if delta >= 0 else len(indices) - 1
+                return indices[(current_pos + delta) % len(indices)]
+
+            def set_filter(col, v):
+                cleaned = dict(filters)
+                if v is None:
+                    cleaned.pop(col, None)
+                else:
+                    cleaned[col] = v
+                set_filters(cleaned)
+
+            use_imperative_handle(
+                handle,
+                lambda: {
+                    "scroll_to_row_id": lambda key: table_ref.current.scroll_to_row_id(key),
+                    "scroll_to_row_idx": lambda idx: table_ref.current.scroll_to_row_idx(idx),
+                    "set_filter": lambda col, v: set_filter(col, v),
+                    "get_filters": lambda: filters,
+                    "clear_filters": lambda: set_filters({}),
+                    "set_highlighted": set_highlighted,
+                    "get_adjacent_row_id": get_adjacent_row_id,
+                    "get_adjacent_row_idx": get_adjacent_row_idx,
+                },
+                [filters, data],
+            )
+
+            @use_event_callback
+            def handle_cell_change(row_id, row_idx, col, new_value):
+                data_store[row_idx][col] = new_value
+
+            @use_event_callback
+            def handle_input_change(row_id, row_idx, col, value, cause):
+                value = value or ""
+                options = next((c for c in columns if c["key"] == col), {}).get("options")
+                if cause == "unmount":
+                    set_suggestions(None)
+                elif options is not None:
+                    if cause == "mount":
+                        set_suggestions(options)
+                    elif cause == "type":
+                        set_suggestions([c for c in options if value.lower() in c.lower()])
+
+            @use_event_callback
+            def handle_mouse_hover_row(row_id, row_idx, modkeys):
+                if row_id is None:
+                    set_highlighted([])
+                    return
+                set_highlighted([row_id])
+                # Synchronize other widgets
+                for other_handle, other_kind in handles.get(store_key, []):
+                    if other_handle.current is None:
+                        continue
+                    if other_kind == "spans":
+                        other_handle.current.set_highlighted_spans([row_id])
+                if on_mouse_hover_row:
+                    on_mouse_hover_row(row_id, row_idx, modkeys)
+
+            @use_event_callback
+            def handle_position_change(row_id, row_idx, col, mode, cause):
+                # Synchronize other widgets
+                if row_idx is not None:
+                    sync_parent_widgets(store_key, row_idx)
+                    sync_store_selection(store_key, row_idx, handle, True)
+                if on_position_change is not None:
+                    on_position_change(row_id, row_idx, col, mode, cause)
+
+            return Table(
+                rows=data,
+                primary_key=primary_key,
+                columns=columns,
+                filters=filters,
+                suggestions=suggestions,
+                highlighted_rows=highlighted,
+                on_filters_change=lambda f, c: set_filters(f),
+                on_input_change=handle_input_change,
+                on_cell_change=handle_cell_change,
+                on_position_change=handle_position_change,
+                on_mouse_hover_row=handle_mouse_hover_row,
+                on_click_cell_content=on_click_cell_content,
+                auto_filter=True,
+                style=style,
+                handle=table_ref,
+            )
+
+        return TableWidget()
+
+    def create_form_widget(
+        self,
+        *,
+        store_key,
+        primary_key: str,
+        fields: Sequence[Dict[str, Any]],
+        style: Optional[Dict[str, Any]] = {},
+        min_input_width: Optional[str] = None,
+        add_navigation_buttons: bool = False,
+        handle: Optional[Any] = None,
+    ) -> Tuple[Renderable, Renderable]:
+        """
+        Render a single record from a store as a classic form with text, select,
+        and boolean inputs. The current row can be changed via the imperative
+        handle to keep multiple widgets in sync.
+
+        Parameters
+        ----------
+        store_key : Any
+            Key pointing to the collection to edit.
+        primary_key : str
+            Field name that uniquely identifies each row (primary key).
+        fields : Sequence[Dict[str, Any]]
+            Field metadata used for rendering and editing:
+
+            - `key`: Field key.
+            - `name`: Field display name.
+            - `kind`: Field data kind:
+
+                - `"text"`: single-line text input.
+                - `"select"`: dropdown select input.
+                - `"autocomplete"`: autocomplete text input.
+                - `"radio"`: radio button group.
+                - `"boolean"`: checkbox input.
+
+            - `editable`: If False, the field will be read-only.
+            - `options`: If present, a dropdown/autocomplete/radio will be used.
+        style : Dict[str, Any] | None
+            Inline style overrides for the wrapping container.
+        min_input_width : str | None
+            Minimum width applied to each input control.
+        add_navigation_buttons : bool
+            Whether to display previous/next navigation buttons.
+        handle : RefType[FormWidgetHandle] | None
+            Imperative handle exposing helpers :
+
+            - `set_row_idx(row_idx)`: Switch to the row with the given index.
+            - `get_row_idx()`: Retrieve the currently active row index.
+
+        Returns
+        -------
+        Renderable
+            A Pret component instance rendering the editable form.
+        """
+        data_store = self.data[store_key]
+        fields = list(fields)
+
+        # Register handle
+        handle = handle or use_ref()
+        if store_key not in self.handles:
+            self.handles[store_key] = []
+        self.handles[store_key].append([handle, "form"])
+        self._register_primary_key(store_key, primary_key)
+        row_idx_store = self.selected_idx[store_key]
+        handles = self.handles
+        filter_related_tables = self.make_filter_related_tables()
+        sync_store_selection = self.make_sync_store_selection(filter_related_tables)
+        sync_parent_widgets = self.make_sync_parent_widgets(sync_store_selection)
+
+        @component
+        def FormWidget():
+            row_idx = use_store_snapshot(row_idx_store)["idx"]
+
+            current_idx = None
+            if data_store and 0 <= row_idx < len(data_store):
+                current_idx = row_idx
+            elif data_store:
+                current_idx = 0
+
+            current_row = (
+                use_store_snapshot(data_store[current_idx]) if current_idx is not None else None
+            )
+
+            def get_table_handle():
+                for other_handle, other_kind in handles.get(store_key, []):
+                    if other_kind == "table" and other_handle.current is not None:
+                        return other_handle
+                return None
+
+            def set_row_idx(idx, sync=False):
+                if idx is None:
+                    return
+                if data_store and (idx < 0 or idx >= len(data_store)):
+                    idx = 0
+                row_idx_store["idx"] = idx
+                if sync:
+                    sync_parent_widgets(store_key, idx)
+                    sync_store_selection(store_key, idx, handle, True)
+
+            def nav(delta):
+                if not data_store:
+                    return
+                table_handle = get_table_handle()
+                next_row_idx = None
+                if table_handle is not None:
+                    next_row_idx = table_handle.current.get_adjacent_row_idx(current_idx, delta)
+                if next_row_idx is None:
+                    if current_idx is None:
+                        next_row_idx = 0 if delta >= 0 else len(data_store) - 1
+                    else:
+                        next_row_idx = (current_idx + delta) % len(data_store)
+                if next_row_idx is None:
+                    return
+                set_row_idx(next_row_idx, sync=True)
+
+            use_imperative_handle(
+                handle,
+                lambda: {
+                    "get_row_idx": lambda: current_idx,
+                    "set_row_idx": lambda idx: set_row_idx(idx),
+                },
+            )
+
+            @use_event_callback
+            def handle_field_change(key, value):
+                if current_row is None or current_idx is None:
+                    return
+                data_store[current_idx][key] = value
+
+            if not current_row:
+                return div("No data available", style=style)
+
+            navigation_controls = None
+            if add_navigation_buttons:
+                navigation_controls = Stack(
+                    Button(
+                        "← Previous",
+                        on_click=lambda e: nav(-1),
+                        size="sm",
+                        variant="soft",
+                        sx={"flex": 1},
+                    ),
+                    Button(
+                        "Next →",
+                        on_click=lambda e: nav(1),
+                        size="sm",
+                        variant="soft",
+                        sx={"flex": 1},
+                    ),
+                    direction="row",
+                    spacing=1,
+                    use_flex_gap=True,
+                    sx={"alignItems": "center"},
+                )
+
+            return Stack(
+                navigation_controls,
+                *[
+                    render_field(current_row, f, handle_field_change, min_input_width)
+                    for f in fields
+                ],
+                direction="column",
+                spacing=1,
+                use_flex_gap=True,
+                style=style,
+            )
+
+        return FormWidget()
+
+    def create_text_widget(
+        self,
+        *,
+        store_text_key: Any,
+        store_spans_key: Optional[Any] = None,
+        text_key: str,
+        text_primary_key: str,
+        spans_primary_key: str,
+        fields: Sequence[Dict[str, Any]],
+        begin_key: str = "begin",
+        end_key: str = "end",
+        style_key: str = "style",
+        label_key: str = "label",
+        button_key: str = "label",
+        labels: Dict[str, Dict[str, Any]] = {},
+        style: Optional[Dict[str, Any]] = None,
+        handle: Optional[Any] = None,
+        on_change_text_id: Optional[Callable[[Any], None]] = None,
+        on_add_span: Optional[Callable[[List[str]], None]] = None,
+        on_hover_spans: Optional[Callable[[List[str], List[str]], None]] = None,
+        on_click_span: Optional[Callable[[str, List[str]], None]] = None,
+    ) -> Tuple[Renderable, Renderable]:
+        """
+        Build a text annotation widget that pairs a text store with a spans store.
+        Provides toolbar buttons for creating spans, keyboard navigation between
+        documents, and callbacks for hover and click events.
+
+        Parameters
+        ----------
+        store_text_key : Any
+            Key pointing to the store containing documents.
+        store_spans_key : Any
+            Key pointing to the store containing span annotations. If `None`,
+            an empty store is created and managed locally.
+        text_key : str
+            Field name holding the raw text to annotate.
+        text_primary_key : str
+            Field name that uniquely identifies each text document.
+        spans_primary_key : str
+            Field name that uniquely identifies each span.
+        fields : Sequence[Dict[str, Any]]
+            Field metadata for span fields, used in the inline editor.
+        begin_key : str
+            Field name for span start offsets.
+        end_key : str
+            Field name for span end offsets.
+        style_key : str
+            Field name for span styling configuration key.
+        label_key : str
+            Field name for span display label.
+        button_key : str
+            Field name that annotation buttons will update.
+        labels : Dict[str, Dict[str, Any]]
+            Mapping of label name to styling config (e.g. color, shortcut).
+        style : Dict[str, Any] | None
+            Inline style overrides for the text widget wrapper and content panes.
+        handle : RefType[TextWidgetHandle] | None
+            Imperative handle exposing helpers:
+
+            - `scroll_to_span(span_id)`: Scroll to the specified span.
+            - `set_doc_idx(doc_idx)`: Switch to the document with the given index.
+            - `get_doc_idx()`: Retrieve the currently active document index.
+            - `set_highlighted_spans(span_ids)`: Highlight the specified spans.
+            - `set_selected_span(span_id)`: Set the currently selected span.
+        on_change_text_id : Callable[[Any], None] | None
+            Called when navigation changes the active document.
+
+            - `doc_id`: Identifier of the newly active document.
+        on_add_span : Callable[[List[str]], None] | None
+            Called after new spans are created from the current selection.
+
+            - `span_ids`: List of identifiers for the newly created spans.
+        on_hover_spans : Callable[[List[str], List[str]], None] | None
+            Called whenever spans are hovered.
+
+            - `span_ids`: List of identifiers for the currently hovered spans.
+            - `mod_keys`: Modifier keys pressed during the hover.
+        on_click_span : Callable[[str, List[str]], None] | None
+            Called when a span is clicked.
+
+            - `span_id`: Identifier of the clicked span.
+            - `mod_keys`: Modifier keys pressed during the click.
+        Returns
+        -------
+        Tuple[Renderable, Renderable]
+            A pair of Pret components: the toolbar widget and the text widget.
+        """
+        text_store = self.data[store_text_key]
+        spans_store = (
+            self.data[store_spans_key] if store_spans_key is not None else create_store([])
+        )
+        button_field_name = "Type"
+        for field in fields:
+            if field["key"] == button_field_name:
+                button_field_name = field.get("name", button_field_name)
+                break
+        span_fields = [col for col in fields if col.get("editable")]
+        span_field_by_key = {col.get("key"): col for col in span_fields}
+
+        # Register handle
+        handle = handle or use_ref()
+        handles = self.handles
+        if store_text_key not in handles:
+            handles[store_text_key] = []
+        handles[store_text_key].append([handle, "text"])
+        if store_spans_key is not None and store_spans_key not in handles:
+            handles[store_spans_key] = []
+        handles[store_spans_key].append([handle, "spans"])
+        self._register_primary_key(store_text_key, text_primary_key)
+        selected_idx_store = self.selected_idx[store_text_key]
+        if store_spans_key is not None:
+            self._register_primary_key(store_spans_key, spans_primary_key)
+        filter_related_tables = self.make_filter_related_tables()
+        sync_store_selection = self.make_sync_store_selection(filter_related_tables)
+        sync_parent_widgets = self.make_sync_parent_widgets(sync_store_selection)
+
+        toolbar_state = create_store(
+            {
+                "selected_span": None,
+                "span_fields": span_fields,
+                "move_mode": False,
+                "action_id": 0,
+                "action": None,
+                "action_payload": None,
+            }
+        )
+
+        def get_adjacent_doc_idx(current_doc_idx, delta):
+            table_handle = None
+            for other_handle, other_kind in handles.get(store_text_key, []):
+                if other_kind == "table":
+                    table_handle = other_handle
+                    break
+            if table_handle is not None:
+                return table_handle.current.get_adjacent_row_idx(current_doc_idx, delta)
+
+        @component
+        def Toolbar(
+            on_add_span_click=None,
+            on_delete=None,
+            selected_span=None,
+            on_update_span=None,
+            span_fields=None,
+            move_mode=False,
+            on_toggle_move=None,
+        ):
+            btns = []
+            for label, cfg in labels.items():
+                if not selected_span or selected_span[button_key] == label:
+                    sx = {
+                        "backgroundColor": cfg["color"],
+                        "color": "black",
+                        "whiteSpace": "nowrap",
+                    }
+                else:
+                    sx = {}
+
+                def _handle_button_click(event=None, lab=label):
+                    if selected_span and on_update_span:
+                        on_update_span(button_key, lab)
+                    else:
+                        on_add_span_click(lab)
+
+                btns.append(
+                    ButtonGroup(
+                        Button(
+                            label,
+                            on_click=_handle_button_click,
+                            size="sm",
+                            variant="soft",
+                            sx=sx,
+                        ),
+                        Button(cfg["shortcut"], size="sm", variant="soft", sx=sx)
+                        if cfg.get("shortcut")
+                        else None,
+                        sx={"display": "inline-flex", "alignItems": "flex-end"},
+                    )
+                )
+            span_inputs = []
+            if selected_span and on_update_span and span_fields:
+                for col in span_fields:
+                    if col["key"] != button_key:
+                        span_inputs.append(
+                            render_field(
+                                selected_span,
+                                col,
+                                on_update_span,
+                                min_input_width=None,
+                                align_self="stretch",
+                            )
+                        )
+
+            return Stack(
+                FormControl(
+                    FormLabel(button_field_name),
+                    Stack(
+                        *btns,
+                        Button(
+                            "Delete ⌫",
+                            color="danger",
+                            size="sm",
+                            on_click=on_delete,
+                            sx={"p": "0 8px"},
+                        ),
+                        Button(
+                            "Move",
+                            size="sm",
+                            variant="solid" if move_mode else "soft",
+                            color="primary" if move_mode else "neutral",
+                            on_click=on_toggle_move,
+                            sx={"p": "0 8px"},
+                        )
+                        if selected_span
+                        else None,
+                        direction="row",
+                        spacing=1,
+                        use_flex_gap=True,
+                        sx={"alignItems": "flex-end", "flexWrap": "wrap"},
+                    ),
+                ),
+                Stack(
+                    *span_inputs,
+                    direction="row",
+                    spacing=1,
+                    use_flex_gap=True,
+                    sx={"alignItems": "flex-end"},
+                )
+                if span_inputs
+                else None,
+                direction="row",
+                spacing=1,
+                use_flex_gap=True,
+                sx={"alignItems": "flex-end", "flexWrap": "wrap"},
+            )
+
+        @component
+        def ToolbarWidget():
+            state = use_store_snapshot(toolbar_state)
+            action_id_ref = use_ref(state.get("action_id", 0))
+
+            def emit_action(action, payload=None):
+                action_id_ref.current += 1
+                toolbar_state["action_id"] = action_id_ref.current
+                toolbar_state["action"] = action
+                toolbar_state["action_payload"] = payload
+
+            def handle_add_or_update(label):
+                emit_action("label_click", {"label": label})
+
+            def handle_delete(event=None):
+                emit_action("delete")
+
+            def handle_toggle_move(event=None):
+                emit_action("toggle_move")
+
+            def handle_update_span(key, value):
+                emit_action("update_span", {"key": key, "value": value})
+
+            return Toolbar(
+                on_add_span_click=handle_add_or_update,
+                on_delete=handle_delete,
+                selected_span=state.get("selected_span"),
+                on_update_span=handle_update_span,
+                span_fields=state.get("span_fields"),
+                move_mode=state.get("move_mode", False),
+                on_toggle_move=handle_toggle_move,
+            )
+
+        @component
+        def TextWidget():
+            text_data = use_store_snapshot(text_store)
+            span_data = use_store_snapshot(spans_store)
+
+            doc_idx = use_store_snapshot(selected_idx_store)["idx"]
+            selected_ranges, set_selected_ranges = use_state([])
+            highlighted, set_highlighted = use_state([])
+            selected_span_id, set_selected_span_id = use_state(None)
+            move_mode, set_move_mode = use_state(False)
+            toolbar_snapshot = use_store_snapshot(toolbar_state)
+            last_action_id_ref = use_ref(0)
+
+            current_doc = text_data[doc_idx] if 0 <= doc_idx < len(text_data) else None
+            current_doc_id = current_doc[text_primary_key] if current_doc else None
+
+            text_ref = use_ref()
+            pending_span_ids_ref = use_ref(None)
+
+            def get_selected_span():
+                if selected_span_id is None:
+                    return None
+                for span in doc_spans:
+                    if span.get(spans_primary_key) == selected_span_id:
+                        return span
+                return None
+
+            def _set_doc_idx(idx):
+                if idx is None:
+                    return
+                if text_data and (idx < 0 or idx >= len(text_data)):
+                    idx = 0
+                selected_idx_store["idx"] = idx
+
+            def get_doc_id_by_idx(idx):
+                if idx is None or not (0 <= idx < len(text_data)):
+                    return None
+                return text_data[idx].get(text_primary_key)
+
+            def scroll_to_top():
+                if text_ref.current:
+                    text_ref.current.scroll_to_line(0, "instant")
+
+            def handle_text_change(new_doc_idx):
+                if new_doc_idx is None:
+                    return
+                new_doc_id = get_doc_id_by_idx(new_doc_idx)
+                if new_doc_id is None:
+                    return
+
+                # Synchronize other widgets
+                sync_store_selection(store_text_key, new_doc_idx, handle, True)
+                sync_parent_widgets(store_text_key, new_doc_idx)
+
+                if on_change_text_id:
+                    on_change_text_id(new_doc_id)
+
+            use_effect(scroll_to_top, [current_doc_id])
+
+            use_imperative_handle(
+                handle,
+                lambda: {
+                    "scroll_to_span": lambda key: text_ref.current.scroll_to_span(key),
+                    "set_doc_idx": _set_doc_idx,
+                    "get_doc_idx": lambda: doc_idx,
+                    "set_highlighted_spans": set_highlighted,
+                    "set_selected_span": set_selected_span_id,
+                },
+                [text_data, doc_idx],
+            )
+
+            def handle_mouse_hover_spans(span_ids: List[str], mod_keys: List[str]):
+                set_highlighted(span_ids)
+
+                # Synchronize other widgets
+                for other_handle, other_kind in handles.get(store_spans_key, []):
+                    if other_handle.current is None:
+                        continue
+                    if other_kind == "table":
+                        other_handle.current.set_highlighted(span_ids)
+
+                if on_hover_spans:
+                    on_hover_spans(span_ids, mod_keys)
+
+            def update_selected_span(key, value):
+                if selected_span_id is None:
+                    return
+                col = span_field_by_key.get(key)
+                if col and col.get("kind") == "boolean":
+                    value = bool(value)
+
+                for i, span in enumerate(spans_store):
+                    if span.get(spans_primary_key) == selected_span_id:
+                        spans_store[i][key] = value
+                        return
+
+            def filter_doc_spans():
+                return [
+                    {
+                        "highlighted": span[spans_primary_key] in highlighted,
+                        "selected": span[spans_primary_key] == selected_span_id,
+                        **span,
+                    }
+                    for span in span_data
+                    if str(span.get(text_primary_key)) == str(current_doc_id)
+                ]
+
+            doc_spans = use_memo(
+                filter_doc_spans,
+                [span_data, current_doc_id, highlighted, selected_span_id],
+            )
+
+            def flush_pending_span_scroll():
+                if pending_span_ids_ref.current is None:
+                    return
+                span_ids = pending_span_ids_ref.current
+                doc_span_ids = {span[spans_primary_key] for span in doc_spans}
+                if not any(span_id in doc_span_ids for span_id in span_ids):
+                    return
+                pending_span_ids_ref.current = None
+                if on_add_span:
+
+                    def after_timeout():
+                        set_selected_span_id(span_ids[0])
+                        last_span_id = span_ids[len(span_ids) - 1]
+                        last_span_idx = next(
+                            i
+                            for i, span in enumerate(spans_store)
+                            if span[spans_primary_key] == last_span_id
+                        )
+                        sync_store_selection(store_spans_key, last_span_idx, handle, False)
+                        on_add_span(span_ids)
+
+                    # TODO replace with await on transaction when supported
+                    setTimeout(after_timeout, 100)  # noqa: F821
+
+            use_effect(flush_pending_span_scroll)
+
+            @use_event_callback
+            async def handle_add_span(label):
+                if not current_doc_id or not selected_ranges:
+                    return
+                added_span_ids = []
+                for r in selected_ranges:
+                    text_content = current_doc[text_key][r["begin"] : r["end"]]
+                    span_id = f"{current_doc_id}-{r['begin']}-{r['end']}-{label}"
+                    if label in labels and "defaults" in labels[label]:
+                        span_defaults = labels[label]["defaults"]
+                    else:
+                        span_defaults = {}
+                    spans_store.append(
+                        {
+                            "text": text_content,
+                            spans_primary_key: span_id,
+                            begin_key: r["begin"],
+                            end_key: r["end"],
+                            button_key: label,
+                            text_primary_key: current_doc_id,
+                            **span_defaults,
+                        }
+                    )
+                    added_span_ids.append(span_id)
+                set_selected_ranges([])
+                if text_ref.current:
+                    text_ref.current.clear_current_mouse_selection()
+                if added_span_ids:
+                    set_move_mode(False)
+                    pending_span_ids_ref.current = added_span_ids
+
+            @use_event_callback
+            def on_delete():
+                if selected_span_id is not None:
+                    for span in reversed(spans_store):
+                        if span.get(spans_primary_key) == selected_span_id:
+                            spans_store.remove(span)
+                            break
+                    set_selected_span_id(None)
+                    return
+                to_remove = []
+                for span in reversed(spans_store):
+                    if str(span[text_primary_key]) != str(current_doc_id):
+                        continue
+                    for r in selected_ranges:
+                        if not (span["end"] <= r["begin"] or r["end"] <= span["begin"]):
+                            to_remove.append(span)
+                            break
+                for item in to_remove:
+                    spans_store.remove(item)
+                if to_remove:
+                    set_selected_ranges([])
+
+            @use_event_callback
+            def handle_toggle_move(event=None):
+                set_move_mode(lambda v: not v)
+
+            @use_event_callback
+            def on_key_press(k, modkeys, selection):
+                next_idx = None
+                if k == "ArrowRight":
+                    next_idx = get_adjacent_doc_idx(doc_idx, 1)
+                    if next_idx is None and text_data:
+                        if doc_idx is None:
+                            next_idx = 0
+                        else:
+                            next_idx = (doc_idx + 1) % len(text_data)
+                elif k == "ArrowLeft":
+                    next_idx = get_adjacent_doc_idx(doc_idx, -1)
+                    if next_idx is None and text_data:
+                        if doc_idx is None:
+                            next_idx = len(text_data) - 1
+                        else:
+                            next_idx = (doc_idx - 1) % len(text_data)
+
+                if next_idx is not None:
+                    selected_idx_store["idx"] = next_idx
+                    handle_text_change(next_idx)
+                    return
+
+                if k == "Backspace":
+                    on_delete()
+                else:
+                    for label, cfg in labels.items():
+                        if k == cfg.get("shortcut"):
+                            handle_add_span(label)
+                            break
+
+            selected_span = get_selected_span()
+
+            def sync_toolbar_state():
+                if toolbar_state["selected_span"] != selected_span:
+                    toolbar_state["selected_span"] = selected_span
+                if toolbar_state["span_fields"] != span_fields:
+                    toolbar_state["span_fields"] = span_fields
+                if toolbar_state["move_mode"] != move_mode:
+                    toolbar_state["move_mode"] = move_mode
+
+            use_effect(sync_toolbar_state, [selected_span, move_mode, span_fields])
+
+            def handle_toolbar_action():
+                action_id = toolbar_snapshot.get("action_id", 0)
+                if action_id == last_action_id_ref.current:
+                    return
+                last_action_id_ref.current = action_id
+                action = toolbar_snapshot.get("action")
+                payload = toolbar_snapshot.get("action_payload") or {}
+                if action == "label_click":
+                    label = payload.get("label")
+                    if not label:
+                        return
+                    if selected_span is not None:
+                        update_selected_span(button_key, label)
+                    else:
+                        handle_add_span(label)
+                elif action == "delete":
+                    on_delete()
+                elif action == "toggle_move":
+                    set_move_mode(lambda v: not v)
+                elif action == "update_span":
+                    key = payload.get("key")
+                    if key is None:
+                        return
+                    update_selected_span(key, payload.get("value"))
+
+            use_effect(handle_toolbar_action, [toolbar_snapshot.get("action_id", 0)])
+
+            if not current_doc:
+                return div("No document selected")
+
+            def handle_click_span(span_id, modkeys):
+                set_selected_span_id(span_id)
+                set_move_mode(False)
+
+                # auto synchronization with other text widgets
+                for other_handle, other_kind in handles.get(store_spans_key, []):
+                    if other_kind == "table" and other_handle.current:
+                        other_handle.current.set_highlighted([span_id])
+                        other_handle.current.scroll_to_row_id(span_id)
+                if on_click_span:
+                    on_click_span(span_id, modkeys)
+
+            def handle_mouse_select(ranges, modkeys):
+                if move_mode and selected_span_id and len(ranges) > 0:
+                    r = ranges[0]
+                    for i, span in enumerate(spans_store):
+                        if span.get(spans_primary_key) == selected_span_id:
+                            spans_store[i][begin_key] = r["begin"]
+                            spans_store[i][end_key] = r["end"]
+                            spans_store[i]["text"] = current_doc[text_key][r["begin"] : r["end"]]
+                            set_selected_span_id(spans_store[i].get(spans_primary_key))
+                            break
+                    set_move_mode(False)
+                    set_selected_ranges([])
+                    if text_ref.current:
+                        text_ref.current.clear_current_mouse_selection()
+                    return
+                elif len(ranges) > 0:
+                    set_selected_span_id(None)
+                set_selected_ranges(ranges)
+
+            return div(
+                AnnotatedText(
+                    text=current_doc[text_key],
+                    spans=doc_spans,
+                    annotation_styles=labels,
+                    mouse_selection=selected_ranges,
+                    primary_key=spans_primary_key,
+                    begin_key=begin_key,
+                    end_key=end_key,
+                    style_key=style_key,
+                    label_key=label_key,
+                    on_key_press=on_key_press,
+                    on_mouse_select=handle_mouse_select,
+                    on_mouse_hover_spans=handle_mouse_hover_spans,
+                    on_click_span=handle_click_span,
+                    handle=text_ref,
+                    style={"flex": 1, "minHeight": 0, "overflow": "scroll", **(style or {})},
+                ),
+                style={
+                    "display": "flex",
+                    "flexDirection": "column",
+                    "flex": 1,
+                    "minHeight": 0,
+                    **(style or {}),
+                },
+            )
+
+        return TextWidget(), ToolbarWidget()

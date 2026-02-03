@@ -1,22 +1,23 @@
 # <!--8<-- [start:imports]
 from collections import Counter
 from pathlib import Path
-from typing import List
 
 import edsnlp
-from pret import component, create_store, use_ref, use_store_snapshot
+from pret import use_ref
 from pret.hooks import RefType
 
 # Pending deprecation, prefer pret.react
 from pret.react import div
+from pret_joy import Box, Divider, Stack
 from pret_markdown import Markdown
 from pret_simple_dock import Layout, Panel
 
-from metanno.recipes.explorer import (
-    DatasetExplorerWidgetFactory,
+from metanno.recipes.data_widget_factory import (
+    DataWidgetFactory,
     FormWidgetHandle,
     TableWidgetHandle,
     TextWidgetHandle,
+    infer_fields,
 )
 
 # <--8<-- [end:imports]
@@ -51,6 +52,9 @@ It contains three panels, that you can rearrange as you like:
 - one text viewer for the note text, with the entities highlighted and editable.
 - one view for the note metadata displayed as a form (a fake field "note_kind" was added
   for demo purposes)
+
+Visit the [tutorial](https://percevalw.github.io/metanno/latest/tutorials/run-quaero-explorer) to
+learn how to build such an app yourself.
 
 Happy exploring!
 """
@@ -150,7 +154,7 @@ def app(save_path=None, deduplicate=False):
     # --8<-- [end:label-config]
 
     # --8<-- [start:instantiate]
-    factory = DatasetExplorerWidgetFactory(
+    factory = DataWidgetFactory(
         {
             "notes": notes,
             "entities": entities,
@@ -168,147 +172,109 @@ def app(save_path=None, deduplicate=False):
     note_text_handle: RefType[TextWidgetHandle] = use_ref()
     note_form_handle: RefType[FormWidgetHandle] = use_ref()
 
-    # State for the header
-    top_level_state = create_store({"note_id": notes[0]["note_id"] if notes else None})
-
-    def on_note_selected_in_table(row_id: str, row_idx: int, col: str, mode: str, cause: str):
-        if row_id is None:
-            return
-        # When user clicks a note row:
-        # Update NoteHeader (we could also use a handle with setNoteId in NoteHeader)
-        top_level_state["note_id"] = row_id
-        # Update text view
-        note_text_handle.current["set_doc_by_id"](row_id)
-        # Filter entity table to show only this note's entities
-        ents_table_handle.current["set_filter"]("note_id", str(row_id))
-        # Sync the form view
-        note_form_handle.current["set_row_id"](row_id)
-
-    async def on_ent_row_selected(row_id: str, row_idx: int, col: str, mode: str, cause: str):
-        if row_id is None:
-            return
-        # When user clicks an entity row
-        note_id = data["entities"][row_idx]["note_id"]
-        if top_level_state["note_id"] != note_id:
-            # Update NoteHeader
-            top_level_state["note_id"] = note_id
-            # Update text view
-            await note_text_handle.current["set_doc_by_id"](note_id)
-            # Sync the notes table
-            notes_table_handle.current["scroll_to_row_id"](note_id)
-            notes_table_handle.current["set_highlighted"]([note_id])
-            # Sync the form view
-            note_form_handle.current["set_row_id"](note_id)
-        # Scroll to entity in text view and highlight it
-        note_text_handle.current["scroll_to_span"](row_id)
-        note_text_handle.current["set_highlighted_spans"]([row_id])
-
-    def on_change_text_id(note_id: str):
-        # When user uses arrow keys in text view:
-        # Update NoteHeader (we could also use a handle with setNoteId in NoteHeader)
-        top_level_state["note_id"] = note_id
-        # Sync the entities table
-        ents_table_handle.current["set_filter"]("note_id", str(note_id))
-        # Scroll to note in note view
-        notes_table_handle.current["scroll_to_row_id"](note_id)
-        # Set highlighted note in notes table
-        notes_table_handle.current["set_highlighted"]([note_id])
-        # Sync the form view
-        note_form_handle.current["set_row_id"](note_id)
-
-    def on_hover_spans(span_ids: List[str], mod_keys: List[str]):
-        # When user hovers spans in text view:
-        # Highlight corresponding entities in entity table
-        ents_table_handle.current["set_highlighted"](span_ids)
-
-    def on_ent_row_hovered(span_id: str, span_idx: int, mod_keys: List[str]):
-        # When user hovers an entity row in entity table:
-        # Highlight corresponding span in text view
-        note_text_handle.current["set_highlighted_spans"]([span_id])
-
-    def on_click_entity_span(span_id: str, mod_keys: List[str]):
-        # When user clicks an entity span in text view:
-        # Highlight corresponding entity in entity table and scroll to it
-        ents_table_handle.current["scroll_to_row_id"](span_id)
-        ents_table_handle.current["set_highlighted"]([span_id])
-
+    # View the documents as a table
     notes_view = factory.create_table_widget(
         store_key="notes",
         primary_key="note_id",
-        first_keys=["note_id", "seen", "note_text", "note_kind"],
-        id_keys=["note_id"],
-        editable_keys=["seen", "note_kind"],
-        categorical_keys=["note_kind"],
-        hidden_keys=[],
+        fields=infer_fields(
+            notes,
+            visible_keys=["note_id", "seen", "note_text", "note_kind"],
+            id_keys=["note_id"],
+            editable_keys=["seen", "note_kind"],
+            categorical_keys=["note_kind"],
+        ),
         style={"--min-notebook-height": "300px"},
         handle=notes_table_handle,
-        on_position_change=on_note_selected_in_table,
     )
 
+    # Show the selected note as a form
     note_form_view = factory.create_form_widget(
         store_key="notes",
         primary_key="note_id",
-        first_keys=["note_id", "note_kind", "seen"],
-        editable_keys=["seen", "note_kind"],
-        categorical_keys=["note_kind"],
-        hidden_keys=["note_text"],
-        style={
-            "--min-notebook-height": "300px",
-            "margin": "10px",
-            "alignItems": "flex-start",
-        },
+        # Instead of using infer_fields, we can also define the
+        # fields manually which can actually be simpler
+        fields=[
+            {"key": "note_id", "kind": "text"},
+            {
+                "key": "note_kind",
+                "kind": "radio",
+                "editable": True,
+                "options": ["interesting", "very interesting"],
+                "filterable": True,
+            },
+            {"key": "seen", "kind": "boolean", "editable": True},
+        ],
+        add_navigation_buttons=True,
+        style={"--min-notebook-height": "300px", "margin": "10px"},
         handle=note_form_handle,
     )
 
+    # View the entities as a table
     entities_view = factory.create_table_widget(
         store_key="entities",
         primary_key="id",
-        first_keys=["id", "note_id", "text", "label", "concept"],
-        id_keys=["id", "note_id"],
-        editable_keys=["label", "concept"],
-        categorical_keys=["label", "concept"],
+        fields=infer_fields(
+            entities,
+            visible_keys=["id", "note_id", "text", "label", "concept"],
+            id_keys=["id", "note_id"],
+            editable_keys=["label", "concept"],
+            categorical_keys=["label", "concept"],
+        ),
         style={"--min-notebook-height": "300px"},
         handle=ents_table_handle,
-        on_position_change=on_ent_row_selected,
-        on_mouse_hover_row=on_ent_row_hovered,
     )
 
-    note_text_view = factory.create_text_widget(
+    # View and edit the note text with highlighted entities
+    # It returns both the text view and a view for the entity being edited
+    note_text_view, ent_view = factory.create_text_widget(
         store_text_key="notes",
+        # Where to look for spans data in the app data
         store_spans_key="entities",
-        handle=note_text_handle,
-        on_change_text_id=on_change_text_id,
-        on_hover_spans=on_hover_spans,
-        on_click_span=on_click_entity_span,
+        # Fields that will be displayed in the toolbar
+        fields=infer_fields(
+            entities,
+            visible_keys=["label", "concept"],
+            editable_keys=["label", "concept"],
+            categorical_keys=["label", "concept"],
+        ),
         text_key="note_text",
         text_primary_key="note_id",
-        # Where to look for spans data in the app data
         spans_primary_key="id",
-        style={"--min-notebook-height": "300px"},
         labels=labels_config,
+        style={"--min-notebook-height": "300px"},
+    )
+
+    # Create a header for the note text panel
+    note_header = factory.create_selected_field_view(
+        store_key="notes",
+        shown_key="note_id",
+        fallback="Note",
     )
     # --8<-- [end:render-views]
 
     # --8<-- [start:layout]
-    @component
-    def NoteHeader():
-        note_id = use_store_snapshot(top_level_state)["note_id"]
-        return f"Note ({note_id})" if note_id else "Note"
-
     layout = div(
         Layout(
             Panel(div(Markdown(DESC), style={"margin": "10px"}), key="Description"),
             Panel(notes_view, key="Notes"),
-            Panel(note_form_view, key="Note Form"),
             Panel(entities_view, key="Entities"),
-            Panel(note_text_view, header=NoteHeader(), key="Note Text"),
+            Panel(note_text_view, key="Note Text", header=note_header),
+            Panel(Stack(note_form_view, Divider(), Box(ent_view, sx={"m": "10px"})), key="Info"),
             # Describe how the panels should be arranged by default
             default_config={
                 "kind": "row",
                 "children": [
-                    "Description",
-                    ["Notes", "Note Form", "Entities"],
-                    "Note Text",
+                    {
+                        "kind": "column",
+                        "size": 25,
+                        "children": [
+                            {"tabs": ["Description"], "size": 40},
+                            {"tabs": ["Notes"], "size": 30},
+                            {"tabs": ["Entities"], "size": 30},
+                        ],
+                    },
+                    {"tabs": ["Note Text"], "size": 50},
+                    {"tabs": ["Info"], "size": 25},
                 ],
             },
             collapse_tabs_on_mobile=[
@@ -327,6 +293,9 @@ def app(save_path=None, deduplicate=False):
             "--sd-background-color": "transparent",
         },
     )
+    # Display `layout` in a cell to see the app
+    # --8<-- [end:layout]
+
     return (
         # Return the pret component
         layout,
@@ -338,7 +307,6 @@ def app(save_path=None, deduplicate=False):
             "note_form": note_form_handle,
         },
     )
-    # --8<-- [end:layout]
 
 
 if __name__ == "__main__":
