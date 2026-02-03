@@ -200,7 +200,9 @@ const Token = React.memo(
                     : verticalOffset,
                 bottom: verticalOffset,
                 zIndex:
-                  annotation.zIndex + 2 + (annotation.highlighted ? 50 : 0),
+                  annotation.zIndex +
+                  2 +
+                  (annotation.selected ? 49 : annotation.highlighted ? 50 : 0),
                 ...styles?.[annotation.style]?.[
                   annotation.highlighted ? "highlighted" : "base"
                 ],
@@ -239,7 +241,7 @@ const Token = React.memo(
               return (
                 <span
                   className={`label ${
-                    annotation.highlighted || annotation.selected
+                    annotation.highlighted
                       ? "highlighted"
                       : ""
                   }`}
@@ -271,7 +273,7 @@ const Token = React.memo(
                       zIndex:
                         50 +
                         annotation.zIndex +
-                        (annotation.highlighted ? 50 : 0),
+                        (annotation.selected ? 49 : annotation.highlighted ? 50 : 0),
                     } as CSSProperties
                   }
                 >
@@ -310,7 +312,7 @@ const Line = React.memo(
     ) => void;
     handleClickSpan: (
       event: React.MouseEvent<HTMLSpanElement>,
-      id: string
+      id: string | null
     ) => void;
     handleMouseHoverSpans?: (
       event: React.MouseEvent<HTMLSpanElement>,
@@ -415,6 +417,9 @@ const Line = React.memo(
 
       if (hitElements.length > 0) {
         handleClickSpan(e, hitElements[0].getAttribute("span_key"));
+      }
+      else {
+        handleClickSpan(e, null);
       }
     };
 
@@ -671,6 +676,10 @@ export class AnnotatedText extends React.Component<TextData & TextMethods> {
   };
 
   handleClickSpan = (event, span_id) => {
+    const selection = typeof window !== "undefined" ? window.getSelection?.() : null;
+    if (selection && !selection.isCollapsed) {
+      return;
+    }
     this.props.onClickSpan?.(span_id, makeModKeys(event));
   };
 
