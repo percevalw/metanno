@@ -129,9 +129,9 @@ export const Table = function Table({
         .filter(({ row }) =>
           Object.entries(lowercaseFilters).every(
             ([key, value]) =>
-              row[key] !== undefined &&
-              row[key] !== null &&
-              row[key].toString().toLowerCase().includes(value)
+              row[key] === undefined ||
+              (row[key] !== null &&
+                row[key].toString().toLowerCase().includes(value))
           )
         )
         .map(({ idx }) => idx);
