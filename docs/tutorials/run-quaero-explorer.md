@@ -2,7 +2,7 @@
 
 <!-- blacken-docs:off -->
 
-Run the [Quaero Explorer demo app](/demos/quaero-explorer) and discover Metanno’s collaborative workflow: real‑time syncing, multi‑panel editing, and simple persistence.
+Run the [Quaero Explorer demo app](/demos/quaero-data_widget_factory) and discover Metanno’s collaborative workflow: real‑time syncing, multi‑panel editing, and simple persistence.
 
 ## Prerequisites
 
@@ -64,7 +64,7 @@ We compute a stable list of labels, assign a color for each, and auto‑pick a o
 
 #### 4) Instantiate the manager
 
-We create a [DatasetExplorerWidgetFactory][metanno.recipes.explorer.DatasetExplorerWidgetFactory] (a ready‑to‑customize recipe). Under the hood, it composes Metanno components such as [Table][metanno.ui.Table], [AnnotatedText][metanno.ui.AnnotatedText], buttons with a bit of app logic.
+We create a [DataWidgetFactory][metanno.recipes.data_widget_factory.DataWidgetFactory] (a ready‑to‑customize recipe). Under the hood, it composes Metanno components such as [Table][metanno.ui.Table], [AnnotatedText][metanno.ui.AnnotatedText], buttons with a bit of app logic.
 
 ```python
 --8<-- "examples/quaero.py:instantiate"
@@ -95,7 +95,7 @@ You can either **serve it** or **display it** in a notebook, following the instr
 
     In notebooks, Pret layouts cannot be "mixed" with JupyterLab’s own UI system, and will always be embedded in a single JupyterLab tab. You may prefer displaying specific views in separate cells.
 
-    Simply display the variables `notes_view`, `entities_view`, `note_text_view` (the return values of [`factory.create_table_widget`][metanno.recipes.explorer.DatasetExplorerWidgetFactory.create_table_widget], [`factory.create_form_widget`][metanno.recipes.explorer.DatasetExplorerWidgetFactory.create_form_widget] and [`factory.create_text_widget`][metanno.recipes.explorer.DatasetExplorerWidgetFactory.create_text_widget]) in separate cells.
+    Simply display the variables `notes_view`, `entities_view`, `note_text_view` (the return values of [`factory.create_table_widget`][metanno.recipes.data_widget_factory.DataWidgetFactory.create_table_widget], [`factory.create_form_widget`][metanno.recipes.data_widget_factory.DataWidgetFactory.create_form_widget] and [`factory.create_text_widget`][metanno.recipes.data_widget_factory.DataWidgetFactory.create_text_widget]) in separate cells.
 
 <!-- blacken-docs:on -->
 
@@ -108,7 +108,7 @@ Metanno (via Pret) can sync app state across clients and optionally persist it.
 Pass `sync=True` when creating the app to enable real‑time collaboration without saving to disk:
 
 ```python
-app = DatasetExplorerWidgetFactory(
+app = DataWidgetFactory(
     {
         "notes": notes,
         "entities": entities,
@@ -124,7 +124,7 @@ Open the same notebook twice or the same app URL in two tabs: edits in one tab a
 Provide a file path to append every change to an on‑disk log:
 
 ```python
-app = DatasetExplorerWidgetFactory(
+app = DataWidgetFactory(
     {
         "notes": notes,
         "entities": entities,
@@ -133,19 +133,21 @@ app = DatasetExplorerWidgetFactory(
 )
 ```
 
-Now changes are saved on disk, and multiple servers/kernels can collaborate by pointing to the same file.
+Changes are now saved on disk, and multiple servers/kernels can collaborate by pointing to the same file.
 
 #### What is the saved format?
 
 It’s a compact, binary, append‑only log of user mutations: you cannot read it directly.
 
-To inspect it, you can create store synced with the file and read current state.
+To inspect it, you can use [`create_store`][pret.store.create_store] synced with the file and read current state, but the object will receive live updates as
+the underlying file changes, and you risk mutating it by accident.
+
+Prefer using the `load_store_snapshot` function to load the current state of the store as a pure Python object without subscribing to updates or risking modifying it:
 
 ```python
-from pret.store import create_store
+from pret.store import load_store_snapshot
 
-store = create_store(sync="quaero.bin")
-pure_py_object = store.to_py()
+data = load_store_snapshot("quaero.bin")
 ```
 
 To **export** to other formats, write a small exporter from your in‑memory data (`app.data`). We recommend using [**EDS‑NLP** data connectors](https://aphp.github.io/edsnlp/latest/data/) since it supports several data formats and schemas.

@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### New DataWidgetFactory !
+
+- The `DatasetExplorerApp` factory moved to `metanno/recipes/data_widget_factory.py` and is now `DataWidgetFactory`
+- `create_table_widget` and `create_form_widget` now take fields built with `infer_fields` (makes them reusable, or you can provide fields directly)
+- `create_text_widget`:
+  - now returns a toolbar widget and a text widget as a tuple
+  - now supports fields for the span editor to customize the toolbar
+- Optional helpers can replace custom wiring
+  - `create_selected_field_view` for simple value display of selected table rows, for instance to show a note header
+  - `create_filters_view` for table filters
+- **Automatic syncing between tables, forms, and text widgets (no more manual callbacks required)**
+
 ## v1.0.0-beta.5 (2025-12-09)
 
 - Table input suggestions are now more visible (with a blueish outline)

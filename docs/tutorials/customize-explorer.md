@@ -57,16 +57,16 @@ Update the table/text renderers in the [Build the views section][5-build-the-vie
 Metanno will automatically detect that the negation attribute is boolean and will display it as a checkbox.
 
 ```diff
-- first_keys=["note_id", "seen", "note_text"],
-+ first_keys=["note_id", "seen", "note_type", "note_text"],
+- visible_keys=["note_id", "seen", "note_text"],
++ visible_keys=["note_id", "seen", "note_type", "note_text"],
 ...
 - editable_keys=[],
 + editable_keys=["note_type"],
 ```
 
 ```diff
-- first_keys=["id", "note_id", "text", "label", "concept", "begin", "end"],
-+ first_keys=["id", "note_id", "text", "label", "concept", "begin", "end", "negation"],
+- visible_keys=["id", "note_id", "text", "label", "concept", "begin", "end"],
++ visible_keys=["id", "note_id", "text", "label", "concept", "begin", "end", "negation"],
 ...
 - editable_keys=["label", "concept"],
 + editable_keys=["label", "concept", "negation"],
@@ -75,7 +75,6 @@ Metanno will automatically detect that the negation attribute is boolean and wil
 !!! tip "Dropdown input"
 
     Add any new columns to `categorical_keys` if they should show a dropdown filter like the `concept` column.
-
 
 ## Pre-annotation
 
