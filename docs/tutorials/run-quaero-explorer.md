@@ -142,10 +142,10 @@ It’s a compact, binary, append‑only log of user mutations: you cannot read i
 To inspect it, you can use [`create_store`][pret.store.create_store] synced with the file and read current state, but the object will receive live updates as
 the underlying file changes, and you risk mutating it by accident.
 
-Prefer using the `load_store_snapshot` function to load the current state of the store as a pure Python object without subscribing to updates or risking modifying it:
+Prefer using the [`load_store_snapshot`][pret.store.load_store_snapshot] function to load the current state of the store as a pure Python object without subscribing to updates or risking modifying it:
 
 ```python
-from pret.store import load_store_snapshot
+from pret import load_store_snapshot
 
 data = load_store_snapshot("quaero.bin")
 ```
