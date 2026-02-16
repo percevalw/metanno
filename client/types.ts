@@ -73,7 +73,7 @@ export type TextMethods = {
         clear_current_mouse_selection?: () => void,
     }>;
     onKeyPress?: (key: string, ranges: TextRange[], modkeys: string[]) => void;
-    onClickSpan?: (span_id: any, modkeys: string[]) => void;
+    onClickSpan?: (span_id: any | null, modkeys: string[]) => void;
     onMouseEnterSpan?: (span_id: any, modkeys: string[]) => void;
     onMouseLeaveSpan?: (span_id: any, modkeys: string[]) => void;
     onMouseHoverSpans?: (span_ids: string[], modkeys: string[]) => void;

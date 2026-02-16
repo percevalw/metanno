@@ -1,3 +1,4 @@
+import warnings
 from asyncio import Future
 from os import PathLike
 from typing import Any, Callable, Dict, List, Optional, Sequence, Union
@@ -29,6 +30,13 @@ from pret_joy import (
 from typing_extensions import TypedDict
 
 from metanno import AnnotatedText, Table
+
+warnings.warn(
+    "metanno.recipes.explorer is deprecated and will be removed in a future release. "
+    "Please use metanno.ui.data_widget_factory instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 
 def use_awaitable_state(initial):
@@ -126,7 +134,7 @@ def _build_columns(
                 "kind": metanno_type,
                 "editable": key in editable_keys,
                 "filterable": True,
-                "candidates": categories,
+                "options": categories,
             }
         )
     return columns
@@ -230,7 +238,7 @@ class DatasetExplorerWidgetFactory:
         editable_keys : Sequence[str]
             Columns that support inline editing.
         categorical_keys : Sequence[str]
-            Columns with a fixed set of candidates for filtering and editing.
+            Columns with a fixed set of options for filtering and editing.
         first_keys : Sequence[str]
             Columns forced to appear first in the table.
         style : Dict[str, Any] | None
@@ -311,14 +319,14 @@ class DatasetExplorerWidgetFactory:
             @use_event_callback
             def handle_input_change(row_id, row_idx, col, value, cause):
                 value = value or ""
-                candidates = next((c for c in columns if c["key"] == col), {}).get("candidates")
+                options = next((c for c in columns if c["key"] == col), {}).get("options")
                 if cause == "unmount":
                     set_suggestions(None)
-                elif candidates is not None:
+                elif options is not None:
                     if cause == "mount":
-                        set_suggestions(candidates)
+                        set_suggestions(options)
                     elif cause == "type":
-                        set_suggestions([c for c in candidates if value.lower() in c.lower()])
+                        set_suggestions([c for c in options if value.lower() in c.lower()])
 
             @use_event_callback
             def handle_mouse_hover_row(row_id, row_idx, modkeys):
@@ -378,7 +386,7 @@ class DatasetExplorerWidgetFactory:
         editable_keys : Sequence[str]
             Columns that can be edited, while others render as read-only.
         categorical_keys : Sequence[str]
-            Columns with enumerated candidates rendered as selects.
+            Columns with enumerated options rendered as selects.
         first_keys : Sequence[str]
             Columns forced to appear first in the form layout.
         style : Dict[str, Any] | None
@@ -470,12 +478,10 @@ class DatasetExplorerWidgetFactory:
                     },
                 )
 
-            def render_select_field(
-                key: str, value: Any, editable: bool, candidates: Sequence[Any]
-            ):
+            def render_select_field(key: str, value: Any, editable: bool, options: Sequence[Any]):
                 options = [
                     Option(str(candidate), key=f"{key}-{i}", value=candidate)
-                    for i, candidate in enumerate(candidates)
+                    for i, candidate in enumerate(options)
                 ]
 
                 return FormControl(
@@ -510,11 +516,11 @@ class DatasetExplorerWidgetFactory:
             def render_field(col: Dict[str, Any]):
                 key = col["key"]
                 value = current_row.get(key) if current_row is not None else None
-                candidates = col.get("candidates")
+                options = col.get("options")
                 editable = col.get("editable", False)
 
-                if candidates is not None:
-                    return render_select_field(key, value, editable, candidates)
+                if options is not None:
+                    return render_select_field(key, value, editable, options)
                 if col.get("kind") == "boolean" or isinstance(value, bool):
                     return render_boolean_field(key, value, editable)
                 return render_text_field(key, value, editable)
