@@ -73,6 +73,7 @@ def infer_fields(
     categories=None,
     first_keys=(),
     column_names=None,
+    filterable_keys=None,
 ):
     """
     Infer Metanno field metadata from a list-like collection of row dicts.
@@ -99,6 +100,8 @@ def infer_fields(
         provided, it reorders only those keys that are present.
     column_names : Dict[str, str] | None
         Optional mapping of key to display label.
+    filterable_keys : Sequence[str] | None
+        Key that can be filtered in a table view. If None, all keys are filterable.
 
     Returns
     -------
@@ -172,7 +175,7 @@ def infer_fields(
                 "name": column_names.get(key, key) if column_names else key,
                 "kind": metanno_type,
                 "editable": key in editable_keys,
-                "filterable": True,
+                "filterable": filterable_keys is None or key in filterable_keys,
                 "options": options,
             }
         )
@@ -253,6 +256,7 @@ def render_select_field(
                 "minWidth": min_input_width or 0,
                 "width": "fit-content",
                 "alignSelf": align_self,
+                "gridArea": key,
             },
         )
     elif kind == "select":
@@ -272,6 +276,7 @@ def render_select_field(
             sx={
                 "minWidth": min_input_width,
                 "alignSelf": align_self,
+                "gridArea": key,
             },
         )
     elif kind == "radio":
@@ -284,6 +289,7 @@ def render_select_field(
                 disabled=not editable,
                 size="sm",
             ),
+            sx={"gridArea": key, "alignSelf": align_self},
         )
     else:
         print(f"Unsupported select field kind: {kind}")
@@ -311,7 +317,7 @@ def render_text_field(
             disabled=not editable,
             size="sm",
         ),
-        sx={"minWidth": min_input_width, "alignSelf": align_self},
+        sx={"minWidth": min_input_width, "alignSelf": align_self, "gridArea": key},
     )
 
 
@@ -341,7 +347,7 @@ def render_boolean_field(
             size="md",
             sx={"flex": 1, "alignItems": "center"},
         ),
-        sx={"minWidth": min_input_width, "alignSelf": align_self or "flex-start"},
+        sx={"minWidth": min_input_width, "alignSelf": align_self or "flex-start", "gridArea": key},
     )
 
 
@@ -409,13 +415,46 @@ class DataWidgetFactory:
         self.primary_keys = {}
         self.selected_idx = {}  # store_key -> currently shown row index
 
+    def _ensure_selected_idx(self, store_key):
+        if store_key is None:
+            return
+        if store_key not in self.selected_idx:
+            self.selected_idx[store_key] = create_store({"idx": 0})
+
+    @staticmethod
+    def deep_get_store(data_store, path_parts: List[str], selected_idx: Dict[str, int]):
+        if not path_parts:
+            return None
+        store = data_store[path_parts[0]]
+        if len(path_parts) == 1:
+            return store
+
+        prefix = path_parts[0]
+        for part in path_parts[1:]:
+            if store is None or len(store) == 0:
+                return None
+            row_idx = selected_idx.get(prefix, 0)
+            if row_idx < 0 or row_idx >= len(store):
+                row_idx = 0
+            row = store[row_idx]
+            if row is None:
+                return None
+            child_store = row.get(part) if hasattr(row, "get") else None
+            if child_store is None:
+                return None
+            store = child_store
+            prefix = f"{prefix}.{part}"
+        return store
+
     def _register_primary_key(self, store_key, primary_key: str):
         if store_key is None or primary_key is None:
             return
+        path_parts = str(store_key).split(".")
+        for i in range(1, len(path_parts) + 1):
+            self._ensure_selected_idx(".".join(path_parts[:i]))
         if store_key in self.primary_keys:
             return
         self.primary_keys[store_key] = primary_key
-        self.selected_idx[store_key] = create_store({"idx": 0})
 
     def _register_table_columns(
         self,
@@ -441,10 +480,21 @@ class DataWidgetFactory:
             for other_store_key, handle_list in handles.items():
                 if other_store_key == source_store_key:
                     continue
-                for other_handle, other_kind in handle_list:
+                for handle_item in handle_list:
+                    other_handle = handle_item[0]
+                    other_kind = handle_item[1]
+                    accept_related_filter_keys = handle_item[2] if len(handle_item) > 2 else True
                     if other_kind != "table" or other_handle.current is None:
                         continue
                     if other_handle == source_handle:
+                        continue
+                    if accept_related_filter_keys is False:
+                        continue
+                    if (
+                        accept_related_filter_keys is not True
+                        and accept_related_filter_keys is not None
+                        and filter_key not in accept_related_filter_keys
+                    ):
                         continue
                     other_handle.current.set_filter(filter_key, str(filter_value))
 
@@ -453,8 +503,10 @@ class DataWidgetFactory:
     def make_sync_store_selection(self, filter_related_tables=None):
         handles = self.handles
         primary_keys = self.primary_keys
+        selected_idx_by_store = self.selected_idx
+        data_store = self.data
+        deep_get_store = DataWidgetFactory.deep_get_store
         filter_related_tables = filter_related_tables or self.make_filter_related_tables()
-        data_by_store = self.data
 
         def sync_store_selection(
             store_key,
@@ -464,11 +516,21 @@ class DataWidgetFactory:
         ):
             if row_idx is None:
                 return
-            data = data_by_store[store_key]
+            path_parts = str(store_key).split(".")
+            selected_idx = {}
+            for i in range(1, len(path_parts)):
+                parent_path = ".".join(path_parts[:i])
+                parent_store = selected_idx_by_store.get(parent_path)
+                selected_idx[parent_path] = parent_store["idx"] if parent_store is not None else 0
+            data = deep_get_store(data_store, path_parts, selected_idx)
+            if data is None or len(data) == 0 or row_idx < 0 or row_idx >= len(data):
+                return
             row = data[row_idx]
             primary_key = primary_keys[store_key]
             row_id = row[primary_key]
-            for other_handle, other_kind in handles.get(store_key, []):
+            for other in handles.get(store_key, []):
+                other_handle = other[0]
+                other_kind = other[1]
                 if other_handle.current is None:
                     continue
                 if other_handle == source_handle:
@@ -497,13 +559,23 @@ class DataWidgetFactory:
 
     def make_sync_parent_widgets(self, sync_store_selection=None):
         primary_keys = self.primary_keys
+        selected_idx_by_store = self.selected_idx
+        data_store = self.data
+        deep_get_store = DataWidgetFactory.deep_get_store
         sync_store_selection = sync_store_selection or self.make_sync_store_selection()
-        data_by_store = self.data
 
         def sync_parent_widgets(store_key, row_idx):
             if row_idx is None:
                 return
-            data = data_by_store[store_key]
+            path_parts = str(store_key).split(".")
+            selected_idx = {}
+            for i in range(1, len(path_parts)):
+                parent_path = ".".join(path_parts[:i])
+                parent_store = selected_idx_by_store.get(parent_path)
+                selected_idx[parent_path] = parent_store["idx"] if parent_store is not None else 0
+            data = deep_get_store(data_store, path_parts, selected_idx)
+            if data is None or len(data) == 0 or row_idx < 0 or row_idx >= len(data):
+                return
             row = data[row_idx]
             for parent_store_key, parent_key in primary_keys.items():
                 if parent_store_key == store_key:
@@ -511,7 +583,17 @@ class DataWidgetFactory:
                 parent_id = row.get(parent_key)
                 if parent_id is None:
                     continue
-                parent_data = data_by_store[parent_store_key]
+                parent_parts = str(parent_store_key).split(".")
+                parent_selected_idx = {}
+                for i in range(1, len(parent_parts)):
+                    parent_path = ".".join(parent_parts[:i])
+                    parent_store = selected_idx_by_store.get(parent_path)
+                    parent_selected_idx[parent_path] = (
+                        parent_store["idx"] if parent_store is not None else 0
+                    )
+                parent_data = deep_get_store(data_store, parent_parts, parent_selected_idx)
+                if parent_data is None or len(parent_data) == 0:
+                    continue
                 parent_pk = primary_keys[parent_store_key]
                 parent_idx = next(
                     (
@@ -551,21 +633,36 @@ class DataWidgetFactory:
         Renderable
             Pret component instance displaying the selected field value.
         """
-        data_store = self.data[store_key]
+        store_key = str(store_key)
+        path_parts = store_key.split(".")
+        for i in range(1, len(path_parts) + 1):
+            self._ensure_selected_idx(".".join(path_parts[:i]))
         selected_idx_store = self.selected_idx[store_key]
+        selected_idx_by_store = self.selected_idx
+        data_store = self.data
+        deep_get_store = DataWidgetFactory.deep_get_store
+        empty_store = create_store([])
 
         @component
         def SelectedFieldView():
+            parent_selected_idx = {}
+            for i in range(1, len(path_parts)):
+                parent_path = ".".join(path_parts[:i])
+                parent_selected_idx[parent_path] = use_store_snapshot(
+                    selected_idx_by_store[parent_path]
+                )["idx"]
+            view_store = deep_get_store(data_store, path_parts, parent_selected_idx) or empty_store
+            rows = use_store_snapshot(view_store)
             row_idx = use_store_snapshot(selected_idx_store)["idx"]
             current_idx = None
-            if data_store and 0 <= row_idx < len(data_store):
+            if rows and 0 <= row_idx < len(rows):
                 current_idx = row_idx
-            elif data_store:
+            elif rows:
                 current_idx = 0
             if current_idx is None:
                 return fallback
-            row = use_store_snapshot(data_store[current_idx])
-            return row[shown_key]
+            row = rows[current_idx]
+            return row.get(shown_key, fallback) if hasattr(row, "get") else fallback
 
         return SelectedFieldView()
 
@@ -628,10 +725,10 @@ class DataWidgetFactory:
                 else:
                     cleaned[key] = raw_value
                 set_filters(cleaned)
-                for other_handle, other_kind in handles.get(store_key, []):
-                    if other_kind != "table" or other_handle.current is None:
+                for other in handles.get(store_key, []):
+                    if other[1] != "table" or other[0].current is None:
                         continue
-                    other_handle.current.set_filter(key, raw_value)
+                    other[0].current.set_filter(key, raw_value)
 
             def render_filter(field):
                 if field.get("filterable", True) is False:
@@ -688,6 +785,7 @@ class DataWidgetFactory:
         fields: Sequence[Dict[str, Any]],
         style: Optional[Dict[str, Any]] = None,
         handle: RefType[TableWidgetHandle] = None,
+        accept_related_filter_keys: Union[bool, Sequence[str]] = True,
         on_position_change: Optional[Callable[[Any, int, str, str, Any], None]] = None,
         on_mouse_hover_row: Optional[Callable[[Any, int, List[str]], None]] = None,
         on_click_cell_content: Optional[Callable[[Any, int, str, Any], None]] = None,
@@ -734,6 +832,10 @@ class DataWidgetFactory:
               row ID within the filtered view, wrapping around.
             - `get_adjacent_row_idx(current_row_idx, delta)`: Retrieve the next/previous
               row index within the filtered view, wrapping around.
+        accept_related_filter_keys : bool | Sequence[str]
+            Controls whether this table accepts filters broadcast by other views.
+            `True` accepts all incoming filters, `False` accepts none, and a
+            sequence restricts accepted filter keys.
         on_position_change : Callable[[Any, int, str, str, Any], None] | None
             Called when focus moves inside the table.
 
@@ -762,7 +864,9 @@ class DataWidgetFactory:
             A Pret component instance rendering the configured table.
         """
         # Server-side prep
-        data_store = self.data[store_key]
+        store_key = str(store_key)
+        path_parts = store_key.split(".")
+        empty_store = create_store([])
 
         # Table only support a subset of kinds for editing/viewing values
         KIND_MAP = {
@@ -776,18 +880,36 @@ class DataWidgetFactory:
         # Register handle
         handles = self.handles
         handle = handle or use_ref()
+        if isinstance(accept_related_filter_keys, str):
+            accept_related_filter_keys = [accept_related_filter_keys]
         if store_key not in handles:
             handles[store_key] = []
-        handles[store_key].append([handle, "table"])
+        handles[store_key].append([handle, "table", accept_related_filter_keys])
         self._register_primary_key(store_key, primary_key)
-        self._register_table_columns(store_key, columns, data_store)
+        selected_idx_by_store = self.selected_idx
+        data_store = self.data
+        deep_get_store = DataWidgetFactory.deep_get_store
+        initial_selected_idx = {}
+        for i in range(1, len(path_parts)):
+            parent_path = ".".join(path_parts[:i])
+            parent_store = selected_idx_by_store.get(parent_path)
+            initial_selected_idx[parent_path] = parent_store["idx"] if parent_store else 0
+        initial_store = deep_get_store(data_store, path_parts, initial_selected_idx)
+        self._register_table_columns(store_key, columns, initial_store)
         filter_related_tables = self.make_filter_related_tables()
         sync_store_selection = self.make_sync_store_selection(filter_related_tables)
         sync_parent_widgets = self.make_sync_parent_widgets(sync_store_selection)
 
         @component
         def TableWidget():
-            data = use_store_snapshot(data_store)
+            parent_selected_idx = {}
+            for i in range(1, len(path_parts)):
+                parent_path = ".".join(path_parts[:i])
+                parent_selected_idx[parent_path] = use_store_snapshot(
+                    selected_idx_by_store[parent_path]
+                )["idx"]
+            view_store = deep_get_store(data_store, path_parts, parent_selected_idx) or empty_store
+            data = use_store_snapshot(view_store)
             filters, set_filters = use_state({})
             highlighted, set_highlighted = use_state([])
             suggestions, set_suggestions = use_state([])
@@ -860,7 +982,7 @@ class DataWidgetFactory:
 
             @use_event_callback
             def handle_cell_change(row_id, row_idx, col, new_value):
-                data_store[row_idx][col] = new_value
+                view_store[row_idx][col] = new_value
 
             @use_event_callback
             def handle_input_change(row_id, row_idx, col, value, cause):
@@ -881,11 +1003,12 @@ class DataWidgetFactory:
                     return
                 set_highlighted([row_id])
                 # Synchronize other widgets
-                for other_handle, other_kind in handles.get(store_key, []):
-                    if other_handle.current is None:
+                for other in handles.get(store_key, []):
+                    # other_handle, other_kind, *_ = other
+                    if other[0].current is None:
                         continue
-                    if other_kind == "spans":
-                        other_handle.current.set_highlighted_spans([row_id])
+                    if other[1] == "spans":
+                        other[0].current.set_highlighted_spans([row_id])
                 if on_mouse_hover_row:
                     on_mouse_hover_row(row_id, row_idx, modkeys)
 
@@ -972,7 +1095,9 @@ class DataWidgetFactory:
         Renderable
             A Pret component instance rendering the editable form.
         """
-        data_store = self.data[store_key]
+        store_key = str(store_key)
+        path_parts = store_key.split(".")
+        empty_store = create_store([])
         fields = list(fields)
 
         # Register handle
@@ -982,6 +1107,9 @@ class DataWidgetFactory:
         self.handles[store_key].append([handle, "form"])
         self._register_primary_key(store_key, primary_key)
         row_idx_store = self.selected_idx[store_key]
+        selected_idx_by_store = self.selected_idx
+        data_store = self.data
+        deep_get_store = DataWidgetFactory.deep_get_store
         handles = self.handles
         filter_related_tables = self.make_filter_related_tables()
         sync_store_selection = self.make_sync_store_selection(filter_related_tables)
@@ -989,28 +1117,35 @@ class DataWidgetFactory:
 
         @component
         def FormWidget():
+            parent_selected_idx = {}
+            for i in range(1, len(path_parts)):
+                parent_path = ".".join(path_parts[:i])
+                parent_selected_idx[parent_path] = use_store_snapshot(
+                    selected_idx_by_store[parent_path]
+                )["idx"]
+            view_store = deep_get_store(data_store, path_parts, parent_selected_idx) or empty_store
+            rows = use_store_snapshot(view_store)
             row_idx = use_store_snapshot(row_idx_store)["idx"]
 
             current_idx = None
-            if data_store and 0 <= row_idx < len(data_store):
+            if rows and 0 <= row_idx < len(rows):
                 current_idx = row_idx
-            elif data_store:
+            elif rows:
                 current_idx = 0
 
-            current_row = (
-                use_store_snapshot(data_store[current_idx]) if current_idx is not None else None
-            )
+            current_row = rows[current_idx] if current_idx is not None else None
 
             def get_table_handle():
-                for other_handle, other_kind in handles.get(store_key, []):
-                    if other_kind == "table" and other_handle.current is not None:
-                        return other_handle
+                for other in handles.get(store_key, []):
+                    # other_handle, other_kind, *_ = other
+                    if other[1] == "table" and other[0].current is not None:
+                        return other[0]
                 return None
 
             def set_row_idx(idx, sync=False):
                 if idx is None:
                     return
-                if data_store and (idx < 0 or idx >= len(data_store)):
+                if rows and (idx < 0 or idx >= len(rows)):
                     idx = 0
                 row_idx_store["idx"] = idx
                 if sync:
@@ -1018,7 +1153,7 @@ class DataWidgetFactory:
                     sync_store_selection(store_key, idx, handle, True)
 
             def nav(delta):
-                if not data_store:
+                if not rows:
                     return
                 table_handle = get_table_handle()
                 next_row_idx = None
@@ -1026,9 +1161,9 @@ class DataWidgetFactory:
                     next_row_idx = table_handle.current.get_adjacent_row_idx(current_idx, delta)
                 if next_row_idx is None:
                     if current_idx is None:
-                        next_row_idx = 0 if delta >= 0 else len(data_store) - 1
+                        next_row_idx = 0 if delta >= 0 else len(rows) - 1
                     else:
-                        next_row_idx = (current_idx + delta) % len(data_store)
+                        next_row_idx = (current_idx + delta) % len(rows)
                 if next_row_idx is None:
                     return
                 set_row_idx(next_row_idx, sync=True)
@@ -1045,7 +1180,7 @@ class DataWidgetFactory:
             def handle_field_change(key, value):
                 if current_row is None or current_idx is None:
                     return
-                data_store[current_idx][key] = value
+                view_store[current_idx][key] = value
 
             if not current_row:
                 return div("No data available", style=style)
@@ -1070,14 +1205,14 @@ class DataWidgetFactory:
                     direction="row",
                     spacing=1,
                     use_flex_gap=True,
-                    sx={"alignItems": "center"},
+                    sx={"alignItems": "center", "gridArea": "nav"},
                 )
 
             return Stack(
                 navigation_controls,
                 *[
                     render_field(current_row, f, handle_field_change, min_input_width)
-                    for f in fields
+                    for i, f in enumerate(fields)
                 ],
                 direction="column",
                 spacing=1,
@@ -1174,10 +1309,12 @@ class DataWidgetFactory:
         Tuple[Renderable, Renderable]
             A pair of Pret components: the toolbar widget and the text widget.
         """
-        text_store = self.data[store_text_key]
-        spans_store = (
-            self.data[store_spans_key] if store_spans_key is not None else create_store([])
-        )
+        store_text_key = str(store_text_key)
+        text_path_parts = store_text_key.split(".")
+        store_spans_key = str(store_spans_key) if store_spans_key is not None else None
+        spans_path_parts = store_spans_key.split(".") if store_spans_key is not None else None
+        local_spans_store = create_store([]) if store_spans_key is None else None
+        empty_store = create_store([])
         button_field_name = "Type"
         for field in fields:
             if field["key"] == button_field_name:
@@ -1192,11 +1329,15 @@ class DataWidgetFactory:
         if store_text_key not in handles:
             handles[store_text_key] = []
         handles[store_text_key].append([handle, "text"])
-        if store_spans_key is not None and store_spans_key not in handles:
-            handles[store_spans_key] = []
-        handles[store_spans_key].append([handle, "spans"])
+        if store_spans_key is not None:
+            if store_spans_key not in handles:
+                handles[store_spans_key] = []
+            handles[store_spans_key].append([handle, "spans"])
         self._register_primary_key(store_text_key, text_primary_key)
         selected_idx_store = self.selected_idx[store_text_key]
+        selected_idx_by_store = self.selected_idx
+        data_store = self.data
+        deep_get_store = DataWidgetFactory.deep_get_store
         if store_spans_key is not None:
             self._register_primary_key(store_spans_key, spans_primary_key)
         filter_related_tables = self.make_filter_related_tables()
@@ -1216,9 +1357,10 @@ class DataWidgetFactory:
 
         def get_adjacent_doc_idx(current_doc_idx, delta):
             table_handle = None
-            for other_handle, other_kind in handles.get(store_text_key, []):
-                if other_kind == "table":
-                    table_handle = other_handle
+            for other in handles.get(store_text_key, []):
+                # other_handle, other_kind, *_ = other
+                if other[1] == "table":
+                    table_handle = other[0]
                     break
             if table_handle is not None:
                 return table_handle.current.get_adjacent_row_idx(current_doc_idx, delta)
@@ -1357,6 +1499,29 @@ class DataWidgetFactory:
 
         @component
         def TextWidget():
+            parent_selected_idx = {}
+            for i in range(1, len(text_path_parts)):
+                parent_path = ".".join(text_path_parts[:i])
+                parent_selected_idx[parent_path] = use_store_snapshot(
+                    selected_idx_by_store[parent_path]
+                )["idx"]
+            if spans_path_parts is not None:
+                for i in range(1, len(spans_path_parts)):
+                    parent_path = ".".join(spans_path_parts[:i])
+                    if parent_path in parent_selected_idx:
+                        continue
+                    parent_selected_idx[parent_path] = use_store_snapshot(
+                        selected_idx_by_store[parent_path]
+                    )["idx"]
+
+            text_store = (
+                deep_get_store(data_store, text_path_parts, parent_selected_idx) or empty_store
+            )
+            spans_store = (
+                deep_get_store(data_store, spans_path_parts, parent_selected_idx) or empty_store
+                if spans_path_parts is not None
+                else local_spans_store
+            )
             text_data = use_store_snapshot(text_store)
             span_data = use_store_snapshot(spans_store)
 
@@ -1430,11 +1595,12 @@ class DataWidgetFactory:
                 set_highlighted(span_ids)
 
                 # Synchronize other widgets
-                for other_handle, other_kind in handles.get(store_spans_key, []):
-                    if other_handle.current is None:
+                for other in handles.get(store_spans_key, []):
+                    # other_handle, other_kind, *_ = other
+                    if other[0].current is None:
                         continue
-                    if other_kind == "table":
-                        other_handle.current.set_highlighted(span_ids)
+                    if other[1] == "table":
+                        other[0].current.set_highlighted(span_ids)
 
                 if on_hover_spans:
                     on_hover_spans(span_ids, mod_keys)
@@ -1459,7 +1625,10 @@ class DataWidgetFactory:
                         **span,
                     }
                     for span in span_data
-                    if str(span.get(text_primary_key)) == str(current_doc_id)
+                    if (
+                        text_primary_key not in span
+                        or str(span[text_primary_key]) == str(current_doc_id)
+                    )
                 ]
 
             doc_spans = use_memo(
@@ -1512,6 +1681,9 @@ class DataWidgetFactory:
                             begin_key: r["begin"],
                             end_key: r["end"],
                             button_key: label,
+                            # todo, only add when spans use the key ?
+                            #    we would actually maybe need to analyze the
+                            #    shape of the full data first, in init for instance.
                             text_primary_key: current_doc_id,
                             **span_defaults,
                         }
@@ -1535,7 +1707,9 @@ class DataWidgetFactory:
                     return
                 to_remove = []
                 for span in reversed(spans_store):
-                    if str(span[text_primary_key]) != str(current_doc_id):
+                    if text_primary_key in span and str(span.get(text_primary_key)) != str(
+                        current_doc_id
+                    ):
                         continue
                     for r in selected_ranges:
                         if not (span["end"] <= r["begin"] or r["end"] <= span["begin"]):
@@ -1628,10 +1802,11 @@ class DataWidgetFactory:
                 set_move_mode(False)
 
                 # auto synchronization with other text widgets
-                for other_handle, other_kind in handles.get(store_spans_key, []):
-                    if other_kind == "table" and other_handle.current:
-                        other_handle.current.set_highlighted([span_id])
-                        other_handle.current.scroll_to_row_id(span_id)
+                for other in handles.get(store_spans_key, []):
+                    # other_handle, other_kind, *_ = other
+                    if other[1] == "table" and other[0].current:
+                        other[0].current.set_highlighted([span_id])
+                        other[0].current.scroll_to_row_id(span_id)
                 if on_click_span:
                     on_click_span(span_id, modkeys)
 
