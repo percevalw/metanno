@@ -1,5 +1,5 @@
 # <!--8<-- [start:imports]
-from collections import Counter
+import uuid
 from pathlib import Path
 
 import edsnlp
@@ -108,39 +108,24 @@ def app(save_path=None, deduplicate=False):
                 "note_text": doc.text,
                 "note_kind": "interesting" if idx % 2 == 0 else "very interesting",
                 "seen": False,
+                "entities": [
+                    {
+                        "id": f"#{uuid.uuid4()}",
+                        "text": str(e),
+                        "begin": e.start_char,
+                        "end": e.end_char,
+                        "label": e.label_,
+                        "concept": e._.cui,
+                    }
+                    for e in sorted(doc.spans["entities"])
+                ],
             }
         )
-    entities = [
-        {
-            "id": f"#{doc._.note_id}-{e.start_char}-{e.end_char}-{e.label_}",
-            "note_id": str(doc._.note_id),
-            "text": str(e),
-            "begin": e.start_char,
-            "end": e.end_char,
-            "label": e.label_,
-            "concept": e._.cui,
-        }
-        for doc in data
-        for e in sorted(doc.spans["entities"])
-    ]
     # --8<-- [end:import-data]
-
-    # Check for unicity of entity IDs
-    # --8<-- [start:unicity]
-    if deduplicate:
-        entities = list({v["id"]: v for v in entities}.values())
-    else:
-        ctr = Counter(e["id"] for e in entities)
-        if any(count > 1 for count in ctr.values()):
-            raise ValueError(
-                "Duplicate IDs found in the dataset: "
-                + ", ".join(f"{i} (x{n})" for i, n in ctr.items() if n > 1)
-            )
-    # --8<-- [end:unicity]
 
     # Compute shortcuts and colors for labels
     # --8<-- [start:label-config]
-    all_labels = list(dict.fromkeys(e["label"] for e in entities))
+    all_labels = list(dict.fromkeys(e["label"] for n in notes for e in n["entities"]))
     shortcuts = set()
     labels_config = {}
     for i, lab in enumerate(all_labels):
@@ -157,7 +142,6 @@ def app(save_path=None, deduplicate=False):
     factory = DataWidgetFactory(
         {
             "notes": notes,
-            "entities": entities,
         },
         sync=save_path,
     )
@@ -211,12 +195,12 @@ def app(save_path=None, deduplicate=False):
 
     # View the entities as a table
     entities_view = factory.create_table_widget(
-        store_key="entities",
+        store_key="notes.entities",
         primary_key="id",
         fields=infer_fields(
-            entities,
-            visible_keys=["id", "note_id", "text", "label", "concept"],
-            id_keys=["id", "note_id"],
+            [e for n in notes for e in n["entities"]],
+            visible_keys=["id", "text", "label", "concept"],
+            id_keys=["id"],
             editable_keys=["label", "concept"],
             categorical_keys=["label", "concept"],
         ),
@@ -229,10 +213,10 @@ def app(save_path=None, deduplicate=False):
     note_text_view, ent_view = factory.create_text_widget(
         store_text_key="notes",
         # Where to look for spans data in the app data
-        store_spans_key="entities",
+        store_spans_key="notes.entities",
         # Fields that will be displayed in the toolbar
         fields=infer_fields(
-            entities,
+            [e for n in notes for e in n["entities"]],
             visible_keys=["label", "concept"],
             editable_keys=["label", "concept"],
             categorical_keys=["label", "concept"],

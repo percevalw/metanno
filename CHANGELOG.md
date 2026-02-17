@@ -13,6 +13,7 @@
   - `create_selected_field_view` for simple value display of selected table rows, for instance to show a note header
   - `create_filters_view` for table filters
 - **Automatic syncing between tables, forms, and text widgets (no more manual callbacks required)**
+- Nested data support, ie `notes: [{"note_id": ..., "note_text": ..., "entities": [{"id": ..., "begin": ...}], ...}]` can be seen in two views using store keys `notes` and `notes.entities`
 
 ## v1.0.0-beta.5 (2025-12-09)
 
