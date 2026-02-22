@@ -164,14 +164,11 @@ const Token = React.memo(
             // @ts-ignore
             span_key={annotation.id}
             ref={(element) => {
+              const mouseElementKey = `${annotation.id}-span-${annotation_i}-${begin}-${end}`;
               if (element) {
-                mouseElements.current[
-                  `${annotation.id}-span-${annotation_i}-${tokenIndexInChunk}`
-                ] = element;
+                mouseElements.current[mouseElementKey] = element;
               } else {
-                delete mouseElements.current[
-                  `${annotation.id}-span-${annotation_i}-${tokenIndexInChunk}`
-                ];
+                delete mouseElements.current[mouseElementKey];
               }
               if (isFirstTokenOfChunk && refs[annotation.id]) {
                 refs[annotation.id].current = element;
@@ -411,7 +408,7 @@ const Line = React.memo(
           })
           .sort(
             (a, b) =>
-              Number.parseInt(a.style.zIndex) - Number.parseInt(b.style.zIndex)
+              Number.parseInt(b.style.zIndex) - Number.parseInt(a.style.zIndex)
           );
       }
 
