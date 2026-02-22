@@ -6,7 +6,7 @@
   "repository": "https://github.com/percevalw/metanno",
   "author": "Perceval Wajsbürt <perceval.wajsburt@gmail.com>",
   "scripts": {
-    "build:react-data-grid": "cd submodules/react-data-grid && jlpm run prepublishOnly; cd ../..",
+    "build:react-data-grid": "cd submodules/react-data-grid && yarn run prepublishOnly; cd ../..",
     "build": "jlpm clean && jlpm build:react-data-grid && jlpm build:jupyter",
     "build:dev": "jlpm clean && jlpm build:react-data-grid && jlpm build:jupyter:dev",
     "build:jupyter": "jupyter labextension build .",
