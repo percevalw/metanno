@@ -179,6 +179,10 @@
     outline: 0
 }
 
+.metanno-table .rdg-cell.rdg-cell-range-selected {
+    background-color: rgba(0, 120, 215, 0.18) !important;
+}
+
 .metanno-table > div {
     overflow-y: scroll;
     scrollbar-width: none; /* Firefox */

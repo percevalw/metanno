@@ -219,6 +219,66 @@ class FormWidgetHandle(TypedDict):
     set_row_idx: Callable[[int], None]
 
 
+MIXED_VALUES_LABEL = "Multiple values"
+
+
+def extract_selected_rows(selected_rows: Optional[Sequence[Any]]) -> List[int]:
+    extracted: List[int] = []
+    seen = set()
+    for item in list(selected_rows or []):
+        idx = None
+        if isinstance(item, bool):
+            idx = None
+        elif isinstance(item, int):
+            idx = item
+        else:
+            idx = item.get("row_idx", item.get("rowIdx"))
+        if not isinstance(idx, int) or idx < 0 or idx in seen:
+            continue
+        extracted.append(idx)
+        seen.add(idx)
+    return extracted
+
+
+def get_first_selected_row_idx(selected_rows: Optional[Sequence[Any]]) -> Optional[int]:
+    extracted = extract_selected_rows(selected_rows)
+    if len(extracted) > 0:
+        return extracted[0]
+    return None
+
+
+def normalize_selected_rows(
+    selected_rows: Optional[Sequence[Any]],
+    row_idx: Optional[int],
+    row_count: int,
+) -> List[int]:
+    if row_count <= 0:
+        return []
+    source: List[Any] = list(selected_rows or [])
+    if isinstance(row_idx, int) and not isinstance(row_idx, bool) and row_idx >= 0:
+        source = [row_idx, *source]
+    normalized = []
+    seen = set()
+    for idx in extract_selected_rows(source):
+        if idx >= row_count or idx in seen:
+            continue
+        normalized.append(idx)
+        seen.add(idx)
+    return normalized
+
+
+def make_field_label(
+    label: Any,
+    is_mixed: bool,
+):
+    if not is_mixed:
+        return label
+    suffix = f" ({MIXED_VALUES_LABEL})"
+    if isinstance(label, str):
+        return f"{label}{suffix}"
+    return div(label, suffix)
+
+
 def render_select_field(
     key: str,
     label: Any,
@@ -230,26 +290,29 @@ def render_select_field(
     min_input_width: Optional[str],
     align_self: Optional[str] = None,
     all_label: Optional[str] = None,
+    is_mixed: bool = False,
 ):
+    field_label = make_field_label(label, is_mixed)
     select_options = list(options)
     if kind == "autocomplete":
         if all_label is not None:
             select_options = [all_label, *select_options]
             value = all_label if value in (None, "") else value
 
-        def _on_change(event, val, k=key):
+        def _on_change(event, val):
             if all_label is not None and val == all_label:
-                on_field_change(k, "")
+                on_field_change(key, "")
             else:
-                on_field_change(k, val)
+                on_field_change(key, val)
 
         return FormControl(
-            FormLabel(label),
+            FormLabel(field_label),
             Autocomplete(
                 options=select_options,
-                value=value,
+                value=None if is_mixed else value,
                 on_change=_on_change,
                 disabled=not editable,
+                placeholder=MIXED_VALUES_LABEL if is_mixed else None,
                 size="sm",
             ),
             sx={
@@ -264,13 +327,14 @@ def render_select_field(
             value = ""
         select_default_option = [Option(all_label, value="")] if all_label is not None else []
         return FormControl(
-            FormLabel(label),
+            FormLabel(field_label),
             Select(
                 *select_default_option,
                 *(Option(str(c), value=c) for c in select_options),
-                value=value,
+                value=None if is_mixed else value,
                 on_change=lambda event, val: on_field_change(key, val),
                 disabled=not editable,
+                placeholder=MIXED_VALUES_LABEL if is_mixed else None,
                 size="sm",
             ),
             sx={
@@ -281,7 +345,7 @@ def render_select_field(
         )
     elif kind == "radio":
         return FormControl(
-            FormLabel(label),
+            FormLabel(field_label),
             RadioGroup(
                 *(Radio(label=str(c), value=c, size="sm") for c in options),
                 value=value,
@@ -303,18 +367,20 @@ def render_text_field(
     on_field_change: Callable,
     min_input_width: Optional[str],
     align_self: Optional[str] = None,
+    is_mixed: bool = False,
 ):
-    def _on_change(event=None, k=key):
+    def _on_change(event=None):
         target = getattr(event, "target", None)
-        on_field_change(k, getattr(target, "value", ""))
+        on_field_change(key, getattr(target, "value", ""))
 
     return FormControl(
-        FormLabel(label),
+        FormLabel(make_field_label(label, is_mixed)),
         Input(
-            value="" if value is None else value,
+            value="" if is_mixed or value is None else value,
             on_change=_on_change,
             read_only=not editable,
             disabled=not editable,
+            placeholder=MIXED_VALUES_LABEL if is_mixed else None,
             size="sm",
         ),
         sx={"minWidth": min_input_width, "alignSelf": align_self, "gridArea": key},
@@ -329,19 +395,21 @@ def render_boolean_field(
     on_field_change: Callable,
     min_input_width: Optional[str],
     align_self: Optional[str] = None,
+    is_mixed: bool = False,
 ):
-    def _on_change(event=None, checked=None, k=key):
+    def _on_change(event=None, checked=None):
         new_val = (
             bool(checked)
             if checked is not None
             else getattr(getattr(event, "target", None), "checked", None)
         )
-        on_field_change(k, bool(new_val))
+        on_field_change(key, bool(new_val))
 
     return FormControl(
-        FormLabel(label),
+        FormLabel(make_field_label(label, is_mixed)),
         Checkbox(
-            checked=bool(value),
+            checked=False if is_mixed else bool(value),
+            indeterminate=is_mixed,
             on_change=_on_change,
             disabled=not editable,
             size="md",
@@ -357,9 +425,13 @@ def render_field(
     on_field_change: Callable,
     min_input_width: Optional[str],
     align_self: Optional[str] = None,
+    value: Any = None,
+    is_mixed: bool = False,
+    use_explicit_value: bool = False,
 ):
     key = col["key"]
-    value = current_row.get(key) if current_row is not None else None
+    if not use_explicit_value:
+        value = current_row.get(key) if current_row is not None else None
     options = col.get("options")
     editable = col.get("editable", False)
     label = col.get("name", key)
@@ -367,14 +439,37 @@ def render_field(
 
     if kind in ("select", "radio", "autocomplete") and options is not None:
         return render_select_field(
-            key, label, kind, value, editable, options, on_field_change, min_input_width, align_self
+            key,
+            label,
+            kind,
+            value,
+            editable,
+            options,
+            on_field_change,
+            min_input_width,
+            align_self,
+            is_mixed=is_mixed,
         )
     if col.get("kind") == "boolean":
         return render_boolean_field(
-            key, label, value, editable, on_field_change, min_input_width, align_self
+            key,
+            label,
+            value,
+            editable,
+            on_field_change,
+            min_input_width,
+            align_self,
+            is_mixed=is_mixed,
         )
     return render_text_field(
-        key, label, value, editable, on_field_change, min_input_width, align_self
+        key,
+        label,
+        value,
+        editable,
+        on_field_change,
+        min_input_width,
+        align_self,
+        is_mixed=is_mixed,
     )
 
 
@@ -413,16 +508,20 @@ class DataWidgetFactory:
             )
         self.handles = {}
         self.primary_keys = {}
-        self.selected_idx = {}  # store_key -> currently shown row index
+        self.selected_rows = {}  # store_key -> currently selected row indices
 
-    def _ensure_selected_idx(self, store_key):
+    def _ensure_selected_rows(self, store_key):
         if store_key is None:
             return
-        if store_key not in self.selected_idx:
-            self.selected_idx[store_key] = create_store({"idx": 0})
+        if store_key not in self.selected_rows:
+            self.selected_rows[store_key] = create_store({"rows": []})
 
     @staticmethod
-    def deep_get_store(data_store, path_parts: List[str], selected_idx: Dict[str, int]):
+    def _deep_get_store(
+        data_store,
+        path_parts: List[str],
+        selected_row_idx_by_store: Dict[str, Optional[int]],
+    ):
         if not path_parts:
             return None
         store = data_store[path_parts[0]]
@@ -433,25 +532,28 @@ class DataWidgetFactory:
         for part in path_parts[1:]:
             if store is None or len(store) == 0:
                 return None
-            row_idx = selected_idx.get(prefix, 0)
-            if row_idx < 0 or row_idx >= len(store):
+            row_idx = selected_row_idx_by_store.get(prefix, 0)
+            if row_idx is None or row_idx < 0:
+                return None
+            if row_idx >= len(store):
                 row_idx = 0
             row = store[row_idx]
             if row is None:
                 return None
-            child_store = row.get(part) if hasattr(row, "get") else None
+            child_store = row.get(part)
             if child_store is None:
                 return None
             store = child_store
             prefix = f"{prefix}.{part}"
         return store
 
-    def _register_primary_key(self, store_key, primary_key: str):
+    def _register_pkey(self, store_key, primary_key: str):
         if store_key is None or primary_key is None:
             return
         path_parts = str(store_key).split(".")
         for i in range(1, len(path_parts) + 1):
-            self._ensure_selected_idx(".".join(path_parts[:i]))
+            path = ".".join(path_parts[:i])
+            self._ensure_selected_rows(path)
         if store_key in self.primary_keys:
             return
         self.primary_keys[store_key] = primary_key
@@ -503,9 +605,9 @@ class DataWidgetFactory:
     def make_sync_store_selection(self, filter_related_tables=None):
         handles = self.handles
         primary_keys = self.primary_keys
-        selected_idx_by_store = self.selected_idx
+        selected_rows_by_store = self.selected_rows
         data_store = self.data
-        deep_get_store = DataWidgetFactory.deep_get_store
+        deep_get_store = DataWidgetFactory._deep_get_store
         filter_related_tables = filter_related_tables or self.make_filter_related_tables()
 
         def sync_store_selection(
@@ -513,18 +615,43 @@ class DataWidgetFactory:
             row_idx,
             source_handle,
             sync_related_tables,
+            selected_rows: Optional[Sequence[int]] = None,
         ):
             if row_idx is None:
                 return
             path_parts = str(store_key).split(".")
-            selected_idx = {}
+            parent_selected_idx = {}
             for i in range(1, len(path_parts)):
                 parent_path = ".".join(path_parts[:i])
-                parent_store = selected_idx_by_store.get(parent_path)
-                selected_idx[parent_path] = parent_store["idx"] if parent_store is not None else 0
-            data = deep_get_store(data_store, path_parts, selected_idx)
+                parent_store = selected_rows_by_store.get(parent_path)
+                parent_selected_idx[parent_path] = (
+                    get_first_selected_row_idx(parent_store["rows"])
+                    if parent_store is not None
+                    else None
+                )
+            data = deep_get_store(data_store, path_parts, parent_selected_idx)
             if data is None or len(data) == 0 or row_idx < 0 or row_idx >= len(data):
                 return
+            selected_rows_store = selected_rows_by_store.get(store_key)
+            previous_lead_idx = (
+                get_first_selected_row_idx(selected_rows_store["rows"])
+                if selected_rows_store is not None
+                else None
+            )
+            normalized_selected_rows = normalize_selected_rows(
+                selected_rows,
+                row_idx,
+                len(data),
+            )
+            if selected_rows_store is not None:
+                selected_rows_store["rows"] = normalized_selected_rows
+            next_lead_idx = get_first_selected_row_idx(normalized_selected_rows)
+
+            if previous_lead_idx != next_lead_idx:
+                descendant_prefix = f"{store_key}."
+                for candidate_store_key, candidate_rows_store in selected_rows_by_store.items():
+                    if str(candidate_store_key).startswith(descendant_prefix):
+                        candidate_rows_store["rows"] = []
             row = data[row_idx]
             primary_key = primary_keys[store_key]
             row_id = row[primary_key]
@@ -535,17 +662,14 @@ class DataWidgetFactory:
                     continue
                 if other_handle == source_handle:
                     continue
-                if other_kind == "form":
-                    other_handle.current.set_row_idx(row_idx)
-                elif other_kind == "text":
-                    other_handle.current.set_doc_idx(row_idx)
-                elif other_kind == "spans":
+                if other_kind == "spans":
                     other_handle.current.scroll_to_span(row_id)
-                    other_handle.current.set_highlighted_spans([row_id])
-                    other_handle.current.set_selected_span(row_id)
+                    # other_handle.current.set_highlighted_spans([row_id])
+                    # raise Exception()
+                    # other_handle.current.set_selected_span(row_id)
                 elif other_kind == "table":
                     other_handle.current.scroll_to_row_id(row_id)
-                    other_handle.current.set_highlighted([row_id])
+                    # other_handle.current.set_highlighted([row_id])
 
             if sync_related_tables:
                 filter_related_tables(
@@ -559,21 +683,25 @@ class DataWidgetFactory:
 
     def make_sync_parent_widgets(self, sync_store_selection=None):
         primary_keys = self.primary_keys
-        selected_idx_by_store = self.selected_idx
+        selected_rows_by_store = self.selected_rows
         data_store = self.data
-        deep_get_store = DataWidgetFactory.deep_get_store
+        deep_get_store = DataWidgetFactory._deep_get_store
         sync_store_selection = sync_store_selection or self.make_sync_store_selection()
 
         def sync_parent_widgets(store_key, row_idx):
             if row_idx is None:
                 return
             path_parts = str(store_key).split(".")
-            selected_idx = {}
+            parent_selected_idx = {}
             for i in range(1, len(path_parts)):
                 parent_path = ".".join(path_parts[:i])
-                parent_store = selected_idx_by_store.get(parent_path)
-                selected_idx[parent_path] = parent_store["idx"] if parent_store is not None else 0
-            data = deep_get_store(data_store, path_parts, selected_idx)
+                parent_store = selected_rows_by_store.get(parent_path)
+                parent_selected_idx[parent_path] = (
+                    get_first_selected_row_idx(parent_store["rows"])
+                    if parent_store is not None
+                    else None
+                )
+            data = deep_get_store(data_store, path_parts, parent_selected_idx)
             if data is None or len(data) == 0 or row_idx < 0 or row_idx >= len(data):
                 return
             row = data[row_idx]
@@ -587,22 +715,21 @@ class DataWidgetFactory:
                 parent_selected_idx = {}
                 for i in range(1, len(parent_parts)):
                     parent_path = ".".join(parent_parts[:i])
-                    parent_store = selected_idx_by_store.get(parent_path)
+                    parent_store = selected_rows_by_store.get(parent_path)
                     parent_selected_idx[parent_path] = (
-                        parent_store["idx"] if parent_store is not None else 0
+                        get_first_selected_row_idx(parent_store["rows"])
+                        if parent_store is not None
+                        else None
                     )
                 parent_data = deep_get_store(data_store, parent_parts, parent_selected_idx)
                 if parent_data is None or len(parent_data) == 0:
                     continue
                 parent_pk = primary_keys[parent_store_key]
-                parent_idx = next(
-                    (
-                        i
-                        for i, item in enumerate(parent_data)
-                        if str(item.get(parent_pk)) == str(parent_id)
-                    ),
-                    None,
-                )
+                parent_idx = None
+                for i, item in enumerate(parent_data):
+                    if str(item.get(parent_pk)) == str(parent_id):
+                        parent_idx = i
+                        break
                 if parent_idx is None:
                     continue
                 sync_store_selection(parent_store_key, parent_idx, None, False)
@@ -636,11 +763,11 @@ class DataWidgetFactory:
         store_key = str(store_key)
         path_parts = store_key.split(".")
         for i in range(1, len(path_parts) + 1):
-            self._ensure_selected_idx(".".join(path_parts[:i]))
-        selected_idx_store = self.selected_idx[store_key]
-        selected_idx_by_store = self.selected_idx
+            self._ensure_selected_rows(".".join(path_parts[:i]))
+        selected_rows_store = self.selected_rows[store_key]
+        selected_rows_by_store = self.selected_rows
         data_store = self.data
-        deep_get_store = DataWidgetFactory.deep_get_store
+        deep_get_store = DataWidgetFactory._deep_get_store
         empty_store = create_store([])
 
         @component
@@ -648,21 +775,20 @@ class DataWidgetFactory:
             parent_selected_idx = {}
             for i in range(1, len(path_parts)):
                 parent_path = ".".join(path_parts[:i])
-                parent_selected_idx[parent_path] = use_store_snapshot(
-                    selected_idx_by_store[parent_path]
-                )["idx"]
+                parent_rows = use_store_snapshot(selected_rows_by_store[parent_path]).get("rows")
+                parent_selected_idx[parent_path] = get_first_selected_row_idx(parent_rows)
             view_store = deep_get_store(data_store, path_parts, parent_selected_idx) or empty_store
             rows = use_store_snapshot(view_store)
-            row_idx = use_store_snapshot(selected_idx_store)["idx"]
+            row_idx = get_first_selected_row_idx(
+                use_store_snapshot(selected_rows_store).get("rows")
+            )
             current_idx = None
-            if rows and 0 <= row_idx < len(rows):
+            if isinstance(row_idx, int) and rows and 0 <= row_idx < len(rows):
                 current_idx = row_idx
-            elif rows:
-                current_idx = 0
             if current_idx is None:
                 return fallback
             row = rows[current_idx]
-            return row.get(shown_key, fallback) if hasattr(row, "get") else fallback
+            return row.get(shown_key, fallback)
 
         return SelectedFieldView()
 
@@ -786,14 +912,18 @@ class DataWidgetFactory:
         style: Optional[Dict[str, Any]] = None,
         handle: RefType[TableWidgetHandle] = None,
         accept_related_filter_keys: Union[bool, Sequence[str]] = True,
-        on_position_change: Optional[Callable[[Any, int, str, str, Any], None]] = None,
+        on_selection_change: Optional[
+            Callable[
+                [Any, Optional[int], Optional[str], str, Any, Optional[List[Dict[str, int]]]], None
+            ]
+        ] = None,
         on_mouse_hover_row: Optional[Callable[[Any, int, List[str]], None]] = None,
         on_click_cell_content: Optional[Callable[[Any, int, str, Any], None]] = None,
     ) -> Tuple[Renderable, Renderable]:
         """
         Create a [`Table`][metanno.ui.Table] widget bound to a store entry.
         Field metadata is inferred from the underlying data, with optional
-        callbacks for position changes, hover, and cell content clicks. An
+        callbacks for selection changes, hover, and cell content clicks. An
         imperative handle can be exposed for scrolling and filtering.
 
         Parameters
@@ -836,7 +966,9 @@ class DataWidgetFactory:
             Controls whether this table accepts filters broadcast by other views.
             `True` accepts all incoming filters, `False` accepts none, and a
             sequence restricts accepted filter keys.
-        on_position_change : Callable[[Any, int, str, str, Any], None] | None
+        on_selection_change : Callable[
+            [Any, Optional[int], Optional[str], str, Any, Optional[List[Dict[str, int]]]], None
+        ] | None
             Called when focus moves inside the table.
 
             - `row_id`: Primary key of the focused row.
@@ -844,6 +976,7 @@ class DataWidgetFactory:
             - `col`: Field key receiving focus.
             - `mode`: Interaction mode, such as `"EDIT"` or `"SELECT"`.
             - `cause`: What triggered the move (e.g. `"key"`, `"mouse"`).
+            - `ranges`: Row ranges selected by range selection.
         on_mouse_hover_row : Callable[[Any, int, List[str]], None] | None
             Called when the mouse hovers over a row.
 
@@ -885,15 +1018,20 @@ class DataWidgetFactory:
         if store_key not in handles:
             handles[store_key] = []
         handles[store_key].append([handle, "table", accept_related_filter_keys])
-        self._register_primary_key(store_key, primary_key)
-        selected_idx_by_store = self.selected_idx
+        self._register_pkey(store_key, primary_key)
+        selected_rows_by_store = self.selected_rows
+        selected_rows_store = selected_rows_by_store[store_key]
         data_store = self.data
-        deep_get_store = DataWidgetFactory.deep_get_store
+        deep_get_store = DataWidgetFactory._deep_get_store
         initial_selected_idx = {}
         for i in range(1, len(path_parts)):
             parent_path = ".".join(path_parts[:i])
-            parent_store = selected_idx_by_store.get(parent_path)
-            initial_selected_idx[parent_path] = parent_store["idx"] if parent_store else 0
+            parent_store = selected_rows_by_store.get(parent_path)
+            initial_selected_idx[parent_path] = (
+                get_first_selected_row_idx(parent_store["rows"])
+                if parent_store is not None
+                else None
+            )
         initial_store = deep_get_store(data_store, path_parts, initial_selected_idx)
         self._register_table_columns(store_key, columns, initial_store)
         filter_related_tables = self.make_filter_related_tables()
@@ -902,14 +1040,16 @@ class DataWidgetFactory:
 
         @component
         def TableWidget():
+            position, set_position = use_state({"row_idx": None, "col": None, "mode": "SELECT"})
+
             parent_selected_idx = {}
             for i in range(1, len(path_parts)):
                 parent_path = ".".join(path_parts[:i])
-                parent_selected_idx[parent_path] = use_store_snapshot(
-                    selected_idx_by_store[parent_path]
-                )["idx"]
+                parent_rows = use_store_snapshot(selected_rows_by_store[parent_path]).get("rows")
+                parent_selected_idx[parent_path] = get_first_selected_row_idx(parent_rows)
             view_store = deep_get_store(data_store, path_parts, parent_selected_idx) or empty_store
             data = use_store_snapshot(view_store)
+            selected_rows_snapshot = use_store_snapshot(selected_rows_store)
             filters, set_filters = use_state({})
             highlighted, set_highlighted = use_state([])
             suggestions, set_suggestions = use_state([])
@@ -1013,25 +1153,85 @@ class DataWidgetFactory:
                     on_mouse_hover_row(row_id, row_idx, modkeys)
 
             @use_event_callback
-            def handle_position_change(row_id, row_idx, col, mode, cause):
-                # Synchronize other widgets
-                if row_idx is not None:
-                    sync_parent_widgets(store_key, row_idx)
-                    sync_store_selection(store_key, row_idx, handle, True)
-                if on_position_change is not None:
-                    on_position_change(row_id, row_idx, col, mode, cause)
+            def handle_position_change(row_id, row_idx, col, mode, cause, ranges=None):
+                is_blur_without_ranges = (cause == "blur" or row_idx < 0 or row_idx is None) and (
+                    ranges is None or len(ranges) == 0
+                )
+                if is_blur_without_ranges:
+                    normalized_selected_rows = normalize_selected_rows(
+                        selected_rows_snapshot.get("rows"),
+                        None,
+                        len(data),
+                    )
+                    row_idx = None
+                    col = None
+                    mode = "SELECT"
+                else:
+                    normalized_selected_rows = normalize_selected_rows(ranges, row_idx, len(data))
+                normalized_ranges = [{"row_idx": idx} for idx in normalized_selected_rows]
+                set_position(
+                    {
+                        "row_idx": row_idx,
+                        "col": col,
+                        "mode": mode or "SELECT",
+                    }
+                )
+
+                if len(normalized_selected_rows) > 0:
+                    lead_idx = normalized_selected_rows[0]
+                    sync_parent_widgets(store_key, lead_idx)
+                    sync_store_selection(
+                        store_key,
+                        lead_idx,
+                        handle,
+                        True,
+                        normalized_selected_rows,
+                    )
+                else:
+                    selected_rows_store["rows"] = normalized_selected_rows
+                if on_selection_change is not None:
+                    on_selection_change(
+                        row_id,
+                        row_idx,
+                        col,
+                        mode,
+                        cause,
+                        normalized_ranges,
+                    )
+
+            selected_rows_value = normalize_selected_rows(
+                selected_rows_snapshot.get("rows"),
+                None,
+                len(data),
+            )
+            position_row_idx = position.get("row_idx")
+            if (
+                not isinstance(position_row_idx, int)
+                or position_row_idx < 0
+                or position_row_idx >= len(data)
+            ):
+                position_row_idx = None
+            selection_col = position.get("col")
+            table_selection = {
+                "row_idx": position_row_idx,
+                "col": selection_col,
+                "mode": position.get("mode") or "SELECT",
+                "ranges": [{"row_idx": idx} for idx in selected_rows_value],
+            }
 
             return Table(
                 rows=data,
                 primary_key=primary_key,
                 columns=columns,
                 filters=filters,
+                selection=table_selection,
+                multi_selection_mode="rows",
                 suggestions=suggestions,
                 highlighted_rows=highlighted,
                 on_filters_change=lambda f, c: set_filters(f),
                 on_input_change=handle_input_change,
                 on_cell_change=handle_cell_change,
-                on_position_change=handle_position_change,
+                on_selection_change=handle_position_change,
                 on_mouse_hover_row=handle_mouse_hover_row,
                 on_click_cell_content=on_click_cell_content,
                 auto_filter=True,
@@ -1055,7 +1255,9 @@ class DataWidgetFactory:
         """
         Render a single record from a store as a classic form with text, select,
         and boolean inputs. The current row can be changed via the imperative
-        handle to keep multiple widgets in sync.
+        handle to keep multiple widgets in sync. When multiple rows are selected
+        in a linked table, fields show mixed values and edits are applied to
+        every selected row.
 
         Parameters
         ----------
@@ -1105,11 +1307,11 @@ class DataWidgetFactory:
         if store_key not in self.handles:
             self.handles[store_key] = []
         self.handles[store_key].append([handle, "form"])
-        self._register_primary_key(store_key, primary_key)
-        row_idx_store = self.selected_idx[store_key]
-        selected_idx_by_store = self.selected_idx
+        self._register_pkey(store_key, primary_key)
+        selected_rows_store = self.selected_rows[store_key]
+        selected_rows_by_store = self.selected_rows
         data_store = self.data
-        deep_get_store = DataWidgetFactory.deep_get_store
+        deep_get_store = DataWidgetFactory._deep_get_store
         handles = self.handles
         filter_related_tables = self.make_filter_related_tables()
         sync_store_selection = self.make_sync_store_selection(filter_related_tables)
@@ -1120,20 +1322,24 @@ class DataWidgetFactory:
             parent_selected_idx = {}
             for i in range(1, len(path_parts)):
                 parent_path = ".".join(path_parts[:i])
-                parent_selected_idx[parent_path] = use_store_snapshot(
-                    selected_idx_by_store[parent_path]
-                )["idx"]
+                parent_rows = use_store_snapshot(selected_rows_by_store[parent_path]).get("rows")
+                parent_selected_idx[parent_path] = get_first_selected_row_idx(parent_rows)
             view_store = deep_get_store(data_store, path_parts, parent_selected_idx) or empty_store
             rows = use_store_snapshot(view_store)
-            row_idx = use_store_snapshot(row_idx_store)["idx"]
+            selected_rows_snapshot = use_store_snapshot(selected_rows_store)
+            row_idx = get_first_selected_row_idx(selected_rows_snapshot.get("rows"))
 
             current_idx = None
-            if rows and 0 <= row_idx < len(rows):
+            if isinstance(row_idx, int) and rows and 0 <= row_idx < len(rows):
                 current_idx = row_idx
-            elif rows:
-                current_idx = 0
 
             current_row = rows[current_idx] if current_idx is not None else None
+            selected_row_indices = normalize_selected_rows(
+                selected_rows_snapshot.get("rows"),
+                current_idx,
+                len(rows),
+            )
+            selected_rows_data = [rows[idx] for idx in selected_row_indices]
 
             def get_table_handle():
                 for other in handles.get(store_key, []):
@@ -1147,10 +1353,11 @@ class DataWidgetFactory:
                     return
                 if rows and (idx < 0 or idx >= len(rows)):
                     idx = 0
-                row_idx_store["idx"] = idx
                 if sync:
                     sync_parent_widgets(store_key, idx)
-                    sync_store_selection(store_key, idx, handle, True)
+                    sync_store_selection(store_key, idx, handle, True, [idx])
+                else:
+                    selected_rows_store["rows"] = [idx]
 
             def nav(delta):
                 if not rows:
@@ -1178,9 +1385,40 @@ class DataWidgetFactory:
 
             @use_event_callback
             def handle_field_change(key, value):
-                if current_row is None or current_idx is None:
+                if current_idx is None:
                     return
-                view_store[current_idx][key] = value
+                if not selected_row_indices:
+                    view_store[current_idx][key] = value
+                    return
+                for idx in selected_row_indices:
+                    view_store[idx][key] = value
+
+            def get_field_state(field_key: str):
+                if len(selected_rows_data) == 0:
+                    current_value = current_row.get(field_key) if current_row is not None else None
+                    return current_value, False
+                first_value = selected_rows_data[0].get(field_key)
+                is_mixed = any(
+                    (row.get(field_key)) != first_value for row in selected_rows_data[1:]
+                )
+                if not is_mixed:
+                    return first_value, False
+                current_value = (
+                    current_row.get(field_key) if current_row is not None else first_value
+                )
+                return current_value, True
+
+            def render_form_field(field: Dict[str, Any]):
+                field_value, field_is_mixed = get_field_state(field["key"])
+                return render_field(
+                    current_row,
+                    field,
+                    handle_field_change,
+                    min_input_width,
+                    value=field_value,
+                    is_mixed=field_is_mixed,
+                    use_explicit_value=True,
+                )
 
             if not current_row:
                 return div("No data available", style=style)

@@ -1,6 +1,6 @@
 import sys
 from typing import Any, Union, List, Optional, Dict, Callable
-from typing_extensions import TypedDict
+from typing_extensions import NotRequired, TypedDict
 from pret.render import stub_component
 from pret.marshal import js, make_stub_js_module, marshal_as
 from .version import __version__
@@ -35,7 +35,8 @@ props_mapping = {
     "on_mouse_enter_row": "onMouseEnterRow",
     "on_mouse_leave_row": "onMouseLeaveRow",
     "on_mouse_hover_row": "onMouseHoverRow",
-    "on_position_change": "onPositionChange",
+    "multi_selection_mode": "multiSelectionMode",
+    "on_selection_change": "onSelectionChange",
     "on_subset_change": "onSubsetChange",
     "on_click_span": "onClickSpan",
     "on_mouse_enter_span": "onMouseEnterSpan",
@@ -201,10 +202,15 @@ class ColumnData(TypedDict):
     filterable: bool
     choices: Optional[Any]
 
-class Position(TypedDict):
+class SelectionRange(TypedDict, total=False):
     row_idx: int
-    col: str
+    rowIdx: int
+
+class Selection(TypedDict):
+    row_idx: Optional[int]
+    col: Optional[str]
     mode: Literal["EDIT", "SELECT"]
+    ranges: NotRequired[List[SelectionRange]]
 
 @stub_component(js.Metanno.Table, props_mapping)
 def Table(
@@ -218,7 +224,8 @@ def Table(
     auto_filter: bool,
     input_value: Union[str, Hyperlink],
     suggestions: List[Any],
-    position: Position,
+    selection: Optional[Selection],
+    multi_selection_mode: Optional[Literal[False, "rows"]],
     subset: Any,
     style: Dict[str, Any],
     key: Union[str,int],
@@ -231,7 +238,7 @@ def Table(
     on_mouse_enter_row: Callable,
     on_mouse_leave_row: Callable,
     on_mouse_hover_row: Callable,
-    on_position_change: Callable,
+    on_selection_change: Optional[Callable],
     on_subset_change: Callable,
 ):
     """
@@ -321,13 +328,19 @@ def Table(
         If undefined, this is automatically handled by the component.
     suggestions: List[Any]
         List of suggestions to show when the user is typing in the input field.
-    position: Position
-        The current position of the cursor in the table, including:
+    selection: Selection
+        The current selection state of the table, including:
 
         - row_id: Key of the row where the cursor is located.
         - row_idx: Index of the row where the cursor is located.
         - col: Key of the column where the cursor is located.
         - mode: Mode of interaction, either "EDIT" or "SELECT".
+        - ranges: List of row ranges (rows mode), e.g. `[{"row_idx": 3}, ...]`.
+    multi_selection_mode: Literal[False, "rows"] | None
+        Multi-selection behavior for the grid:
+
+        - `False`: default cell selection behavior.
+        - `"rows"`: multi-selection highlights full rows.
     style: Dict[str, Any]
         Custom styles for the table component.
     key: Union[str, int]
@@ -381,14 +394,15 @@ def Table(
         - `row_id`: Key of the row being hovered, or `None` if not applicable.
         - `row_idx`: Index of the row being hovered, or `None` if not applicable.
         - `mod_keys`: List of modifier keys pressed during the event.
-    on_position_change: Callable[[Optional[int], Optional[str], str, str], None]
-        Callback triggered when the cursor position changes:
+    on_selection_change: Callable[[Optional[Any], Optional[int], Optional[str], str, str, Optional[List[Dict[str, int]]]], None]
+        Callback triggered when the cursor selection changes:
 
         - `row_id`: Key of the row where the cursor is located, or `None` if not applicable.
         - `row_idx`: Index of the row where the cursor is located, or `None` if not applicable.
         - `name`: Key of the column where the cursor is located, or `None` if not applicable.
         - `mode`: Interaction mode, either "EDIT" or "SELECT".
-        - `cause`: Reason for the position change (e.g., "key", "blur").
+        - `cause`: Reason for the selection change (e.g., "key", "blur").
+        - `ranges`: Selected ranges (rows mode), relative to the full table.
     on_subset_change: Callable[[List[int]], None]
         Callback triggered when the subset of visible rows changes:
 

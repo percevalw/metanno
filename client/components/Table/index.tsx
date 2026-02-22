@@ -57,10 +57,42 @@ const SuggestionsContext = React.createContext<any>(undefined);
 SuggestionsContext.displayName = "SuggestionsContext";
 DndContext.displayName = "DndContext";
 
+type TableFiltersContextValue = {
+  filters: { [key: string]: string };
+  onFilterChange: (columnKey: string, value: string) => void;
+};
+
+const TableFiltersContext = React.createContext<TableFiltersContextValue | null>(
+  null
+);
+TableFiltersContext.displayName = "TableFiltersContext";
+
+const TableFilterInput = memo(function TableFilterInput({
+  columnKey,
+  inputProps,
+}: {
+  columnKey: string;
+  inputProps: any;
+}) {
+  const filtersContext = React.useContext(TableFiltersContext);
+  const filterValue = filtersContext?.filters?.[columnKey];
+
+  return (
+    <input
+      {...inputProps}
+      className="metanno-table-filter"
+      value={(filterValue as string) || ""}
+      onChange={(e) => filtersContext?.onFilterChange(columnKey, e.target.value)}
+      onKeyDown={inputStopPropagation}
+    />
+  );
+});
+
 export const Table = function Table({
   primaryKey,
   rows,
-  position,
+  selection,
+  multiSelectionMode,
   filters,
   columns,
   autoFilter,
@@ -75,7 +107,7 @@ export const Table = function Table({
   highlightedRows,
   style,
   onFiltersChange,
-  onPositionChange,
+  onSelectionChange,
   onCellChange,
   onScrollBottom,
   onClickCellContent,
@@ -84,8 +116,8 @@ export const Table = function Table({
   const [columnsOrder, setColumnsOrder] = useState(
     columns.map((column) => column.key)
   );
-  const [localPosition, setLocalPosition] = useState<
-    TableData["position"] | undefined
+  const [localSelection, setLocalSelection] = useState<
+    TableData["selection"] | undefined
   >(undefined);
   const [isLoading, setIsLoading] = useState(false);
   // If filters are not controlled via props, we use local state
@@ -94,6 +126,7 @@ export const Table = function Table({
   );
   const currentHoveredRow = useRef<number | null>(null);
   const effectiveFilters = filters === undefined ? localFilters : filters;
+  const controlledSelection = selection;
 
   // Helper: convert relative row index (from DataGrid) to an absolute row index.
   const getAbsoluteRowIdx = useEventCallback((relativeIdx: number): number =>
@@ -142,6 +175,28 @@ export const Table = function Table({
     }
   }, [effectiveFilters, rows, autoFilter, filters]);
   const effectiveSubset = subset !== undefined ? subset : localSubset;
+
+  const handleFilterChange = useEventCallback((columnKey: string, value: string) => {
+    const newFilters = {
+      ...effectiveFilters,
+      [columnKey]: value,
+    };
+    onFiltersChange?.(newFilters, columnKey);
+    if (filters === undefined) {
+      setLocalFilters((prev) => ({
+        ...prev,
+        [columnKey]: value,
+      }));
+    }
+  });
+
+  const filtersContextValue = useMemo(
+    () => ({
+      filters: effectiveFilters,
+      onFilterChange: handleFilterChange,
+    }),
+    [effectiveFilters, handleFilterChange]
+  );
 
   // Update actions to work with absolute indices.
   useImperativeHandle(
@@ -219,25 +274,7 @@ export const Table = function Table({
   const makeFilterInput = (column: ColumnData) =>
     column.filterable
       ? (inputProps: any) => (
-          <input
-            {...inputProps}
-            className="metanno-table-filter"
-            value={(effectiveFilters[column.key] as string) || ""}
-            onChange={(e) => {
-              const newFilters = {
-                ...effectiveFilters,
-                [column.key]: e.target.value,
-              };
-              onFiltersChange?.(newFilters, column.key);
-              if (filters === undefined) {
-                setLocalFilters((prev) => ({
-                  ...prev,
-                  [column.key]: e.target.value,
-                }));
-              }
-            }}
-            onKeyDown={inputStopPropagation}
-          />
+          <TableFilterInput inputProps={inputProps} columnKey={column.key} />
         )
       : null;
 
@@ -560,7 +597,7 @@ export const Table = function Table({
     });
     const nameToCol = Object.assign({}, ...columnObjects);
     return columnsOrder.map((name) => nameToCol[name]);
-  }, [columns, columnsOrder, effectiveFilters, inputValue]);
+  }, [columns, columnsOrder, inputValue]);
 
   const onRowsChange = useEventCallback((newRows: RowData[]) => {
     const updatedRows = newRows
@@ -656,61 +693,147 @@ export const Table = function Table({
   );
 
   const rowKeyGetter = useCallback((row: any) => row[primaryKey], [primaryKey]);
+  type GridSelectionRange = {
+    rowIdx: number;
+  };
+  type GridSelection = {
+    rowIdx: number;
+    idx: number;
+    mode: "EDIT" | "SELECT";
+    ranges?: readonly GridSelectionRange[];
+  };
 
-  const handlePositionChange = useEventCallback(
+  const handleSelectionChange = useEventCallback(
     ({
       idx,
       rowIdx,
       mode,
+      ranges,
       cause = "key",
     }: {
       idx: number | null;
       rowIdx: number | null;
       mode: "EDIT" | "SELECT";
+      ranges?: { rowIdx: number }[];
       cause?: string;
     }) => {
       const absoluteRowIdx =
         rowIdx !== null && rowIdx >= 0 ? getAbsoluteRowIdx(rowIdx) : null;
+      const hasAbsoluteRowIdx =
+        absoluteRowIdx !== null &&
+        absoluteRowIdx !== undefined &&
+        absoluteRowIdx >= 0;
       const col = idx !== null && idx >= 0 ? columnsOrder[idx] : null;
-      onPositionChange?.(
-        primaryKey && absoluteRowIdx !== null ? rowsRef.current[absoluteRowIdx][primaryKey] : null,
-        absoluteRowIdx,
+      const relativeRangeRows =
+        Array.isArray(ranges) && ranges.length > 0
+          ? ranges.map((range) => range.rowIdx)
+          : hasAbsoluteRowIdx
+          ? [rowIdx as number]
+          : [];
+      const absoluteSelectedRows = Array.from(
+        new Set(
+          relativeRangeRows
+            .filter((relativeRowIdx) => relativeRowIdx >= 0)
+            .map((relativeRowIdx) => getAbsoluteRowIdx(relativeRowIdx))
+            .filter(
+              (absoluteIdx) => absoluteIdx !== null && absoluteIdx !== undefined && absoluteIdx >= 0
+            )
+        )
+      );
+      const rowId =
+        primaryKey && hasAbsoluteRowIdx
+          ? rowsRef.current[absoluteRowIdx]?.[primaryKey] ?? null
+          : null;
+      const absoluteRanges = absoluteSelectedRows.map((selectedRowIdx) => ({
+        row_idx: selectedRowIdx,
+      }));
+      onSelectionChange?.(
+        rowId,
+        hasAbsoluteRowIdx ? absoluteRowIdx : null,
         col,
         mode,
-        cause
+        cause,
+        absoluteRanges
       );
-      if (position === undefined) {
-        setLocalPosition({
-          row_idx: absoluteRowIdx,
+      if (controlledSelection === undefined) {
+        setLocalSelection({
+          row_idx: hasAbsoluteRowIdx ? absoluteRowIdx : null,
           col: col,
           mode,
+          ranges: absoluteRanges,
         });
       }
     }
   );
 
-  const getPositionIndices = useCachedReconcile((positionParam: any) => {
-    if (!positionParam) return undefined;
-    const { row_idx, col, mode } = positionParam;
-    const relativeRowIdx =
-      row_idx === null
-        ? -1
-        : effectiveSubset
+  const getSelectionIndices = useCachedReconcile(
+    (selectionParam: TableData["selection"] | undefined): GridSelection | undefined => {
+    if (!selectionParam) return undefined;
+    const { row_idx, col, mode, ranges } = selectionParam;
+    const hasRowSelection = row_idx !== null && row_idx !== undefined && row_idx >= 0;
+    const relativeRowIdx = hasRowSelection
+      ? effectiveSubset
         ? effectiveSubset.indexOf(row_idx)
-        : row_idx;
-    const idx = col ? columnsOrder.findIndex((name) => col === name) : -2;
-    return { rowIdx: relativeRowIdx, idx, mode };
-  });
+        : row_idx
+      : -2;
+    const absoluteSelectedRows =
+      Array.isArray(ranges) && ranges.length > 0
+        ? ranges.map((range) => range.row_idx)
+        : hasRowSelection && relativeRowIdx >= 0
+        ? [row_idx]
+        : [];
+    const relativeSelectedRows = Array.from(
+      new Set(
+        absoluteSelectedRows
+          .map((absoluteRowIdx: number) =>
+            effectiveSubset ? effectiveSubset.indexOf(absoluteRowIdx) : absoluteRowIdx
+          )
+          .filter((relativeIdx: number) => relativeIdx >= 0)
+      )
+    );
+    const idx = col ? columnsOrder.findIndex((name) => col === name) : -1;
+    return {
+      rowIdx: relativeRowIdx,
+      idx,
+      mode,
+      ranges: relativeSelectedRows.map((relativeRow) => ({ rowIdx: relativeRow })),
+    };
+    }
+  );
 
   const onBlur = useEventCallback((event: FocusEvent<HTMLDivElement>) => {
     if (event.currentTarget.contains(event.relatedTarget)) return;
-    const effectivePosition = position !== undefined ? position : localPosition;
-    if (effectivePosition?.mode === "EDIT") return;
-    handlePositionChange({
+    const effectiveSelection =
+      controlledSelection !== undefined ? controlledSelection : localSelection;
+    if (effectiveSelection?.mode === "EDIT") return;
+    if (effectiveSelection == null) return;
+    const ranges =
+      Array.isArray(effectiveSelection.ranges) && effectiveSelection.ranges.length > 0
+        ? effectiveSelection.ranges
+            .map((range) => {
+              const absoluteRowIdx = range?.row_idx;
+              if (
+                absoluteRowIdx === null ||
+                absoluteRowIdx === undefined ||
+                absoluteRowIdx < 0
+              ) {
+                return null;
+              }
+              const relativeRowIdx = effectiveSubset
+                ? effectiveSubset.indexOf(absoluteRowIdx)
+                : absoluteRowIdx;
+              if (relativeRowIdx < 0) return null;
+              return { rowIdx: relativeRowIdx };
+            })
+            .filter((range): range is { rowIdx: number } => range !== null)
+        : undefined;
+
+    handleSelectionChange({
       idx: null,
       rowIdx: null,
       mode: "SELECT",
       cause: "blur",
+      ranges,
     });
   });
 
@@ -744,29 +867,37 @@ export const Table = function Table({
     ? HEADER_ROW_HEIGHT
     : ROW_HEIGHT;
 
-  const selectedPosition = getPositionIndices(
-    position !== undefined ? position : localPosition
-  );
+  const selectedSelection =
+    getSelectionIndices(
+      controlledSelection !== undefined ? controlledSelection : localSelection
+    ) ?? {
+      rowIdx: -2,
+      idx: -1,
+      mode: "SELECT",
+    };
 
   return (
     <SuggestionsContext.Provider value={suggestions}>
-      <div className="metanno-table" style={style} onBlur={onBlur}>
-        <DndProvider backend={HTML5Backend}>
-          <DataGrid
-            ref={gridRef}
-            rowKeyGetter={rowKeyGetter}
-            rowHeight={ROW_HEIGHT}
-            selectedPosition={selectedPosition}
-            columns={builtColumns}
-            rows={visibleRows}
-            rowRenderer={renderRow}
-            headerRowHeight={headerRowHeight}
-            onRowsChange={onRowsChange}
-            onSelectedPositionChange={handlePositionChange}
-            onScroll={handleScrollBottom}
-          />
-        </DndProvider>
-      </div>
+      <TableFiltersContext.Provider value={filtersContextValue}>
+        <div className="metanno-table" style={style} onBlur={onBlur}>
+          <DndProvider backend={HTML5Backend}>
+            <DataGrid
+              ref={gridRef}
+              rowKeyGetter={rowKeyGetter}
+              rowHeight={ROW_HEIGHT}
+              selection={selectedSelection}
+              multiSelectionMode={multiSelectionMode}
+              columns={builtColumns}
+              rows={visibleRows}
+              rowRenderer={renderRow}
+              headerRowHeight={headerRowHeight}
+              onRowsChange={onRowsChange}
+              onSelectionChange={handleSelectionChange}
+              onScroll={handleScrollBottom}
+            />
+          </DndProvider>
+        </div>
+      </TableFiltersContext.Provider>
     </SuggestionsContext.Provider>
   );
 };

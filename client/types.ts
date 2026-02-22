@@ -148,7 +148,13 @@ export type TableData = {
     suggestions?: (Hyperlink | string)[],
     filters: Filters;
     inputValue: any;
-    position?: {row_idx: number, col: string, mode: "EDIT" | "SELECT"};
+    selection?: {
+        row_idx: number | null,
+        col: string | null,
+        mode: "EDIT" | "SELECT",
+        ranges?: { row_idx: number }[]
+    };
+    multiSelectionMode?: false | "rows";
     autoFilter?: boolean;
     subset?: number[];
     style: CSSProperties;
@@ -162,7 +168,14 @@ export type TableMethods = {
         focus?: () => void,
     } | any>;
     onFiltersChange?: (values: {[key: string]: string}, column: string) => void;
-    onPositionChange?: (row_id: string, row_idx: number, name: string, mode: string, cause: string) => void;
+    onSelectionChange?: (
+        row_id: string | null,
+        row_idx: number | null,
+        name: string | null,
+        mode: string,
+        cause: string,
+        ranges?: { row_idx: number }[]
+    ) => void;
     onClickCellContent?: (row_id: string, row_idx: number, name: string, value?: any) => boolean | void;
     onMouseEnterRow?: (row_id: string, row_idx: number, mod_keys: string[]) => void;
     onMouseLeaveRow?: (row_id: string, row_idx: number, mod_keys: string[]) => void;
