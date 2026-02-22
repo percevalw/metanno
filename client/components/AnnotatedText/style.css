@@ -169,6 +169,6 @@
 
 @media (prefers-reduced-motion: no-preference) {
     .metanno-text-view .mention_token.selected {
-        animation: blink .5s step-end infinite alternate;
+        animation: var(--blink-animation);
     }
 }
