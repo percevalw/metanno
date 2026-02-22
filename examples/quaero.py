@@ -254,11 +254,17 @@ def app(save_path=None, deduplicate=False):
                         "children": [
                             {"tabs": ["Description"], "size": 40},
                             {"tabs": ["Notes"], "size": 30},
-                            {"tabs": ["Entities"], "size": 30},
                         ],
                     },
                     {"tabs": ["Note Text"], "size": 50},
-                    {"tabs": ["Info"], "size": 25},
+                    {
+                        "kind": "column",
+                        "size": 25,
+                        "children": [
+                            {"tabs": ["Info"], "size": 65},
+                            {"tabs": ["Entities"], "size": 35},
+                        ],
+                    },
                 ],
             },
             collapse_tabs_on_mobile=[

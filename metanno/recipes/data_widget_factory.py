@@ -1154,10 +1154,13 @@ class DataWidgetFactory:
 
             @use_event_callback
             def handle_position_change(row_id, row_idx, col, mode, cause, ranges=None):
-                is_blur_without_ranges = (cause == "blur" or row_idx < 0 or row_idx is None) and (
-                    ranges is None or len(ranges) == 0
+                is_blur_event = cause == "blur"
+                has_valid_row_idx = (
+                    isinstance(row_idx, int) and not isinstance(row_idx, bool) and row_idx >= 0
                 )
-                if is_blur_without_ranges:
+                has_ranges = ranges is not None and len(ranges) > 0
+
+                if is_blur_event:
                     normalized_selected_rows = normalize_selected_rows(
                         selected_rows_snapshot.get("rows"),
                         None,
@@ -1166,8 +1169,14 @@ class DataWidgetFactory:
                     row_idx = None
                     col = None
                     mode = "SELECT"
-                else:
+                elif has_valid_row_idx or has_ranges:
                     normalized_selected_rows = normalize_selected_rows(ranges, row_idx, len(data))
+                else:
+                    normalized_selected_rows = normalize_selected_rows(
+                        selected_rows_snapshot.get("rows"),
+                        None,
+                        len(data),
+                    )
                 normalized_ranges = [{"row_idx": idx} for idx in normalized_selected_rows]
                 set_position(
                     {
@@ -1177,7 +1186,7 @@ class DataWidgetFactory:
                     }
                 )
 
-                if len(normalized_selected_rows) > 0:
+                if not is_blur_event and len(normalized_selected_rows) > 0:
                     lead_idx = normalized_selected_rows[0]
                     sync_parent_widgets(store_key, lead_idx)
                     sync_store_selection(
@@ -1187,7 +1196,7 @@ class DataWidgetFactory:
                         True,
                         normalized_selected_rows,
                     )
-                else:
+                elif not is_blur_event:
                     selected_rows_store["rows"] = normalized_selected_rows
                 if on_selection_change is not None:
                     on_selection_change(
