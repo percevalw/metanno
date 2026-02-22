@@ -1448,10 +1448,7 @@ class DataWidgetFactory:
 
             return Stack(
                 navigation_controls,
-                *[
-                    render_field(current_row, f, handle_field_change, min_input_width)
-                    for i, f in enumerate(fields)
-                ],
+                *[render_form_field(f) for f in fields],
                 direction="column",
                 spacing=1,
                 use_flex_gap=True,
@@ -1571,27 +1568,59 @@ class DataWidgetFactory:
             if store_spans_key not in handles:
                 handles[store_spans_key] = []
             handles[store_spans_key].append([handle, "spans"])
-        self._register_primary_key(store_text_key, text_primary_key)
-        selected_idx_store = self.selected_idx[store_text_key]
-        selected_idx_by_store = self.selected_idx
+        self._register_pkey(store_text_key, text_primary_key)
+        selected_rows_by_store = self.selected_rows
+        selected_doc_rows_store = selected_rows_by_store[store_text_key]
         data_store = self.data
-        deep_get_store = DataWidgetFactory.deep_get_store
+        deep_get_store = DataWidgetFactory._deep_get_store
+        empty_selected_rows_store = create_store({"rows": []})
         if store_spans_key is not None:
-            self._register_primary_key(store_spans_key, spans_primary_key)
+            self._register_pkey(store_spans_key, spans_primary_key)
+        selected_span_rows_store = (
+            selected_rows_by_store[store_spans_key]
+            if store_spans_key is not None
+            else empty_selected_rows_store
+        )
         filter_related_tables = self.make_filter_related_tables()
         sync_store_selection = self.make_sync_store_selection(filter_related_tables)
         sync_parent_widgets = self.make_sync_parent_widgets(sync_store_selection)
 
         toolbar_state = create_store(
             {
-                "selected_span": None,
-                "span_fields": span_fields,
                 "move_mode": False,
                 "action_id": 0,
                 "action": None,
                 "action_payload": None,
             }
         )
+
+        def get_selected_span_indices(
+            span_data: Sequence[Dict[str, Any]],
+            selected_rows: Optional[Sequence[int]],
+        ) -> List[int]:
+            return normalize_selected_rows(selected_rows, None, len(span_data))
+
+        def build_field_state_by_key(
+            selected_spans: Sequence[Dict[str, Any]],
+            fallback_span: Optional[Dict[str, Any]],
+        ) -> Dict[str, Dict[str, Any]]:
+            field_state = {}
+            for col in span_fields:
+                key = col.get("key")
+                if key is None:
+                    continue
+                if len(selected_spans) > 0:
+                    first_value = selected_spans[0].get(key)
+                    is_mixed = any((span.get(key)) != first_value for span in selected_spans[1:])
+                    if is_mixed:
+                        value = fallback_span.get(key) if fallback_span is not None else first_value
+                    else:
+                        value = first_value
+                else:
+                    value = fallback_span.get(key) if fallback_span is not None else None
+                    is_mixed = False
+                field_state[key] = {"value": value, "is_mixed": is_mixed}
+            return field_state
 
         def get_adjacent_doc_idx(current_doc_idx, delta):
             table_handle = None
@@ -1610,12 +1639,18 @@ class DataWidgetFactory:
             selected_span=None,
             on_update_span=None,
             span_fields=None,
+            field_state_by_key=None,
             move_mode=False,
             on_toggle_move=None,
         ):
+            field_state_by_key = field_state_by_key or {}
+            button_state = field_state_by_key.get(button_key, {})
+            button_is_mixed = button_state.get("is_mixed", False)
             btns = []
             for label, cfg in labels.items():
-                if not selected_span or selected_span[button_key] == label:
+                if not selected_span or (
+                    not button_is_mixed and selected_span.get(button_key) == label
+                ):
                     sx = {
                         "backgroundColor": cfg["color"],
                         "color": "black",
@@ -1649,6 +1684,7 @@ class DataWidgetFactory:
             if selected_span and on_update_span and span_fields:
                 for col in span_fields:
                     if col["key"] != button_key:
+                        field_state = field_state_by_key.get(col["key"], {})
                         span_inputs.append(
                             render_field(
                                 selected_span,
@@ -1656,6 +1692,9 @@ class DataWidgetFactory:
                                 on_update_span,
                                 min_input_width=None,
                                 align_self="stretch",
+                                value=field_state.get("value"),
+                                is_mixed=field_state.get("is_mixed", False),
+                                use_explicit_value=True,
                             )
                         )
 
@@ -1704,8 +1743,32 @@ class DataWidgetFactory:
 
         @component
         def ToolbarWidget():
-            state = use_store_snapshot(toolbar_state)
-            action_id_ref = use_ref(state.get("action_id", 0))
+            toolbar_snapshot = use_store_snapshot(toolbar_state)
+            selected_span_rows_snapshot = use_store_snapshot(selected_span_rows_store)
+            action_id_ref = use_ref(toolbar_snapshot.get("action_id", 0))
+
+            parent_selected_idx = {}
+            if spans_path_parts is not None:
+                for i in range(1, len(spans_path_parts)):
+                    parent_path = ".".join(spans_path_parts[:i])
+                    parent_rows = use_store_snapshot(selected_rows_by_store[parent_path]).get(
+                        "rows"
+                    )
+                    parent_selected_idx[parent_path] = get_first_selected_row_idx(parent_rows)
+            toolbar_spans_store = (
+                deep_get_store(data_store, spans_path_parts, parent_selected_idx) or empty_store
+                if spans_path_parts is not None
+                else local_spans_store
+            )
+            toolbar_span_data = use_store_snapshot(toolbar_spans_store)
+
+            selected_span_indices = get_selected_span_indices(
+                toolbar_span_data,
+                selected_span_rows_snapshot.get("rows"),
+            )
+            selected_spans = [toolbar_span_data[idx] for idx in selected_span_indices]
+            selected_span = selected_spans[0] if len(selected_spans) > 0 else None
+            field_state_by_key = build_field_state_by_key(selected_spans, selected_span)
 
             def emit_action(action, payload=None):
                 action_id_ref.current += 1
@@ -1728,10 +1791,11 @@ class DataWidgetFactory:
             return Toolbar(
                 on_add_span_click=handle_add_or_update,
                 on_delete=handle_delete,
-                selected_span=state.get("selected_span"),
+                selected_span=selected_span,
                 on_update_span=handle_update_span,
-                span_fields=state.get("span_fields"),
-                move_mode=state.get("move_mode", False),
+                span_fields=span_fields,
+                field_state_by_key=field_state_by_key,
+                move_mode=toolbar_snapshot.get("move_mode", False),
                 on_toggle_move=handle_toggle_move,
             )
 
@@ -1740,17 +1804,17 @@ class DataWidgetFactory:
             parent_selected_idx = {}
             for i in range(1, len(text_path_parts)):
                 parent_path = ".".join(text_path_parts[:i])
-                parent_selected_idx[parent_path] = use_store_snapshot(
-                    selected_idx_by_store[parent_path]
-                )["idx"]
+                parent_rows = use_store_snapshot(selected_rows_by_store[parent_path]).get("rows")
+                parent_selected_idx[parent_path] = get_first_selected_row_idx(parent_rows)
             if spans_path_parts is not None:
                 for i in range(1, len(spans_path_parts)):
                     parent_path = ".".join(spans_path_parts[:i])
                     if parent_path in parent_selected_idx:
                         continue
-                    parent_selected_idx[parent_path] = use_store_snapshot(
-                        selected_idx_by_store[parent_path]
-                    )["idx"]
+                    parent_rows = use_store_snapshot(selected_rows_by_store[parent_path]).get(
+                        "rows"
+                    )
+                    parent_selected_idx[parent_path] = get_first_selected_row_idx(parent_rows)
 
             text_store = (
                 deep_get_store(data_store, text_path_parts, parent_selected_idx) or empty_store
@@ -1762,35 +1826,71 @@ class DataWidgetFactory:
             )
             text_data = use_store_snapshot(text_store)
             span_data = use_store_snapshot(spans_store)
+            selected_doc_rows_snapshot = use_store_snapshot(selected_doc_rows_store)
+            selected_span_rows_snapshot = use_store_snapshot(selected_span_rows_store)
 
-            doc_idx = use_store_snapshot(selected_idx_store)["idx"]
+            doc_idx = get_first_selected_row_idx(selected_doc_rows_snapshot.get("rows"))
+            persistent_doc_idx = doc_idx
             selected_ranges, set_selected_ranges = use_state([])
             highlighted, set_highlighted = use_state([])
-            selected_span_id, set_selected_span_id = use_state(None)
-            move_mode, set_move_mode = use_state(False)
             toolbar_snapshot = use_store_snapshot(toolbar_state)
+            selected_span_idx = get_first_selected_row_idx(selected_span_rows_snapshot.get("rows"))
+            move_mode = bool(toolbar_snapshot.get("move_mode", False))
             last_action_id_ref = use_ref(0)
 
-            current_doc = text_data[doc_idx] if 0 <= doc_idx < len(text_data) else None
+            current_doc = (
+                text_data[persistent_doc_idx]
+                if isinstance(persistent_doc_idx, int) and 0 <= persistent_doc_idx < len(text_data)
+                else None
+            )
             current_doc_id = current_doc[text_primary_key] if current_doc else None
 
             text_ref = use_ref()
             pending_span_ids_ref = use_ref(None)
+            suppress_next_empty_select_clear_ref = use_ref(False)
 
-            def get_selected_span():
-                if selected_span_id is None:
-                    return None
-                for span in doc_spans:
-                    if span.get(spans_primary_key) == selected_span_id:
-                        return span
-                return None
+            def set_selected_span_rows(selected_rows: Optional[Sequence[int]] = None):
+                selected_span_rows_store["rows"] = normalize_selected_rows(
+                    selected_rows,
+                    None,
+                    len(span_data),
+                )
 
-            def _set_doc_idx(idx):
+            def set_selected_span(span_id):
+                if span_id is None:
+                    set_selected_span_rows([])
+                    return
+                idx = next(
+                    (
+                        i
+                        for i, span in enumerate(span_data)
+                        if str(span.get(spans_primary_key)) == str(span_id)
+                    ),
+                    None,
+                )
+                if idx is None:
+                    set_selected_span_rows([])
+                    return
+                set_selected_span_rows([idx])
+
+            def set_move_mode(enabled: bool):
+                toolbar_state["move_mode"] = bool(enabled)
+
+            def toggle_move_mode():
+                toolbar_state["move_mode"] = not bool(toolbar_state["move_mode"])
+
+            def get_current_selected_span_indices() -> List[int]:
+                return get_selected_span_indices(
+                    span_data,
+                    selected_span_rows_snapshot.get("rows"),
+                )
+
+            def set_doc_idx(idx):
                 if idx is None:
                     return
                 if text_data and (idx < 0 or idx >= len(text_data)):
                     idx = 0
-                selected_idx_store["idx"] = idx
+                selected_doc_rows_store["rows"] = [idx]
 
             def get_doc_id_by_idx(idx):
                 if idx is None or not (0 <= idx < len(text_data)):
@@ -1815,18 +1915,23 @@ class DataWidgetFactory:
                 if on_change_text_id:
                     on_change_text_id(new_doc_id)
 
+            def ensure_initial_doc_selection():
+                if len(selected_doc_rows_store["rows"]) == 0 and len(text_data) > 0:
+                    selected_doc_rows_store["rows"] = [0]
+
+            use_effect(ensure_initial_doc_selection, [text_store])
             use_effect(scroll_to_top, [current_doc_id])
 
             use_imperative_handle(
                 handle,
                 lambda: {
                     "scroll_to_span": lambda key: text_ref.current.scroll_to_span(key),
-                    "set_doc_idx": _set_doc_idx,
-                    "get_doc_idx": lambda: doc_idx,
+                    "set_doc_idx": set_doc_idx,
+                    "get_doc_idx": lambda: persistent_doc_idx,
                     "set_highlighted_spans": set_highlighted,
-                    "set_selected_span": set_selected_span_id,
+                    "set_selected_span": set_selected_span,
                 },
-                [text_data, doc_idx],
+                [text_data, span_data, persistent_doc_idx],
             )
 
             def handle_mouse_hover_spans(span_ids: List[str], mod_keys: List[str]):
@@ -1844,22 +1949,28 @@ class DataWidgetFactory:
                     on_hover_spans(span_ids, mod_keys)
 
             def update_selected_span(key, value):
-                if selected_span_id is None:
-                    return
                 col = span_field_by_key.get(key)
                 if col and col.get("kind") == "boolean":
                     value = bool(value)
 
-                for i, span in enumerate(spans_store):
-                    if span.get(spans_primary_key) == selected_span_id:
-                        spans_store[i][key] = value
-                        return
+                selected_indices = get_current_selected_span_indices()
+                if not selected_indices:
+                    return
+                for i in selected_indices:
+                    spans_store[i][key] = value
+                if selected_span_idx is None or selected_span_idx < 0:
+                    set_selected_span_rows(selected_indices)
 
             def filter_doc_spans():
+                selected_ids = {
+                    span_data[idx].get(spans_primary_key)
+                    for idx in get_current_selected_span_indices()
+                    if 0 <= idx < len(span_data)
+                }
                 return [
                     {
                         "highlighted": span[spans_primary_key] in highlighted,
-                        "selected": span[spans_primary_key] == selected_span_id,
+                        "selected": span[spans_primary_key] in selected_ids,
                         **span,
                     }
                     for span in span_data
@@ -1871,7 +1982,12 @@ class DataWidgetFactory:
 
             doc_spans = use_memo(
                 filter_doc_spans,
-                [span_data, current_doc_id, highlighted, selected_span_id],
+                [
+                    span_data,
+                    current_doc_id,
+                    highlighted,
+                    selected_span_rows_snapshot.get("rows"),
+                ],
             )
 
             def flush_pending_span_scroll():
@@ -1885,14 +2001,21 @@ class DataWidgetFactory:
                 if on_add_span:
 
                     def after_timeout():
-                        set_selected_span_id(span_ids[0])
                         last_span_id = span_ids[len(span_ids) - 1]
                         last_span_idx = next(
                             i
                             for i, span in enumerate(spans_store)
                             if span[spans_primary_key] == last_span_id
                         )
-                        sync_store_selection(store_spans_key, last_span_idx, handle, False)
+                        set_selected_span_rows([last_span_idx])
+                        if store_spans_key is not None:
+                            sync_store_selection(
+                                store_spans_key,
+                                last_span_idx,
+                                handle,
+                                False,
+                                [last_span_idx],
+                            )
                         on_add_span(span_ids)
 
                     # TODO replace with await on transaction when supported
@@ -1936,12 +2059,11 @@ class DataWidgetFactory:
 
             @use_event_callback
             def on_delete():
-                if selected_span_id is not None:
-                    for span in reversed(spans_store):
-                        if span.get(spans_primary_key) == selected_span_id:
-                            spans_store.remove(span)
-                            break
-                    set_selected_span_id(None)
+                selected_indices = get_current_selected_span_indices()
+                if selected_indices:
+                    for idx in sorted(selected_indices, reverse=True):
+                        spans_store.remove(spans_store[idx])
+                    set_selected_span_rows([])
                     return
                 to_remove = []
                 for span in reversed(spans_store):
@@ -1960,28 +2082,21 @@ class DataWidgetFactory:
 
             @use_event_callback
             def handle_toggle_move(event=None):
-                set_move_mode(lambda v: not v)
+                toggle_move_mode()
 
             @use_event_callback
             def on_key_press(k, modkeys, selection):
                 next_idx = None
                 if k == "ArrowRight":
-                    next_idx = get_adjacent_doc_idx(doc_idx, 1)
+                    next_idx = get_adjacent_doc_idx(persistent_doc_idx, 1)
                     if next_idx is None and text_data:
-                        if doc_idx is None:
-                            next_idx = 0
-                        else:
-                            next_idx = (doc_idx + 1) % len(text_data)
+                        next_idx = (persistent_doc_idx + 1) % len(text_data)
                 elif k == "ArrowLeft":
-                    next_idx = get_adjacent_doc_idx(doc_idx, -1)
+                    next_idx = get_adjacent_doc_idx(persistent_doc_idx, -1)
                     if next_idx is None and text_data:
-                        if doc_idx is None:
-                            next_idx = len(text_data) - 1
-                        else:
-                            next_idx = (doc_idx - 1) % len(text_data)
+                        next_idx = (persistent_doc_idx - 1) % len(text_data)
 
                 if next_idx is not None:
-                    selected_idx_store["idx"] = next_idx
                     handle_text_change(next_idx)
                     return
 
@@ -1993,18 +2108,6 @@ class DataWidgetFactory:
                             handle_add_span(label)
                             break
 
-            selected_span = get_selected_span()
-
-            def sync_toolbar_state():
-                if toolbar_state["selected_span"] != selected_span:
-                    toolbar_state["selected_span"] = selected_span
-                if toolbar_state["span_fields"] != span_fields:
-                    toolbar_state["span_fields"] = span_fields
-                if toolbar_state["move_mode"] != move_mode:
-                    toolbar_state["move_mode"] = move_mode
-
-            use_effect(sync_toolbar_state, [selected_span, move_mode, span_fields])
-
             def handle_toolbar_action():
                 action_id = toolbar_snapshot.get("action_id", 0)
                 if action_id == last_action_id_ref.current:
@@ -2012,18 +2115,19 @@ class DataWidgetFactory:
                 last_action_id_ref.current = action_id
                 action = toolbar_snapshot.get("action")
                 payload = toolbar_snapshot.get("action_payload") or {}
+                selected_indices = get_current_selected_span_indices()
                 if action == "label_click":
                     label = payload.get("label")
                     if not label:
                         return
-                    if selected_span is not None:
+                    if len(selected_indices) > 0:
                         update_selected_span(button_key, label)
                     else:
                         handle_add_span(label)
                 elif action == "delete":
                     on_delete()
                 elif action == "toggle_move":
-                    set_move_mode(lambda v: not v)
+                    toggle_move_mode()
                 elif action == "update_span":
                     key = payload.get("key")
                     if key is None:
@@ -2036,7 +2140,42 @@ class DataWidgetFactory:
                 return div("No document selected")
 
             def handle_click_span(span_id, modkeys):
-                set_selected_span_id(span_id)
+                if span_id is None:
+                    set_selected_span_rows([])
+                    return
+                clicked_idx = next(
+                    (
+                        i
+                        for i, span in enumerate(spans_store)
+                        if str(span.get(spans_primary_key)) == str(span_id)
+                    ),
+                    None,
+                )
+                if clicked_idx is None:
+                    return
+                shift_pressed = bool(
+                    modkeys and any(str(key).lower() == "shift" for key in modkeys)
+                )
+                current_selected_rows = selected_span_rows_snapshot.get("rows") or []
+                next_selected_rows = (
+                    normalize_selected_rows(
+                        [*current_selected_rows, clicked_idx],
+                        clicked_idx,
+                        len(span_data),
+                    )
+                    if shift_pressed
+                    else [clicked_idx]
+                )
+                suppress_next_empty_select_clear_ref.current = True
+                set_selected_span_rows(next_selected_rows)
+                if store_spans_key is not None and len(next_selected_rows) > 0:
+                    sync_store_selection(
+                        store_spans_key,
+                        next_selected_rows[0],
+                        handle,
+                        False,
+                        next_selected_rows,
+                    )
                 set_move_mode(False)
 
                 # auto synchronization with other text widgets
@@ -2049,22 +2188,34 @@ class DataWidgetFactory:
                     on_click_span(span_id, modkeys)
 
             def handle_mouse_select(ranges, modkeys):
-                if move_mode and selected_span_id and len(ranges) > 0:
+                if len(ranges) == 0 and suppress_next_empty_select_clear_ref.current:
+                    suppress_next_empty_select_clear_ref.current = False
+                    set_selected_ranges(ranges)
+                    return
+                if (
+                    move_mode
+                    and selected_span_idx is not None
+                    and 0 <= selected_span_idx < len(spans_store)
+                    and len(ranges) > 0
+                ):
                     r = ranges[0]
-                    for i, span in enumerate(spans_store):
-                        if span.get(spans_primary_key) == selected_span_id:
-                            spans_store[i][begin_key] = r["begin"]
-                            spans_store[i][end_key] = r["end"]
-                            spans_store[i]["text"] = current_doc[text_key][r["begin"] : r["end"]]
-                            set_selected_span_id(spans_store[i].get(spans_primary_key))
-                            break
+                    spans_store[selected_span_idx][begin_key] = r["begin"]
+                    spans_store[selected_span_idx][end_key] = r["end"]
+                    spans_store[selected_span_idx]["text"] = current_doc[text_key][
+                        r["begin"] : r["end"]
+                    ]
+                    set_selected_span_rows([selected_span_idx])
                     set_move_mode(False)
                     set_selected_ranges([])
                     if text_ref.current:
                         text_ref.current.clear_current_mouse_selection()
                     return
                 elif len(ranges) > 0:
-                    set_selected_span_id(None)
+                    set_selected_span_rows([])
+                elif (
+                    selected_span_idx is not None and selected_span_idx >= 0
+                ) or selected_span_rows_snapshot.get("rows"):
+                    set_selected_span_rows([])
                 set_selected_ranges(ranges)
 
             return div(
