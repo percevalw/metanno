@@ -28,7 +28,23 @@ For a deeper understanding of the framework, check out the [Pret tutorials](http
     **Customize the Data Explorer**
 
     ---
-    Learn how to pre-annotate entities using EDS-NLP and annotate higher-level structures in the Data Explorer.
+    Learn how to extend the data model and expose custom fields in table, text, and form widgets.
+
+=== card {: href=/tutorials/pre-annotate-mammography-dates/ }
+
+    :fontawesome-solid-stethoscope:
+    **Pre-annotate Mammography Dates**
+
+    ---
+    Use EDS-NLP `eds.dates` and `eds.contextual_matcher` to pre-annotate dates and expose a `mammography` checkbox.
+
+=== card {: href=/tutorials/model-nested-and-linked-collections/ }
+
+    :fontawesome-solid-diagram-project:
+    **Model Nested and Linked Collections**
+
+    ---
+    Structure multi-level datasets with nested paths (`stays.notes`) or linked collections (`notes` + `entities`) using shared keys.
 
 <!--
 === card {: href=/tutorials/byo-dataframe-annotator/ }

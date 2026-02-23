@@ -46,15 +46,7 @@ We then build two Python lists: `notes` and `entities` with the fields we’ll d
 --8<-- "examples/quaero.py:import-data"
 ```
 
-#### 2) Check unique entity IDs
-
-The [Table][metanno.ui.Table] component requires unique IDs for each row. We check if the entity IDs are unique and raise an error if not, or deduplicate them automatically.
-
-```python
---8<-- "examples/quaero.py:unicity"
-```
-
-#### 3) Configure labels
+#### 2) Configure labels
 
 We compute a stable list of labels, assign a color for each, and auto‑pick a one‑letter keyboard shortcut per label.
 
@@ -62,7 +54,7 @@ We compute a stable list of labels, assign a color for each, and auto‑pick a o
 --8<-- "examples/quaero.py:label-config"
 ```
 
-#### 4) Instantiate the manager
+#### 3) Instantiate the manager
 
 We create a [DataWidgetFactory][metanno.recipes.data_widget_factory.DataWidgetFactory] (a ready‑to‑customize recipe). Under the hood, it composes Metanno components such as [Table][metanno.ui.Table], [AnnotatedText][metanno.ui.AnnotatedText], buttons with a bit of app logic.
 
@@ -70,7 +62,7 @@ We create a [DataWidgetFactory][metanno.recipes.data_widget_factory.DataWidgetFa
 --8<-- "examples/quaero.py:instantiate"
 ```
 
-#### 5) Build the views and define their interactions
+#### 4) Build the views and define their interactions
 
 We define the views that will be rendered in the app. Each view is a component that displays a specific part of the data.
 
@@ -78,7 +70,7 @@ We define the views that will be rendered in the app. Each view is a component t
 --8<-- "examples/quaero.py:render-views"
 ```
 
-#### 6) Assemble everything
+#### 5) Assemble everything
 
 Panels can be resized, rearranged (drag the tab handles), or hidden by docking into another panel’s tab bar. The note panel header is customized to display the current note id.
 
@@ -86,7 +78,7 @@ Panels can be resized, rearranged (drag the tab handles), or hidden by docking i
 --8<-- "examples/quaero.py:layout"
 ```
 
-#### 7) Render or serve
+#### 6) Render or serve
 
 You can either **serve it** or **display it** in a notebook, following the instructions in [the previous section](#run-the-app).
 
@@ -111,7 +103,6 @@ Pass `sync=True` when creating the app to enable real‑time collaboration witho
 app = DataWidgetFactory(
     {
         "notes": notes,
-        "entities": entities,
     },
     sync=True,
 )
@@ -127,7 +118,6 @@ Provide a file path to append every change to an on‑disk log:
 app = DataWidgetFactory(
     {
         "notes": notes,
-        "entities": entities,
     },
     sync="quaero.bin",
 )
