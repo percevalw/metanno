@@ -37,6 +37,8 @@ nav:
       - tutorials/new-project.md
       - tutorials/run-quaero-explorer.md
       - tutorials/customize-explorer.md
+      - tutorials/pre-annotation.md
+      - tutorials/multi-collections.md
   - Building Blocks:
       - components/index.md
       - Pret: https://percevalw.github.io/pret" target="_blank
