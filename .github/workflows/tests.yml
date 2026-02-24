@@ -75,7 +75,11 @@ jobs:
       - name: 'Install project'
         run: |
           yarn install
-          uv pip install -e . --group dev
+          if [ "${{ github.event_name }}" = "pull_request" ] || [ "${{ github.ref }}" = "refs/heads/main" ] || [ "${{ github.ref }}" = "refs/heads/master" ]; then
+            uv pip install -e . --group dev --group unreleased-deps
+          else
+            uv pip install -e . --group dev
+          fi
 
       - name: 'Install Playwright Browsers'
         run: yarn playwright install --with-deps
@@ -202,7 +206,11 @@ jobs:
         run: |
           yarn install
           # install setuptools < 81 to fix issue with pkg_resources
-          uv pip install -e . --group docs "setuptools<81"
+          if [ "${{ github.event_name }}" = "pull_request" ] || [ "${{ github.ref }}" = "refs/heads/main" ] || [ "${{ github.ref }}" = "refs/heads/master" ]; then
+            uv pip install -e . --group docs --group unreleased-deps "setuptools<81"
+          else
+            uv pip install -e . --group docs "setuptools<81"
+          fi
 
       - name: 'Build docs'
         run: |
