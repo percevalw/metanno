@@ -482,7 +482,7 @@ class DataWidgetFactory:
 
     Parameters
     ----------
-    data : Dict[str, List[Dict[str, Any]]]
+    data : Union[Dict[str, List[Dict[str, Any]]], Callable[[], Dict]]
         Initial dataset as a mapping from store keys to list-like records.
     sync : Union[bool, str, PathLike] | None
         Whether and how to sync and persist the data:
@@ -497,7 +497,7 @@ class DataWidgetFactory:
 
     def __init__(
         self,
-        data: Dict[str, List[Dict[str, Any]]],
+        data: Union[Dict[str, List[Dict[str, Any]]], Callable[[], Dict]],
         sync: Optional[Union[bool, str, PathLike]] = None,
     ):
         self.data = create_store(data, sync=sync)

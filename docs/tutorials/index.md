@@ -4,6 +4,11 @@ Here is a list of tutorials to help you learn how to use Metanno.
 
 For a deeper understanding of the framework, check out the [Pret tutorials](https://percevalw.github.io/pret/main/tutorials/).
 
+!!! info "Notebook-first tutorials"
+
+    Most tutorials should have a "Download notebook" button at the top right : click it and drag the file
+    to your favorite jupyterlab instance to experiment with the library yourself.
+
 <!-- --8<-- [start:tutorials] -->
 
 === card {: href=/tutorials/new-project/ }
@@ -20,31 +25,31 @@ For a deeper understanding of the framework, check out the [Pret tutorials](http
     **Run the Data Explorer demo**
 
     ---
-    Run the Quaero Explorer demo app and discover its features: persisting annotations, collaborating, and more.
+    Run the Quaero Explorer demo app and discover the features of the DataWidgetFactory: persisting annotations, collaborating, and more.
 
 === card {: href=/tutorials/customize-explorer/ }
 
     :fontawesome-solid-robot:
-    **Customize the Data Explorer**
+    **Adding custom fields**
 
     ---
     Learn how to extend the data model and expose custom fields in table, text, and form widgets.
 
-=== card {: href=/tutorials/pre-annotate-mammography-dates/ }
+=== card {: href=/tutorials/pre-annotation/ }
 
     :fontawesome-solid-stethoscope:
-    **Pre-annotate Mammography Dates**
+    **Pre-annotate Data with EDS-NLP**
 
     ---
-    Use EDS-NLP `eds.dates` and `eds.contextual_matcher` to pre-annotate dates and expose a `mammography` checkbox.
+    Use EDS-NLP to pre-annotate your data.
 
-=== card {: href=/tutorials/model-nested-and-linked-collections/ }
+=== card {: href=/tutorials/multi-collections/ }
 
     :fontawesome-solid-diagram-project:
-    **Model Nested and Linked Collections**
+    **Nested and Linked Collections**
 
     ---
-    Structure multi-level datasets with nested paths (`stays.notes`) or linked collections (`notes` + `entities`) using shared keys.
+    Structure multi-level datasets with nested paths or linked collections.
 
 <!--
 === card {: href=/tutorials/byo-dataframe-annotator/ }
