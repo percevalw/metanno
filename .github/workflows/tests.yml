@@ -81,15 +81,17 @@ jobs:
         run: yarn playwright install --with-deps
 
       # Temporarily disabled while I figure out what's wrong with jlab 4
-      # - name: 'Run tests for JupyterLab 4'
-      #   run: |
-      #     uv pip install pip "jupyterlab>=4"
-      #     sh tests/jupyter/run.sh
+      - name: 'Run tests for JupyterLab 4'
+        run: |
+          uv pip install pip "jupyterlab>=4"
+          export PYV=$(python --version | cut -d' ' -f2)
+          sh tests/jupyter/run.sh tests/jupyter --project=chromium-$PYV  --project=firefox-$PYV
 
       - name: 'Run tests for JupyterLab 3'
         run: |
           uv pip install pip "jupyterlab<4"
-          sh tests/jupyter/run.sh
+          export PYV=$(python --version | cut -d' ' -f2)
+          sh tests/jupyter/run.sh tests/jupyter --project=chromium-$PYV  --project=firefox-$PYV
 
       - name: 'Upload blob report'
         uses: actions/upload-artifact@v4

@@ -1,4 +1,5 @@
 let { expect, test } = require("@jupyterlab/galata");
+const { createDirectoryResetController } = require("../reset-test-dir");
 
 // JUPYTERLAB_VERSION is set in run.sh
 if (process.env.JUPYTERLAB_VERSION < "4") {
@@ -7,6 +8,19 @@ if (process.env.JUPYTERLAB_VERSION < "4") {
   expect = oldGalata.expect;
   test = oldGalata.test;
 }
+
+const directoryReset = createDirectoryResetController(__dirname);
+
+test.describe.configure({ mode: "serial" });
+
+test.beforeAll(async () => {
+  await directoryReset.prepare();
+  await directoryReset.reset();
+});
+
+test.beforeEach(async () => {
+  await directoryReset.reset();
+});
 
 test.afterEach(async ({ page }, testInfo) => {
   if (testInfo.status !== testInfo.expectedStatus) {
@@ -18,9 +32,20 @@ test.afterEach(async ({ page }, testInfo) => {
       path: screenshotPath,
       contentType: "image/png",
     });
-    // Take the screenshot itself.
-    await page.screenshot({ path: screenshotPath, timeout: 1000 });
+    try {
+      // Take the screenshot itself.
+      await page.screenshot({ path: screenshotPath, timeout: 1000 });
+    }
+    catch (e) {
+      console.error("Could not create screenshot");
+    }
   }
+
+  await directoryReset.reset();
+});
+
+test.afterAll(async () => {
+  await directoryReset.dispose();
 });
 
 test.describe("Notebook Tests", () => {
