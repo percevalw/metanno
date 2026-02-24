@@ -58,7 +58,7 @@ Happy exploring!
 """
 
 URL = "https://quaerofrenchmed.limsi.fr/QUAERO_FrenchMed_brat.zip"
-DOWNLOAD_DIR = Path("./downloaded")
+DOWNLOAD_DIR = Path.home() / ".cache"
 
 
 def download_quaero():
