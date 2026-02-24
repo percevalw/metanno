@@ -57,6 +57,9 @@ docs = [
     'click<=8.2.1; python_version >= "3.9"',
     { include-group = "dev" },
 ]
+unreleased-deps = [
+    "pret @ git+https://github.com/percevalw/pret.git@main",
+]
 
 # ----- CLI configuration -----
 [project.scripts]
