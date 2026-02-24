@@ -536,7 +536,8 @@ export class AnnotatedText extends React.Component<TextData & TextMethods> {
             this.linesRef[line].current?.scrollIntoView({
               behavior: behavior,
               block: "center",
-            });
+              container: "nearest",
+            } as ScrollIntoViewOptions);
           }
         },
         scroll_to_span: (
@@ -548,7 +549,8 @@ export class AnnotatedText extends React.Component<TextData & TextMethods> {
               this.spansRef[span_id].current?.scrollIntoView({
                 behavior: behavior,
                 block: "center",
-              });
+                container: "nearest",
+              } as ScrollIntoViewOptions);
             }
           }, 10);
         },
