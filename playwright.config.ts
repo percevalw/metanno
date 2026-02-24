@@ -4,6 +4,7 @@ import "@jupyterlab/galata/lib/playwright-config";
 export default defineConfig<{
   python: string;
 }>({
+  workers: 1,
   use: {
     // jupyter url
     baseURL: "http://localhost:8889",
