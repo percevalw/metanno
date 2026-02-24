@@ -5,8 +5,6 @@ from pathlib import Path
 import edsnlp
 from pret import use_ref
 from pret.hooks import RefType
-
-# Pending deprecation, prefer pret.react
 from pret.react import div
 from pret_joy import Box, Divider, Stack
 from pret_markdown import Markdown
@@ -90,8 +88,7 @@ def download_quaero():
         zip_ref.extractall(DOWNLOAD_DIR)
 
 
-def app(save_path=None, deduplicate=False):
-    # Load the data
+def build_data():
     # --8<-- [start:import-data]
     download_quaero()
 
@@ -122,10 +119,21 @@ def app(save_path=None, deduplicate=False):
             }
         )
     # --8<-- [end:import-data]
+    return {"notes": notes}
+
+
+def app(save_path=None, deduplicate=False):
+    factory = DataWidgetFactory(
+        # Load the data if no serialized store exists already,
+        # otherwise load from the store
+        # This is why we pass a function
+        data=build_data,
+        sync=save_path,
+    )
+    data = factory.data
 
     # Compute shortcuts and colors for labels
-    # --8<-- [start:label-config]
-    all_labels = list(dict.fromkeys(e["label"] for n in notes for e in n["entities"]))
+    all_labels = list(dict.fromkeys(e["label"] for n in data["notes"] for e in n["entities"]))
     shortcuts = set()
     labels_config = {}
     for i, lab in enumerate(all_labels):
@@ -136,32 +144,18 @@ def app(save_path=None, deduplicate=False):
         if letter:
             shortcuts.add(letter)
             labels_config[lab]["shortcut"] = letter
-    # --8<-- [end:label-config]
-
-    # --8<-- [start:instantiate]
-    factory = DataWidgetFactory(
-        {
-            "notes": notes,
-        },
-        sync=save_path,
-    )
-    data = factory.data
-    # --8<-- [end:instantiate]
 
     # Interaction Logic
     # --8<-- [start:render-views]
     # Create handles to control the widgets imperatively
-    notes_table_handle: RefType[TableWidgetHandle] = use_ref()
-    ents_table_handle: RefType[TableWidgetHandle] = use_ref()
-    note_text_handle: RefType[TextWidgetHandle] = use_ref()
-    note_form_handle: RefType[FormWidgetHandle] = use_ref()
 
     # View the documents as a table
+    notes_table_handle: RefType[TableWidgetHandle] = use_ref()
     notes_view = factory.create_table_widget(
         store_key="notes",
         primary_key="note_id",
         fields=infer_fields(
-            notes,
+            data["notes"],
             visible_keys=["note_id", "seen", "note_text", "note_kind"],
             id_keys=["note_id"],
             editable_keys=["seen", "note_kind"],
@@ -172,6 +166,7 @@ def app(save_path=None, deduplicate=False):
     )
 
     # Show the selected note as a form
+    note_form_handle: RefType[FormWidgetHandle] = use_ref()
     note_form_view = factory.create_form_widget(
         store_key="notes",
         primary_key="note_id",
@@ -194,11 +189,12 @@ def app(save_path=None, deduplicate=False):
     )
 
     # View the entities as a table
+    ents_table_handle: RefType[TableWidgetHandle] = use_ref()
     entities_view = factory.create_table_widget(
         store_key="notes.entities",
         primary_key="id",
         fields=infer_fields(
-            [e for n in notes for e in n["entities"]],
+            [e for n in data["notes"] for e in n["entities"]],
             visible_keys=["id", "text", "label", "concept"],
             id_keys=["id"],
             editable_keys=["label", "concept"],
@@ -210,13 +206,14 @@ def app(save_path=None, deduplicate=False):
 
     # View and edit the note text with highlighted entities
     # It returns both the text view and a view for the entity being edited
+    note_text_handle: RefType[TextWidgetHandle] = use_ref()
     note_text_view, ent_view = factory.create_text_widget(
         store_text_key="notes",
         # Where to look for spans data in the app data
         store_spans_key="notes.entities",
         # Fields that will be displayed in the toolbar
         fields=infer_fields(
-            [e for n in notes for e in n["entities"]],
+            [e for n in data["notes"] for e in n["entities"]],
             visible_keys=["label", "concept"],
             editable_keys=["label", "concept"],
             categorical_keys=["label", "concept"],

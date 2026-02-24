@@ -35,10 +35,10 @@ nav:
   - Tutorials:
       - tutorials/index.md
       - tutorials/new-project.md
-      - tutorials/run-quaero-explorer.md
-      - tutorials/customize-explorer.md
-      - tutorials/pre-annotation.md
-      - tutorials/multi-collections.md
+      - tutorials/run-quaero-explorer.ipynb
+      - tutorials/custom-fields.ipynb
+      - tutorials/multi-collections.ipynb
+      - tutorials/pre-annotation.ipynb
   - Building Blocks:
       - components/index.md
       - Pret: https://percevalw.github.io/pret" target="_blank
@@ -98,6 +98,8 @@ plugins:
   - bibtex:
       bibtex_file: "docs/references.bib"
   - clickable_code:
+  - notebooks_to_md:
+      download_notebook_link: true
   - mike
 
 watch:
@@ -105,6 +107,7 @@ watch:
   - pret
   - metanno
   - examples
+  - docs
 
 markdown_extensions:
   - pymdownx.highlight
