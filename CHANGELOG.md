@@ -16,6 +16,7 @@ New notebook-based tutorials : [each tutorial](https://percevalw.github.io/metan
   - `create_filters_view` for table filters
 - **Automatic syncing between tables, forms, and text widgets (no more manual callbacks required)**
 - Nested data support, ie `notes: [{"note_id": ..., "note_text": ..., "entities": [{"id": ..., "begin": ...}], ...}]` can be seen in two views using store keys `notes` and `notes.entities`
+- New connection status bar to know if an app is connected, disconnected or offline.
 
 ### New Pret changes !
 

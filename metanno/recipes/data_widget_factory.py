@@ -6,6 +6,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 from pret import component, create_store, use_store_snapshot
 from pret.hooks import (
     RefType,
+    use_connection_status,
     use_effect,
     use_event_callback,
     use_imperative_handle,
@@ -18,6 +19,7 @@ from pret.react import div
 from pret.render import Renderable
 from pret_joy import (
     Autocomplete,
+    Box,
     Button,
     ButtonGroup,
     Checkbox,
@@ -29,6 +31,7 @@ from pret_joy import (
     RadioGroup,
     Select,
     Stack,
+    Typography,
 )
 from typing_extensions import TypedDict
 
@@ -509,6 +512,7 @@ class DataWidgetFactory:
         self.handles = {}
         self.primary_keys = {}
         self.selected_rows = {}  # store_key -> currently selected row indices
+        self.is_synced = bool(sync)
 
     def _ensure_selected_rows(self, store_key):
         if store_key is None:
@@ -2255,3 +2259,32 @@ class DataWidgetFactory:
             )
 
         return TextWidget(), ToolbarWidget()
+
+    def create_connection_status_bar(self):
+        is_synced = self.is_synced
+
+        @component
+        def StatusBar():
+            status = use_connection_status()
+            if status["connected"]:
+                connected = "Connected"
+                color = "success"
+            elif is_synced:
+                connected = "Disconnected"
+                color = "danger"
+            else:
+                connected = "Offline (changes won't be saved)"
+                color = "neutral"
+
+            return Box(
+                Typography(f"Connection status: {connected}", level="body-sm", color=color),
+                sx={
+                    "width": "100%",
+                    "px": 1.5,
+                    "py": 0.25,
+                    "borderTop": "1px solid var(--joy-palette-divider, #d6d6d6)",
+                    "background": "var(--joy-palette-background-surface, #fff)",
+                },
+            )
+
+        return StatusBar()
