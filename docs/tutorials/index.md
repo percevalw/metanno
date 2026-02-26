@@ -27,7 +27,7 @@ For a deeper understanding of the framework, check out the [Pret tutorials](http
     ---
     Run the Quaero Explorer demo app and discover the features of the DataWidgetFactory: persisting annotations, collaborating, and more.
 
-=== card {: href=/tutorials/customize-explorer/ }
+=== card {: href=/tutorials/custom-fields/ }
 
     :fontawesome-solid-robot:
     **Adding custom fields**
