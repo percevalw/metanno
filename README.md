@@ -44,7 +44,7 @@ Develop and test in a notebook. If you prefer, you can also run it as a standalo
 ### Easy setup
 
 ```bash { data-md-color-scheme="slate" }
-pip install metanno==1.0.0-beta.5
+pip install metanno==1.0.0-beta.6
 ```
 
 To use it with Jupyter, if you install the library in a custom environment (conda, venv, or other),
