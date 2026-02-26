@@ -234,7 +234,7 @@ def app(save_path=None, deduplicate=False):
     # --8<-- [end:render-views]
 
     # --8<-- [start:layout]
-    layout = div(
+    layout = Stack(
         Layout(
             Panel(div(Markdown(DESC), style={"margin": "10px"}), key="Description"),
             Panel(notes_view, key="Notes"),
@@ -272,6 +272,7 @@ def app(save_path=None, deduplicate=False):
                 "Entities",
             ],
         ),
+        factory.create_connection_status_bar(),
         style={
             "background": "var(--joy-palette-background-level2, #f0f0f0)",
             "width": "100%",
