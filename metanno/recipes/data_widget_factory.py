@@ -1861,6 +1861,7 @@ class DataWidgetFactory:
             text_ref = use_ref()
             pending_span_ids_ref = use_ref(None)
             suppress_next_empty_select_clear_ref = use_ref(False)
+            is_mounting_ref = use_ref(True)
 
             def set_selected_span_rows(selected_rows: Optional[Sequence[int]] = None):
                 selected_span_rows_store["rows"] = normalize_selected_rows(
@@ -1911,6 +1912,10 @@ class DataWidgetFactory:
                 return text_data[idx].get(text_primary_key)
 
             def scroll_to_top():
+                if is_mounting_ref.current:
+                    if current_doc_id is not None:
+                        is_mounting_ref.current = False
+                    return
                 if text_ref.current:
                     text_ref.current.scroll_to_line(0, "instant")
 
