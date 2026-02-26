@@ -528,30 +528,31 @@ export class AnnotatedText extends React.Component<TextData & TextMethods> {
 
   constructor(props: TextData & TextMethods) {
     super(props);
+    this.linesRef = [];
+    this.spansRef = {};
+    this.containerRef = React.createRef();
+
     if (props.handle) {
+      const linesRef = this.linesRef;
+      const spansRef = this.spansRef;
       // Problem: props.handle may be an object OR a mapping, I don't know when it is which
       props.handle.current = {
         scroll_to_line: (line: number, behavior: ScrollBehavior = "smooth") => {
-          if (line >= 0 && line < this.linesRef.length && this.linesRef[line]) {
-            this.linesRef[line].current?.scrollIntoView({
+          if (line >= 0 && line < linesRef.length && linesRef[line]) {
+            linesRef[line].current?.scrollIntoView({
               behavior: behavior,
               block: "center",
               container: "nearest",
             } as ScrollIntoViewOptions);
           }
         },
-        scroll_to_span: (
-          span_id: string,
-          behavior: ScrollBehavior = "smooth"
-        ) => {
+        scroll_to_span: (span_id: string, behavior: ScrollBehavior = "smooth") => {
           setTimeout(() => {
-            if (this.spansRef[span_id]) {
-              this.spansRef[span_id].current?.scrollIntoView({
-                behavior: behavior,
-                block: "center",
-                container: "nearest",
-              } as ScrollIntoViewOptions);
-            }
+            spansRef[span_id]?.current?.scrollIntoView({
+              behavior: behavior,
+              block: "center",
+              container: "nearest",
+            } as ScrollIntoViewOptions);
           }, 10);
         },
         clear_current_mouse_selection: () => {
@@ -559,9 +560,6 @@ export class AnnotatedText extends React.Component<TextData & TextMethods> {
         },
       };
     }
-    this.linesRef = [];
-    this.spansRef = {};
-    this.containerRef = React.createRef();
     this.previousSelectedSpans = "";
     this.tokenize = cachedReconcile(tokenize);
     this.processStyles = memoize((styles) =>
