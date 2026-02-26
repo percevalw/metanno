@@ -100,7 +100,7 @@ order-by-type = true
 path = "metanno/version.py"
 
 [build-system]
-requires = ["hatchling", "jupyterlab<4.0.0", "pip<=24.0", "hatch-jupyter-builder"]
+requires = ["hatchling", "jupyterlab<4.0.0", "pip<=24.0", "hatch-jupyter-builder", "virtualenv<21.0.0"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.hooks.jupyter-builder]
