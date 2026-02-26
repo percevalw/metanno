@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.0.0-beta.6 (2025-02-26)
 
 New notebook-based tutorials : [each tutorial](https://percevalw.github.io/metanno/latest/tutorials/) can now be downloaded as a Jupyter notebook and run "at home".
 
