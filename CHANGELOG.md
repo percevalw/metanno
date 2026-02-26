@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+New notebook-based tutorials : [each tutorial](https://percevalw.github.io/metanno/latest/tutorials/) can now be downloaded as a Jupyter notebook and run "at home".
+
 ### New DataWidgetFactory !
 
 - The `DatasetExplorerApp` factory moved to `metanno/recipes/data_widget_factory.py` and is now `DataWidgetFactory`
@@ -14,6 +16,11 @@
   - `create_filters_view` for table filters
 - **Automatic syncing between tables, forms, and text widgets (no more manual callbacks required)**
 - Nested data support, ie `notes: [{"note_id": ..., "note_text": ..., "entities": [{"id": ..., "begin": ...}], ...}]` can be seen in two views using store keys `notes` and `notes.entities`
+
+### New Pret changes !
+
+- Transactions, connection status, store rollbacks, Jupyter "Open in a new tab" button, and more.
+- Check out [Pret's changelog](https://percevalw.github.io/pret/latest/changelog/) for more info.
 
 ## v1.0.0-beta.5 (2025-12-09)
 
