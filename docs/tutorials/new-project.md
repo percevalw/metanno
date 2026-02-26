@@ -31,7 +31,7 @@ You can manage your project dependencies with a pyproject.toml or a requirements
 
     [dependency-groups]
     metanno = [
-      "metanno",   # the annotation framework
+      "metanno>=1.0.0b5",   # the annotation framework
       # add other dependencies as your annotation app grows
     ]
     ```
@@ -39,8 +39,8 @@ You can manage your project dependencies with a pyproject.toml or a requirements
     Create and activate an environment, then (re-)install your project with the `metanno` group:
 
     ```bash { data-md-color-scheme="slate" }
-    mamba create -n metanno python=3.11 -y
-    mamba activate metanno
+    mamba create -n annotation python=3.11 -y
+    mamba activate annotation
     pip install . --group metanno
     ```
 
@@ -50,15 +50,15 @@ You can manage your project dependencies with a pyproject.toml or a requirements
     If you don’t want a pyproject.toml, create a requirements.txt:
 
     ```text
-    metanno
-    edsnlp>=0.13  # example additional dependency, not required at the moment
+    metanno>=1.0.0b5
+    edsnlp>=0.20  # example additional dependency, not required at the moment
     ```
 
     Then install in your environment:
 
     ```bash { data-md-color-scheme="slate" }
-    mamba create -n metanno python=3.11 -y
-    mamba activate metanno
+    mamba create -n annotation python=3.11 -y
+    mamba activate annotation
     pip install -r requirements.txt
     ```
 
