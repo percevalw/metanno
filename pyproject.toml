@@ -68,6 +68,7 @@ pret = "pret.cli:app"
 # ----- Linting & Testing -----
 [tool.ruff]
 fix = true
+force-exclude = true
 exclude = [
     ".git",
     "__pycache__",
@@ -87,9 +88,17 @@ lint.select = [
 ]
 lint.fixable = ["E", "F", "W", "I"]
 
+[tool.ruff.format]
+exclude = [
+    "docs/tutorials/multi-collections.ipynb",
+    "docs/tutorials/run-quaero-explorer.ipynb",
+]
+
 [tool.ruff.lint.extend-per-file-ignores]
 # Also ignore `E402` in all `__init__.py` files.
 "__init__.py" = ["E402", "F401"]
+"docs/tutorials/multi-collections.ipynb" = ["E501"]
+"docs/tutorials/run-quaero-explorer.ipynb" = ["E501"]
 
 [tool.ruff.lint.isort]
 known-third-party = ["pret"]
