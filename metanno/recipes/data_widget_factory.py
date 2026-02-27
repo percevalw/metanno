@@ -17,6 +17,7 @@ from pret.hooks import (
 from pret.react import b as bold
 from pret.react import div
 from pret.render import Renderable
+from pret.store import transact
 from pret_joy import (
     Autocomplete,
     Box,
@@ -276,7 +277,7 @@ def normalize_selected_rows(
             continue
         normalized.append(idx)
         seen.add(idx)
-    return normalized
+    return sorted(normalized)
 
 
 def make_field_label(
@@ -295,6 +296,7 @@ def render_select_field(
     key: str,
     label: Any,
     kind: str,
+    value: Any,
     data: Any,
     editable: bool,
     options: Sequence[Any],
@@ -381,6 +383,7 @@ def render_text_field(
     key: str,
     label: Any,
     value: Any,
+    data: Any,
     editable: bool,
     on_field_change: Callable,
     min_input_width: Optional[str],
@@ -391,6 +394,7 @@ def render_text_field(
         target = getattr(event, "target", None)
         on_field_change(key, getattr(target, "value", ""))
 
+    value = data[key]
     return FormControl(
         FormLabel(make_field_label(label, is_mixed)),
         Input(
@@ -409,6 +413,7 @@ def render_boolean_field(
     key: str,
     label: Any,
     value: Any,
+    data: Any,
     editable: bool,
     on_field_change: Callable,
     min_input_width: Optional[str],
@@ -460,6 +465,7 @@ def render_field(
             key,
             label,
             kind,
+            value,
             current_row,
             editable,
             options,
@@ -472,6 +478,7 @@ def render_field(
         return render_boolean_field(
             key,
             label,
+            value,
             current_row,
             editable,
             on_field_change,
@@ -483,6 +490,7 @@ def render_field(
         key,
         label,
         value,
+        current_row,
         editable,
         on_field_change,
         min_input_width,
@@ -1422,8 +1430,9 @@ class DataWidgetFactory:
                 if not selected_row_indices:
                     view_store[current_idx][key] = value
                     return
-                for idx in selected_row_indices:
-                    view_store[idx][key] = value
+                with transact(view_store):
+                    for idx in selected_row_indices:
+                        view_store[idx][key] = value
 
             def get_field_state(field_key: str):
                 if len(selected_rows_data) == 0:
@@ -2104,12 +2113,14 @@ class DataWidgetFactory:
             def on_delete():
                 selected_indices = get_current_selected_span_indices()
                 if selected_indices:
-                    for idx in sorted(selected_indices, reverse=True):
-                        spans_store.remove(spans_store[idx])
+                    to_remove = sorted(selected_indices, reverse=True)
+                    with transact(spans_store):
+                        for idx in to_remove:
+                            del spans_store[idx]
                     set_selected_span_rows([])
                     return
                 to_remove = []
-                for span in reversed(spans_store):
+                for idx, span in enumerate(spans_store):
                     if text_primary_key in span and str(span.get(text_primary_key)) != str(
                         current_doc_id
                     ):
@@ -2118,8 +2129,9 @@ class DataWidgetFactory:
                         if not (span["end"] <= r["begin"] or r["end"] <= span["begin"]):
                             to_remove.append(span)
                             break
-                for item in to_remove:
-                    spans_store.remove(item)
+                with transact(spans_store):
+                    for item in sorted(to_remove, reverse=True):
+                        del spans_store[item]
                 if to_remove:
                     set_selected_ranges([])
 
