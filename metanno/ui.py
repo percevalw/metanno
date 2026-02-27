@@ -45,6 +45,7 @@ props_mapping = {
     "begin_key": "beginKey",
     "end_key": "endKey",
     "label_key": "labelKey",
+    "label_formatter": "labelFormatter",
     "style_key": "styleKey",
     "highlighted_key": "highlightedKey",
     "selected_key": "selectedKey",
@@ -422,6 +423,7 @@ def AnnotatedText(
     begin_key: str = "begin",
     end_key: str = "end",
     label_key: str = "label",
+    label_formatter: Optional[Callable[[Dict[str, Any]], str]] = None,
     style_key: str = "style",
     highlighted_key: str = "highlighted",
     primary_key: str = "id",
@@ -521,6 +523,7 @@ def AnnotatedText(
                 text=txt,
                 spans=tracked_spans,
                 annotation_styles=tracked_styles,
+                label_formatter=lambda span: f"{span['label']} ({span['end'] - span['start']} chars)",
                 on_mouse_select=handle_select,
                 on_mouse_enter_span=on_mouse_enter_span,
                 on_mouse_leave_span=on_mouse_leave_span,
@@ -584,6 +587,10 @@ def AnnotatedText(
         Name of the field in `spans` that contains the unique span identifier.
     label_key: str
         Name of the field in `spans` that contains the human-readable label.
+    label_formatter: Callable[[Dict[str, Any]], str] | None
+        Optional function used to compute each displayed span label from the
+        full span dictionary. When provided, its return value is shown instead
+        of the uppercased value from `label_key`.
     style_key: str
         Name of the field in `spans` that contains the style key. This key will
         be used to look up visual properties in `annotation_styles`. If no style

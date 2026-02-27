@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Added `label_formatter` to `create_text_widget` to allow users to provide a function to customize the displayed label on top of text spans
+
 ## v1.0.0-beta.6 (2025-02-26)
 
 New notebook-based tutorials : [each tutorial](https://percevalw.github.io/metanno/latest/tutorials/) can now be downloaded as a Jupyter notebook and run "at home".

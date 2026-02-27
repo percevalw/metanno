@@ -1483,6 +1483,7 @@ class DataWidgetFactory:
         end_key: str = "end",
         style_key: str = "style",
         label_key: str = "label",
+        label_formatter: Optional[Callable[[Dict[str, Any]], str]] = None,
         button_key: str = "label",
         labels: Dict[str, Dict[str, Any]] = {},
         style: Optional[Dict[str, Any]] = None,
@@ -1520,6 +1521,11 @@ class DataWidgetFactory:
             Field name for span styling configuration key.
         label_key : str
             Field name for span display label.
+        label_formatter : Callable[[Dict[str, Any]], str] | None
+            Optional function used to compute the rendered label text for each span.
+            It receives the full span dictionary and should return a string.
+
+            If left as None, the uppercased `label_key` field will be used.
         button_key : str
             Field name that annotation buttons will update.
         labels : Dict[str, Dict[str, Any]]
@@ -2247,6 +2253,7 @@ class DataWidgetFactory:
                     end_key=end_key,
                     style_key=style_key,
                     label_key=label_key,
+                    label_formatter=label_formatter,
                     on_key_press=on_key_press,
                     on_mouse_select=handle_mouse_select,
                     on_mouse_hover_spans=handle_mouse_hover_spans,
