@@ -49,7 +49,7 @@ It contains three panels, that you can rearrange as you like:
 - one table view for entities, showing the entity ID, note ID, text, label, concept, etc
 - one text viewer for the note text, with the entities highlighted and editable.
 - one view for the note metadata displayed as a form (a fake field "note_kind" was added
-  for demo purposes)
+  for demo purposes, and only applied to EMEA notes)
 
 Visit the [tutorial](https://percevalw.github.io/metanno/latest/tutorials/run-quaero-explorer) to
 learn how to build such an app yourself.
@@ -103,7 +103,9 @@ def build_data():
             {
                 "note_id": str(doc._.note_id),
                 "note_text": doc.text,
-                "note_kind": "interesting" if idx % 2 == 0 else "very interesting",
+                "note_kind": ("interesting" if idx % 2 == 0 else "very interesting")
+                if "EMEA" in doc._.note_id
+                else "",
                 "seen": False,
                 "entities": [
                     {
@@ -149,44 +151,47 @@ def app(save_path=None, deduplicate=False):
     # --8<-- [start:render-views]
     # Create handles to control the widgets imperatively
 
+    def make_note_kind_options(note):
+        if "EMEA" in note["note_id"]:
+            return ["interesting", "very interesting"]
+        else:
+            return []
+
     # View the documents as a table
+    # fmt: off
     notes_table_handle: RefType[TableWidgetHandle] = use_ref()
     notes_view = factory.create_table_widget(
         store_key="notes",
         primary_key="note_id",
-        fields=infer_fields(
-            data["notes"],
-            visible_keys=["note_id", "seen", "note_text", "note_kind"],
-            id_keys=["note_id"],
-            editable_keys=["seen", "note_kind"],
-            categorical_keys=["note_kind"],
-        ),
+        # Instead of using infer_fields, we can also define the
+        # fields manually which can actually be simpler
+        fields=[  # type: ignore
+            {"key": "note_id", "name": "note_id", "kind": "text", "filterable": True},
+            {"key": "note_text", "name": "note_text", "kind": "text", "editable": False, "filterable": True},  # noqa: E501
+            {"key": "note_kind", "name": "note_kind", "kind": "text", "editable": True, "options": make_note_kind_options, "filterable": True},  # noqa: E501
+            {"key": "seen", "name": "seen", "kind": "boolean", "editable": True, "filterable": True},  # noqa: E501
+        ],
         style={"--min-notebook-height": "300px"},
         handle=notes_table_handle,
     )
+    # fmt: on
 
     # Show the selected note as a form
+    # fmt: off
     note_form_handle: RefType[FormWidgetHandle] = use_ref()
     note_form_view = factory.create_form_widget(
         store_key="notes",
         primary_key="note_id",
-        # Instead of using infer_fields, we can also define the
-        # fields manually which can actually be simpler
-        fields=[
+        fields=[  # type: ignore
             {"key": "note_id", "kind": "text"},
-            {
-                "key": "note_kind",
-                "kind": "radio",
-                "editable": True,
-                "options": ["interesting", "very interesting"],
-                "filterable": True,
-            },
+            {"key": "note_kind", "kind": "radio", "editable": True, "options": make_note_kind_options, "filterable": True},  # noqa: E501
             {"key": "seen", "kind": "boolean", "editable": True},
         ],
         add_navigation_buttons=True,
         style={"--min-notebook-height": "300px", "margin": "10px"},
         handle=note_form_handle,
     )
+    # fmt: on
 
     # View the entities as a table
     ents_table_handle: RefType[TableWidgetHandle] = use_ref()

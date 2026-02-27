@@ -33,9 +33,18 @@ from pret_joy import (
     Stack,
     Typography,
 )
-from typing_extensions import TypedDict
+from typing_extensions import Literal, NotRequired, TypedDict
 
 from metanno import AnnotatedText, Table
+
+
+class FieldSpec(TypedDict):
+    key: str
+    name: NotRequired[str]
+    kind: Literal["text", "boolean", "hyperlink", "select", "radio", "autocomplete"]
+    editable: NotRequired[bool]
+    filterable: NotRequired[bool]
+    options: Optional[Union[Sequence[Any], Callable[[Any], Sequence[Any]]]]
 
 
 def use_awaitable_state(initial):
@@ -77,7 +86,7 @@ def infer_fields(
     first_keys=(),
     column_names=None,
     filterable_keys=None,
-):
+) -> List[FieldSpec]:
     """
     Infer Metanno field metadata from a list-like collection of row dicts.
 
@@ -108,7 +117,7 @@ def infer_fields(
 
     Returns
     -------
-    List[Dict[str, Any]]
+    List[FieldSpec]
         Field specifications compatible with Metanno widgets.
     """
     rows = rows.to_py() if hasattr(rows, "to_py") else list(rows)
@@ -286,7 +295,7 @@ def render_select_field(
     key: str,
     label: Any,
     kind: str,
-    value: Any,
+    data: Any,
     editable: bool,
     options: Sequence[Any],
     on_field_change: Callable,
@@ -296,7 +305,13 @@ def render_select_field(
     is_mixed: bool = False,
 ):
     field_label = make_field_label(label, is_mixed)
+    if callable(options):
+        options = options(data)
+    value = data[key]
     select_options = list(options)
+    if len(select_options) == 0:
+        return
+
     if kind == "autocomplete":
         if all_label is not None:
             select_options = [all_label, *select_options]
@@ -445,7 +460,7 @@ def render_field(
             key,
             label,
             kind,
-            value,
+            current_row,
             editable,
             options,
             on_field_change,
@@ -457,7 +472,7 @@ def render_field(
         return render_boolean_field(
             key,
             label,
-            value,
+            current_row,
             editable,
             on_field_change,
             min_input_width,
@@ -800,7 +815,7 @@ class DataWidgetFactory:
         self,
         *,
         store_key,
-        fields: Sequence[Dict[str, Any]],
+        fields: Sequence[FieldSpec],
         style: Optional[Dict[str, Any]] = None,
         min_input_width: Optional[str] = None,
         all_label: str = "All",
@@ -813,7 +828,7 @@ class DataWidgetFactory:
         ----------
         store_key : Any
             Key pointing to the collection to filter.
-        fields : Sequence[Dict[str, Any]]
+        fields : Sequence[FieldSpec]
             Field metadata used for rendering filter inputs. Expects:
 
             - `key`: Field key.
@@ -825,7 +840,9 @@ class DataWidgetFactory:
                 - `"select"/"radio"/"autocomplete"`: Multi choice selection.
 
             - `filterable`: If False, no filter control will be rendered.
-            - `options`: If present, a dropdown/autocomplete will be used.
+            - `options`: If present, a dropdown/autocomplete will be used
+                with the provided options (can also be a function that takes the
+                selected sample as input and returns options).
         style : Dict[str, Any] | None
             Inline style overrides for the wrapping container.
         min_input_width : str | None
@@ -912,7 +929,7 @@ class DataWidgetFactory:
         *,
         store_key,
         primary_key: str,
-        fields: Sequence[Dict[str, Any]],
+        fields: Sequence[FieldSpec],
         style: Optional[Dict[str, Any]] = None,
         handle: RefType[TableWidgetHandle] = None,
         accept_related_filter_keys: Union[bool, Sequence[str]] = True,
@@ -936,7 +953,7 @@ class DataWidgetFactory:
             Key pointing to the list-like store to render.
         primary_key : str
             Field name that uniquely identifies each row (primary key).
-        fields : Sequence[Dict[str, Any]]
+        fields : Sequence[FieldSpec]
             Field metadata used for rendering and editing. Expects:
 
             - `key`: Field key.
@@ -948,7 +965,9 @@ class DataWidgetFactory:
                 - `"hyperlink"`: Clickable hyperlink.
                 - `"select"/"radio"/"autocomplete"`: Multi choice selection.
 
-            - `options`: If present, a dropdown/autocomplete/radio will be used.
+            - `options`: If present, a dropdown/autocomplete will be used
+                with the provided options (can also be a function that takes the
+                selected sample as input and returns options).
             - `editable`: If True, cells in this column are editable.
             - `filterable`: If False, no filter control will be rendered.
         style : Dict[str, Any] | None
@@ -1259,7 +1278,7 @@ class DataWidgetFactory:
         *,
         store_key,
         primary_key: str,
-        fields: Sequence[Dict[str, Any]],
+        fields: Sequence[FieldSpec],
         style: Optional[Dict[str, Any]] = {},
         min_input_width: Optional[str] = None,
         add_navigation_buttons: bool = False,
@@ -1278,7 +1297,7 @@ class DataWidgetFactory:
             Key pointing to the collection to edit.
         primary_key : str
             Field name that uniquely identifies each row (primary key).
-        fields : Sequence[Dict[str, Any]]
+        fields : Sequence[FieldSpec]
             Field metadata used for rendering and editing:
 
             - `key`: Field key.
@@ -1478,7 +1497,7 @@ class DataWidgetFactory:
         text_key: str,
         text_primary_key: str,
         spans_primary_key: str,
-        fields: Sequence[Dict[str, Any]],
+        fields: Sequence[FieldSpec],
         begin_key: str = "begin",
         end_key: str = "end",
         style_key: str = "style",
@@ -1511,7 +1530,7 @@ class DataWidgetFactory:
             Field name that uniquely identifies each text document.
         spans_primary_key : str
             Field name that uniquely identifies each span.
-        fields : Sequence[Dict[str, Any]]
+        fields : Sequence[FieldSpec]
             Field metadata for span fields, used in the inline editor.
         begin_key : str
             Field name for span start offsets.
