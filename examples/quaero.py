@@ -331,4 +331,4 @@ if __name__ == "__main__":
     port = args.port
     save_path = args.save_path
     host = args.host
-    run(app(save_path=True, deduplicate=True)[0], port=port, host=host)
+    run(app(save_path=save_path, deduplicate=True)[0], port=port, host=host)
