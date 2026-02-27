@@ -5,7 +5,7 @@
 A simple pip installation should be enough to install Metanno *both* as a standalone web app framework and as a JupyterLab extension:
 
 ```bash { data-md-color-scheme="slate" }
-pip install metanno==1.0.0-beta.6
+pip install metanno==1.0.0-beta.7
 ```
 
 To use it with Jupyter, if you install the library in a custom environment (conda, venv, or other),

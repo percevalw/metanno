@@ -31,7 +31,7 @@ You can manage your project dependencies with a pyproject.toml or a requirements
 
     [dependency-groups]
     metanno = [
-      "metanno>=1.0.0-beta.6",   # the annotation framework
+      "metanno>=1.0.0-beta.7",   # the annotation framework
       # add other dependencies as your annotation app grows
     ]
     ```
@@ -50,7 +50,7 @@ You can manage your project dependencies with a pyproject.toml or a requirements
     If you don’t want a pyproject.toml, create a requirements.txt:
 
     ```text
-    metanno>=1.0.0-beta.6
+    metanno>=1.0.0-beta.7
     edsnlp>=0.20  # example additional dependency, not required at the moment
     ```
 

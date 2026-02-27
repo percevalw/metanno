@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.0.0-beta.7 (2025-02-27)
 
 - Added `label_formatter` to `create_text_widget` to allow users to provide a function to customize the displayed label on top of text spans
 - Added function-based `options` to let users dynamically choose options to display in the dropdown selectors (or radio)
