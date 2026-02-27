@@ -92,7 +92,7 @@ function styleTextChunks_(
     });
   };
 
-  spans.forEach(({ begin, end, label, style, ...rest }, span_i) => {
+  spans.forEach(({ begin, end, label, labelText, style, ...rest }, span_i) => {
     style = style || label;
     let newDepth = null,
       newZIndex = null;
@@ -162,6 +162,7 @@ function styleTextChunks_(
           openleft: text_chunks[text_chunk_i].begin !== begin,
           openright: text_chunks[text_chunk_i].end !== end,
           label: label,
+          labelText: labelText,
           isFirstTokenOfSpan: text_chunks[text_chunk_i].begin === begin,
           style: style,
           zIndex: newZIndex,
@@ -232,6 +233,7 @@ export default function tokenize(
   beginKey: string,
   endKey: string,
   labelKey: string,
+  labelFormatter: ((span: { [key: string]: any }) => string) | undefined,
   styleKey: string,
   highlightedKey: string,
   selectedKey: string,
@@ -240,16 +242,29 @@ export default function tokenize(
   lines: TokenData[][];
   ids: any[];
 } {
-  spans = spans.map((span, span_i) => ({
-    begin: span[beginKey],
-    end: span[endKey],
-    mouseSelected: span["mouseSelected"] || false,
-    label: span[labelKey] || null,
-    style: span[styleKey] || null,
-    highlighted: span[highlightedKey] || false,
-    selected: span[selectedKey] || false,
-    id: span[idKey] || span_i,
-  }));
+  spans = spans.map((span, span_i) => {
+    let rawLabel: unknown;
+    try {
+      rawLabel = labelFormatter ? labelFormatter(span) : span[labelKey];
+    } catch {
+      rawLabel = span[labelKey]?.toUpperCase();
+    }
+    const resolvedLabel =
+      rawLabel === undefined || rawLabel === null || rawLabel === ""
+        ? null
+        : String(rawLabel);
+    return {
+      begin: span[beginKey],
+      end: span[endKey],
+      mouseSelected: span["mouseSelected"] || false,
+      label: span[labelKey] || null,
+      labelText: resolvedLabel,
+      style: span[styleKey] || null,
+      highlighted: span[highlightedKey] || false,
+      selected: span[selectedKey] || false,
+      id: span[idKey] || span_i,
+    };
+  });
   // Sort the original spans to display by:
   // 1. mouseSelected spans first
   // 2. begin (left to right)

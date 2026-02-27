@@ -23,37 +23,6 @@ const isMobileDevice = (): boolean => {
     return /Mobi|Android|iPhone|iPad|iPod|Windows Phone|IEMobile|Opera Mini/i.test(navigator.userAgent || "");
 };
 
-const toLuminance = (color: Color, y: number = 0.6) => {
-  // This is mostly used to adapt to light/dark mode
-
-  let [r, g, b, a] = [...color.rgb().color, color.alpha];
-  // let y = ((0.299 * r) + ( 0.587 * g) + ( 0.114 * b)) / 255;
-  let i = (0.596 * r + -0.275 * g + -0.321 * b) / 255;
-  let q = (0.212 * r + -0.523 * g + 0.311 * b) / 255;
-
-  r = (y + 0.956 * i + 0.621 * q) * 255;
-  g = (y + -0.272 * i + -0.647 * q) * 255;
-  b = (y + -1.105 * i + 1.702 * q) * 255;
-
-  // bounds-checking
-  if (r < 0) {
-    r = 0;
-  } else if (r > 255) {
-    r = 255;
-  }
-  if (g < 0) {
-    g = 0;
-  } else if (g > 255) {
-    g = 255;
-  }
-  if (b < 0) {
-    b = 0;
-  } else if (b > 255) {
-    b = 255;
-  }
-  return Color.rgb(r, g, b).alpha(a);
-};
-
 const processStyle = ({
   color,
   shape,
@@ -274,7 +243,7 @@ const Token = React.memo(
                     } as CSSProperties
                   }
                 >
-                  {annotation.label.toUpperCase()}
+                  {annotation.labelText}
                 </span>
               );
             }
@@ -485,6 +454,8 @@ const setOnMapping = (
  * @param {Function} [props.onClickSpan] Callback for click events on spans.
  * @param {Function} [props.onMouseEnterSpan] Callback for mouse enter events on spans.
  * @param {Function} [props.onMouseLeaveSpan] Callback for mouse leave events on spans.
+ * @param {Function} [props.labelFormatter] Optional formatter `(span) => string`
+ * used to customize the rendered annotation label.
  * @param {CSSProperties} [props.style] Custom styles for the component.
  */
 export class AnnotatedText extends React.Component<TextData & TextMethods> {
@@ -496,6 +467,7 @@ export class AnnotatedText extends React.Component<TextData & TextMethods> {
     beginKey: "begin",
     endKey: "end",
     labelKey: "label",
+    labelFormatter: undefined,
     styleKey: "style",
     highlightedKey: "highlighted",
     selectedKey: "selected",
@@ -509,6 +481,7 @@ export class AnnotatedText extends React.Component<TextData & TextMethods> {
     beginKey: string,
     endKey: string,
     labelKey: string,
+    labelFormatter: ((span: { [key: string]: any }) => string) | undefined,
     styleKey: string,
     highlightedKey: string,
     selectedKey: string,
@@ -728,6 +701,7 @@ export class AnnotatedText extends React.Component<TextData & TextMethods> {
       this.props.beginKey,
       this.props.endKey,
       this.props.labelKey,
+      this.props.labelFormatter,
       this.props.styleKey,
       this.props.highlightedKey,
       this.props.selectedKey,

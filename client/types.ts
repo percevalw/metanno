@@ -22,6 +22,7 @@ export type TextRange = {
 
 export type TextAnnotation = {
     mouseSelected: boolean;
+    labelText: string;
 } & TextRange & Annotation;
 
 export type TokenAnnotation = {
@@ -31,6 +32,7 @@ export type TokenAnnotation = {
     openright: boolean;
     isFirstTokenOfSpan: boolean;
     mouseSelected: boolean;
+    labelText: string;
 } & Annotation;
 
 export type TokenData = {
@@ -60,6 +62,7 @@ export type TextData = {
     beginKey: string;
     endKey: string;
     labelKey: string;
+    labelFormatter?: (span: { [key: string]: any }) => string;
     styleKey: string;
     highlightedKey: string;
     selectedKey: string;
