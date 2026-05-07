@@ -510,19 +510,31 @@ export class AnnotatedText extends React.Component<TextData & TextMethods> {
       const spansRef = this.spansRef;
       // Problem: props.handle may be an object OR a mapping, I don't know when it is which
       props.handle.current = {
-        scroll_to_line: (line: number, behavior: ScrollBehavior = "smooth") => {
+        scroll_to_line: (
+          line: number,
+          behavior: ScrollBehavior = "smooth",
+          block: ScrollLogicalPosition = "start",
+          inline: ScrollLogicalPosition = "nearest"
+        ) => {
           if (line >= 0 && line < linesRef.length && linesRef[line]) {
             linesRef[line].current?.scrollIntoView({
               behavior: behavior,
-              block: "center",
+              block: block,
+              inline: inline,
             } as ScrollIntoViewOptions);
           }
         },
-        scroll_to_span: (span_id: string, behavior: ScrollBehavior = "smooth") => {
+        scroll_to_span: (
+          span_id: string,
+          behavior: ScrollBehavior = "smooth",
+          block: ScrollLogicalPosition = "center",
+          inline: ScrollLogicalPosition = "nearest"
+        ) => {
           setTimeout(() => {
             spansRef[span_id]?.current?.scrollIntoView({
               behavior: behavior,
-              block: "center",
+              block: block,
+              inline: inline,
             } as ScrollIntoViewOptions);
           }, 10);
         },

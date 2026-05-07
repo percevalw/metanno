@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Added multi-document rendering to `DataWidgetFactory.create_text_widget` with `docs_mode="lead" | "selected" | "all"` and an optional `container_renderer` for custom document wrappers (e.g. sticky headers)
+- Added text-widget imperative helpers to inspect and act on the active selection: `get_active_doc_id`, `get_selected_ranges`, `get_selected_text`, and `add_span_from_selection`.
+- Improved text-widget span workflows: selections are tracked per document, added spans get unique IDs, selected or highlighted hidden spans remain visible, and span scrolling now activates the span's document before scrolling.
+- Improved default table, form, and text selections so linked widgets select the first available row/document on initial render.
+- Improved `AnnotatedText` scrolling and layout: handle methods now accept scroll positioning options, and line spacing/gutter sizing uses shared CSS variables.
+- Improved the connection status bar with a visual pulse when synced writes are rejected while disconnected.
+- Improved reliability thanks to pret v0.6.3
+
 ## v1.0.0-beta.7 (2025-02-27)
 
 - Added `label_formatter` to `create_text_widget` to allow users to provide a function to customize the displayed label on top of text spans

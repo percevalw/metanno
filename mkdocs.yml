@@ -39,6 +39,7 @@ nav:
       - tutorials/custom-fields.ipynb
       - tutorials/multi-collections.ipynb
       - tutorials/pre-annotation.ipynb
+      - Pret Tutorials: https://percevalw.github.io/pret/latest/tutorials" target="_blank
   - Building Blocks:
       - components/index.md
       - Pret: https://percevalw.github.io/pret" target="_blank
@@ -59,7 +60,7 @@ extra_css:
 
 plugins:
   - auto_gen_pages:
-      package_dirs: ["metanno", "pret"]
+      package_dirs: ["metanno"]
       reference_section: Reference
       exclude_glob: assets/fragments/*
       copy_files:
@@ -104,7 +105,6 @@ plugins:
 
 watch:
   - CHANGELOG.md
-  - pret
   - metanno
   - examples
   - docs
