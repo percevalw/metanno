@@ -10,7 +10,6 @@ from pret.hooks import (
     use_effect,
     use_event_callback,
     use_imperative_handle,
-    use_memo,
     use_ref,
     use_state,
 )
@@ -37,6 +36,11 @@ from pret_joy import (
 from typing_extensions import Literal, NotRequired, TypedDict
 
 from metanno import AnnotatedText, Table
+
+
+class Ref:
+    def __init__(self, current):
+        self.current = current
 
 
 class FieldSpec(TypedDict):
@@ -334,12 +338,14 @@ def render_select_field(
                 disabled=not editable,
                 placeholder=MIXED_VALUES_LABEL if is_mixed else None,
                 size="sm",
+                sx={"flex": 1},
             ),
             sx={
                 "minWidth": min_input_width or 0,
                 "width": "fit-content",
                 "alignSelf": align_self,
                 "gridArea": key,
+                "flex": 1,
             },
         )
     elif kind == "select":
@@ -356,11 +362,13 @@ def render_select_field(
                 disabled=not editable,
                 placeholder=MIXED_VALUES_LABEL if is_mixed else None,
                 size="sm",
+                sx={"flex": 1},
             ),
             sx={
                 "minWidth": min_input_width,
                 "alignSelf": align_self,
                 "gridArea": key,
+                "flex": 1,
             },
         )
     elif kind == "radio":
@@ -904,6 +912,7 @@ class DataWidgetFactory:
                         key=key,
                         label=label,
                         kind="autocomplete" if len(options) > 15 else "select",
+                        data=filters,
                         value=current_value,
                         editable=True,
                         options=options,
@@ -915,6 +924,7 @@ class DataWidgetFactory:
                 return render_text_field(
                     key=key,
                     label=label,
+                    data=filters,
                     value=current_value,
                     editable=True,
                     on_field_change=apply_filter,
@@ -1085,6 +1095,14 @@ class DataWidgetFactory:
             highlighted, set_highlighted = use_state([])
             suggestions, set_suggestions = use_state([])
             table_ref = use_ref()
+
+            def ensure_initial_root_selection():
+                if len(path_parts) != 1:
+                    return
+                if len(selected_rows_store["rows"]) == 0 and len(data) > 0:
+                    selected_rows_store["rows"] = [0]
+
+            use_effect(ensure_initial_root_selection, [])
 
             def row_matches_filters(row, active_filters):
                 for key, raw_value in (active_filters or {}).items():
@@ -1368,18 +1386,27 @@ class DataWidgetFactory:
             rows = use_store_snapshot(view_store)
             selected_rows_snapshot = use_store_snapshot(selected_rows_store)
             row_idx = get_first_selected_row_idx(selected_rows_snapshot.get("rows"))
+            default_row_idx = 0 if row_idx is None and len(rows) > 0 else None
 
             current_idx = None
             if isinstance(row_idx, int) and rows and 0 <= row_idx < len(rows):
                 current_idx = row_idx
+            elif default_row_idx is not None:
+                current_idx = default_row_idx
 
             current_row = rows[current_idx] if current_idx is not None else None
             selected_row_indices = normalize_selected_rows(
                 selected_rows_snapshot.get("rows"),
-                current_idx,
+                default_row_idx,
                 len(rows),
             )
             selected_rows_data = [rows[idx] for idx in selected_row_indices]
+
+            def ensure_initial_row_selection():
+                if len(selected_rows_store["rows"]) == 0 and len(rows) > 0:
+                    selected_rows_store["rows"] = [0]
+
+            use_effect(ensure_initial_row_selection, [])
 
             def get_table_handle():
                 for other in handles.get(store_key, []):
@@ -1520,6 +1547,10 @@ class DataWidgetFactory:
         on_add_span: Optional[Callable[[List[str]], None]] = None,
         on_hover_spans: Optional[Callable[[List[str], List[str]], None]] = None,
         on_click_span: Optional[Callable[[str, List[str]], None]] = None,
+        docs_mode: Literal["lead", "selected", "all"] = "lead",
+        container_renderer: Optional[
+            Callable[[Dict[str, Any], Renderable, Optional[Renderable]], Renderable]
+        ] = None,
     ) -> Tuple[Renderable, Renderable]:
         """
         Build a text annotation widget that pairs a text store with a spans store.
@@ -1586,11 +1617,23 @@ class DataWidgetFactory:
 
             - `span_id`: Identifier of the clicked span.
             - `mod_keys`: Modifier keys pressed during the click.
+        docs_mode : Literal["lead", "selected", "all"]
+            Controls which documents are displayed:
+
+            - `"lead"`: show only the lead selected document.
+            - `"selected"`: show every selected document.
+            - `"all"`: show every document from the current store.
+        container_renderer : Callable[[Dict[str, Any], Renderable, Optional[Renderable]], Renderable] | None
+            Optional callback used to wrap each rendered document.
+            It receives `(row, component, shared_toolbar)` and may also accept
+            optional keyword arguments `note_idx` and `note_count`.
+            It should return a renderable.
+            By default, documents are wrapped as `div(component)`.
         Returns
         -------
         Tuple[Renderable, Renderable]
             A pair of Pret components: the toolbar widget and the text widget.
-        """
+        """  # noqa: E501
         store_text_key = str(store_text_key)
         text_path_parts = store_text_key.split(".")
         store_spans_key = str(store_spans_key) if store_spans_key is not None else None
@@ -1628,6 +1671,23 @@ class DataWidgetFactory:
             if store_spans_key is not None
             else empty_selected_rows_store
         )
+        docs_mode = docs_mode or "lead"
+        if docs_mode not in ("lead", "selected", "all"):
+            raise ValueError(
+                f"Unsupported docs_mode={docs_mode!r}. Expected one of: 'lead', 'selected', 'all'."
+            )
+
+        def default_container_renderer(
+            row: Dict[str, Any],
+            component: Renderable,
+            toolbar: Optional[Renderable],
+            key,
+            note_idx,
+            note_count,
+        ) -> Renderable:
+            return div(component, key=key)
+
+        container_renderer = container_renderer or default_container_renderer
         filter_related_tables = self.make_filter_related_tables()
         sync_store_selection = self.make_sync_store_selection(filter_related_tables)
         sync_parent_widgets = self.make_sync_parent_widgets(sync_store_selection)
@@ -1778,7 +1838,7 @@ class DataWidgetFactory:
                     direction="row",
                     spacing=1,
                     use_flex_gap=True,
-                    sx={"alignItems": "flex-end"},
+                    sx={"alignItems": "flex-end", "flex": 1},
                 )
                 if span_inputs
                 else None,
@@ -1856,12 +1916,18 @@ class DataWidgetFactory:
             if spans_path_parts is not None:
                 for i in range(1, len(spans_path_parts)):
                     parent_path = ".".join(spans_path_parts[:i])
+                    snap = use_store_snapshot(selected_rows_by_store[parent_path])
                     if parent_path in parent_selected_idx:
                         continue
-                    parent_rows = use_store_snapshot(selected_rows_by_store[parent_path]).get(
-                        "rows"
-                    )
+                    parent_rows = snap.get("rows")
                     parent_selected_idx[parent_path] = get_first_selected_row_idx(parent_rows)
+            text_context_key = (
+                "|".join(
+                    f"{'.'.join(text_path_parts[:i])}:{parent_selected_idx.get('.'.join(text_path_parts[:i]))}"
+                    for i in range(1, len(text_path_parts))
+                )
+                or "root"
+            )
 
             text_store = (
                 deep_get_store(data_store, text_path_parts, parent_selected_idx) or empty_store
@@ -1875,27 +1941,164 @@ class DataWidgetFactory:
             span_data = use_store_snapshot(spans_store)
             selected_doc_rows_snapshot = use_store_snapshot(selected_doc_rows_store)
             selected_span_rows_snapshot = use_store_snapshot(selected_span_rows_store)
-
-            doc_idx = get_first_selected_row_idx(selected_doc_rows_snapshot.get("rows"))
-            persistent_doc_idx = doc_idx
-            selected_ranges, set_selected_ranges = use_state([])
-            highlighted, set_highlighted = use_state([])
             toolbar_snapshot = use_store_snapshot(toolbar_state)
-            selected_span_idx = get_first_selected_row_idx(selected_span_rows_snapshot.get("rows"))
-            move_mode = bool(toolbar_snapshot.get("move_mode", False))
+            selected_ranges_by_doc, set_selected_ranges_by_doc = use_state({})
+            highlighted, set_highlighted = use_state([])
             last_action_id_ref = use_ref(0)
-
-            current_doc = (
-                text_data[persistent_doc_idx]
-                if isinstance(persistent_doc_idx, int) and 0 <= persistent_doc_idx < len(text_data)
-                else None
-            )
-            current_doc_id = current_doc[text_primary_key] if current_doc else None
-
+            active_doc_id, set_active_doc_id = use_state(None)
             text_ref = use_ref()
+            text_refs_by_doc = use_ref({})
             pending_span_ids_ref = use_ref(None)
+            pending_scroll_top_doc_id_ref = use_ref(None)
+            pending_scroll_span_id_ref = use_ref(None)
+            pending_scroll_doc_id_ref = use_ref(None)
             suppress_next_empty_select_clear_ref = use_ref(False)
             is_mounting_ref = use_ref(True)
+            last_non_empty_selected_ranges_by_doc_ref = use_ref({})
+
+            selected_doc_indices = normalize_selected_rows(
+                selected_doc_rows_snapshot.get("rows"),
+                None,
+                len(text_data),
+            )
+            lead_doc_idx = (
+                selected_doc_indices[0]
+                if len(selected_doc_indices) > 0
+                else (0 if len(text_data) > 0 else None)
+            )
+            if docs_mode == "all":
+                visible_doc_indices = list(range(len(text_data)))
+            elif docs_mode == "selected":
+                visible_doc_indices = selected_doc_indices
+            else:
+                visible_doc_indices = [lead_doc_idx] if lead_doc_idx is not None else []
+
+            doc_idx_by_id = {}
+            for idx, row in enumerate(text_data):
+                doc_id = row.get(text_primary_key)
+                if doc_id is None:
+                    continue
+                doc_idx_by_id[str(doc_id)] = idx
+            visible_doc_ids = [
+                str(text_data[idx].get(text_primary_key))
+                for idx in visible_doc_indices
+                if text_data[idx].get(text_primary_key) is not None
+            ]
+            doc_ref_key_by_id = {}
+            doc_ref_key_by_idx = {}
+            for doc_idx in visible_doc_indices:
+                if doc_idx is None or not (0 <= doc_idx < len(text_data)):
+                    continue
+                doc_id = text_data[doc_idx].get(text_primary_key)
+                if doc_id is not None:
+                    ref_key = f"{text_context_key}|doc:{doc_id}"
+                    doc_ref_key_by_id[str(doc_id)] = ref_key
+                else:
+                    ref_key = f"{text_context_key}|idx:{doc_idx}"
+                doc_ref_key_by_idx[doc_idx] = ref_key
+            if docs_mode != "lead":
+                active_ref_keys = set(doc_ref_key_by_idx.values())
+                text_refs_by_doc.current = {
+                    key: ref
+                    for key, ref in text_refs_by_doc.current.items()
+                    if key in active_ref_keys
+                }
+
+            selected_span_idx = get_first_selected_row_idx(selected_span_rows_snapshot.get("rows"))
+            move_mode = bool(toolbar_snapshot.get("move_mode", False))
+
+            selected_span_doc_id = None
+            if (
+                isinstance(selected_span_idx, int)
+                and not isinstance(selected_span_idx, bool)
+                and 0 <= selected_span_idx < len(span_data)
+            ):
+                span_doc_id = span_data[selected_span_idx].get(text_primary_key)
+                if span_doc_id is not None:
+                    selected_span_doc_id = str(span_doc_id)
+
+            def get_doc_id_by_idx(idx):
+                if idx is None or not (0 <= idx < len(text_data)):
+                    return None
+                return text_data[idx].get(text_primary_key)
+
+            def get_doc_text_ref(doc_ref_key: Optional[str]):
+                if doc_ref_key is None:
+                    return text_ref
+                key = str(doc_ref_key)
+                existing = text_refs_by_doc.current.get(key)
+                if existing:
+                    return existing
+                created = Ref(current=None)
+                text_refs_by_doc.current[key] = created
+                return created
+
+            def resolve_text_ref_for_doc_id(doc_id: Optional[Any]):
+                if docs_mode == "lead":
+                    return text_ref
+                if doc_id is None:
+                    return text_ref
+                return get_doc_text_ref(doc_ref_key_by_id.get(str(doc_id)))
+
+            def ensure_active_doc():
+                current_active = str(active_doc_id) if active_doc_id is not None else None
+                visible_doc_id_set = set(visible_doc_ids)
+                if current_active in visible_doc_id_set:
+                    return
+                if selected_span_doc_id in visible_doc_id_set:
+                    set_active_doc_id(selected_span_doc_id)
+                    return
+                if len(visible_doc_ids) > 0:
+                    set_active_doc_id(visible_doc_ids[0])
+                else:
+                    set_active_doc_id(None)
+
+            use_effect(
+                ensure_active_doc,
+                [visible_doc_indices, selected_span_idx, len(text_data), len(span_data)],
+            )
+
+            def get_active_doc_id() -> Optional[str]:
+                if active_doc_id is not None:
+                    return str(active_doc_id)
+                if selected_span_doc_id is not None and selected_span_doc_id in set(
+                    visible_doc_ids
+                ):
+                    return selected_span_doc_id
+                if len(visible_doc_ids) > 0:
+                    return visible_doc_ids[0]
+                return None
+
+            def get_doc_selected_ranges(doc_id: Optional[str]) -> List[Dict[str, Any]]:
+                if doc_id is None:
+                    return []
+                return selected_ranges_by_doc.get(str(doc_id), [])
+
+            def set_doc_selected_ranges(
+                doc_id: Optional[str], ranges: Sequence[Dict[str, Any]]
+            ) -> None:
+                if doc_id is None:
+                    return
+                key = str(doc_id)
+                next_ranges_by_doc = dict(selected_ranges_by_doc)
+                if ranges and len(ranges) > 0:
+                    normalized_ranges = list(ranges)
+                    next_ranges_by_doc[key] = normalized_ranges
+                    remembered = dict(last_non_empty_selected_ranges_by_doc_ref.current or {})
+                    remembered[key] = normalized_ranges
+                    last_non_empty_selected_ranges_by_doc_ref.current = remembered
+                else:
+                    next_ranges_by_doc.pop(key, None)
+                set_selected_ranges_by_doc(next_ranges_by_doc)
+
+            def get_selected_or_last_ranges(doc_id: Optional[str]) -> List[Dict[str, Any]]:
+                if doc_id is None:
+                    return []
+                selected_ranges = get_doc_selected_ranges(doc_id)
+                if len(selected_ranges) > 0:
+                    return list(selected_ranges)
+                remembered = dict(last_non_empty_selected_ranges_by_doc_ref.current or {})
+                return list(remembered.get(str(doc_id)) or [])
 
             def set_selected_span_rows(selected_rows: Optional[Sequence[int]] = None):
                 selected_span_rows_store["rows"] = normalize_selected_rows(
@@ -1939,19 +2142,26 @@ class DataWidgetFactory:
                 if text_data and (idx < 0 or idx >= len(text_data)):
                     idx = 0
                 selected_doc_rows_store["rows"] = [idx]
-
-            def get_doc_id_by_idx(idx):
-                if idx is None or not (0 <= idx < len(text_data)):
-                    return None
-                return text_data[idx].get(text_primary_key)
+                doc_id = get_doc_id_by_idx(idx)
+                if doc_id is not None:
+                    set_active_doc_id(str(doc_id))
 
             def scroll_to_top():
+                lead_doc_id = get_doc_id_by_idx(lead_doc_idx)
                 if is_mounting_ref.current:
-                    if current_doc_id is not None:
+                    if lead_doc_id is not None:
                         is_mounting_ref.current = False
                     return
-                if text_ref.current:
-                    text_ref.current.scroll_to_line(0, "instant")
+                if lead_doc_id is None:
+                    return
+                target_ref = resolve_text_ref_for_doc_id(lead_doc_id)
+                if target_ref is not None and target_ref.current is not None:
+                    target_ref.current.scroll_to_line(0, "smooth", "start")
+                    pending_scroll_top_doc_id_ref.current = None
+                    return
+                pending_scroll_top_doc_id_ref.current = (
+                    str(lead_doc_id) if lead_doc_id is not None else None
+                )
 
             def handle_text_change(new_doc_idx):
                 if new_doc_idx is None:
@@ -1963,6 +2173,7 @@ class DataWidgetFactory:
                 # Synchronize other widgets
                 sync_store_selection(store_text_key, new_doc_idx, handle, True)
                 sync_parent_widgets(store_text_key, new_doc_idx)
+                set_active_doc_id(str(new_doc_id))
 
                 if on_change_text_id:
                     on_change_text_id(new_doc_id)
@@ -1972,18 +2183,209 @@ class DataWidgetFactory:
                     selected_doc_rows_store["rows"] = [0]
 
             use_effect(ensure_initial_doc_selection, [text_store])
-            use_effect(scroll_to_top, [current_doc_id])
+            use_effect(scroll_to_top, [lead_doc_idx, docs_mode])
+
+            def flush_pending_top_scroll_request():
+                pending_doc_id = pending_scroll_top_doc_id_ref.current
+                if pending_doc_id is None:
+                    return
+                target_ref = resolve_text_ref_for_doc_id(pending_doc_id)
+                if target_ref is None or target_ref.current is None:
+                    return
+                target_ref.current.scroll_to_line(0, "smooth", "start")
+                pending_scroll_top_doc_id_ref.current = None
+
+            use_effect(flush_pending_top_scroll_request)
+
+            def flush_pending_span_scroll_request():
+                pending_span_id = pending_scroll_span_id_ref.current
+                if pending_span_id is None:
+                    return
+                pending_doc_id = pending_scroll_doc_id_ref.current
+                target_ref = resolve_text_ref_for_doc_id(pending_doc_id)
+                if target_ref is None or target_ref.current is None:
+                    return
+                target_ref.current.scroll_to_span(pending_span_id)
+                pending_scroll_span_id_ref.current = None
+                pending_scroll_doc_id_ref.current = None
+
+            use_effect(flush_pending_span_scroll_request)
+
+            def scroll_to_span(span_id):
+                if span_id is None:
+                    return
+                idx = next(
+                    (
+                        i
+                        for i, span in enumerate(span_data)
+                        if str(span.get(spans_primary_key)) == str(span_id)
+                    ),
+                    None,
+                )
+                if idx is None:
+                    return
+                target_span_id = span_data[idx].get(spans_primary_key)
+                span_doc_id = span_data[idx].get(text_primary_key)
+                set_highlighted([target_span_id])
+                if span_doc_id is not None:
+                    set_active_doc_id(str(span_doc_id))
+                    span_doc_idx = doc_idx_by_id.get(str(span_doc_id))
+                    if docs_mode == "lead" and span_doc_idx is not None:
+                        selected_doc_rows_store["rows"] = [span_doc_idx]
+                pending_scroll_span_id_ref.current = target_span_id
+                pending_scroll_doc_id_ref.current = (
+                    str(span_doc_id) if span_doc_id is not None else None
+                )
+
+            def ensure_unique_span_id(base_span_id: Any, existing_ids: set) -> str:
+                candidate = str(base_span_id)
+                if candidate not in existing_ids:
+                    existing_ids.add(candidate)
+                    return candidate
+                suffix = 1
+                while True:
+                    next_candidate = f"{candidate}-{suffix}"
+                    if next_candidate not in existing_ids:
+                        existing_ids.add(next_candidate)
+                        return next_candidate
+                    suffix += 1
+
+            def add_spans_for_doc(
+                target_doc_id: Optional[Any],
+                selected_ranges: Sequence[Dict[str, Any]],
+                span_values: Optional[Dict[str, Any]] = None,
+            ) -> List[str]:
+                if target_doc_id is None:
+                    return []
+                target_doc_idx = doc_idx_by_id.get(str(target_doc_id))
+                if target_doc_idx is None or not (0 <= target_doc_idx < len(text_data)):
+                    return []
+                target_doc = text_data[target_doc_idx]
+                doc_text = target_doc.get(text_key) or ""
+                normalized_ranges = []
+                for selected_range in selected_ranges or []:
+                    begin = selected_range.get("begin")
+                    end = selected_range.get("end")
+                    if begin is None or end is None:
+                        continue
+                    begin = int(begin)
+                    end = int(end)
+                    if end <= begin:
+                        continue
+                    normalized_ranges.append({"begin": begin, "end": end})
+                if len(normalized_ranges) == 0:
+                    return []
+
+                span_values = dict(span_values or {})
+                provided_span_id = span_values.pop(spans_primary_key, None)
+                span_values.pop(begin_key, None)
+                span_values.pop(end_key, None)
+                span_values.pop(text_primary_key, None)
+                span_values.pop("text", None)
+
+                button_value = span_values.get(button_key)
+                span_defaults = (
+                    labels[button_value].get("defaults", {}) if button_value in labels else {}
+                )
+                span_template = {**span_defaults, **span_values}
+                if provided_span_id is not None and len(normalized_ranges) != 1:
+                    provided_span_id = None
+                existing_span_ids = {
+                    str(span.get(spans_primary_key))
+                    for span in span_data
+                    if span.get(spans_primary_key) is not None
+                }
+                added_span_ids = []
+                for selected_range in normalized_ranges:
+                    begin = selected_range["begin"]
+                    end = selected_range["end"]
+                    text_content = doc_text[begin:end]
+                    default_id = (
+                        f"{target_doc_id}-{begin}-{end}-{span_template.get(button_key) or 'span'}"
+                    )
+                    span_id = ensure_unique_span_id(
+                        provided_span_id if provided_span_id is not None else default_id,
+                        existing_span_ids,
+                    )
+                    spans_store.append(
+                        {
+                            "text": text_content,
+                            spans_primary_key: span_id,
+                            begin_key: begin,
+                            end_key: end,
+                            button_key: span_template.get(button_key),
+                            text_primary_key: target_doc_id,
+                            **span_template,
+                        }
+                    )
+                    added_span_ids.append(span_id)
+
+                if len(added_span_ids) > 0:
+                    remembered = dict(last_non_empty_selected_ranges_by_doc_ref.current or {})
+                    remembered.pop(str(target_doc_id), None)
+                    last_non_empty_selected_ranges_by_doc_ref.current = remembered
+                    set_doc_selected_ranges(target_doc_id, [])
+                    if docs_mode == "lead" and text_ref.current:
+                        text_ref.current.clear_current_mouse_selection()
+                    set_move_mode(False)
+                    pending_span_ids_ref.current = added_span_ids
+                return added_span_ids
+
+            def add_spans_from_current_selection(
+                span_values: Optional[Dict[str, Any]] = None,
+            ) -> List[str]:
+                target_doc_id = get_active_doc_id()
+                if target_doc_id is None:
+                    return []
+                selected_ranges = get_selected_or_last_ranges(target_doc_id)
+                return add_spans_for_doc(target_doc_id, selected_ranges, span_values)
+
+            def get_current_selected_ranges() -> List[Dict[str, Any]]:
+                target_doc_id = get_active_doc_id()
+                if target_doc_id is None:
+                    return []
+                return list(get_selected_or_last_ranges(target_doc_id))
+
+            def get_current_selected_text() -> Optional[str]:
+                target_doc_id = get_active_doc_id()
+                if target_doc_id is None:
+                    return None
+                target_doc_idx = doc_idx_by_id.get(str(target_doc_id))
+                if target_doc_idx is None or not (0 <= target_doc_idx < len(text_data)):
+                    return None
+                selected_ranges = get_selected_or_last_ranges(target_doc_id)
+                if len(selected_ranges) == 0:
+                    return None
+                first_range = selected_ranges[0]
+                begin = first_range.get("begin")
+                end = first_range.get("end")
+                if begin is None or end is None:
+                    return None
+                begin = int(begin)
+                end = int(end)
+                if end <= begin:
+                    return None
+                doc_text = text_data[target_doc_idx].get(text_key) or ""
+                return doc_text[begin:end]
 
             use_imperative_handle(
                 handle,
                 lambda: {
-                    "scroll_to_span": lambda key: text_ref.current.scroll_to_span(key),
+                    "scroll_to_span": scroll_to_span,
                     "set_doc_idx": set_doc_idx,
-                    "get_doc_idx": lambda: persistent_doc_idx,
+                    "get_doc_idx": lambda: (
+                        lead_doc_idx
+                        if docs_mode == "lead"
+                        else doc_idx_by_id.get(get_active_doc_id() or "")
+                    ),
                     "set_highlighted_spans": set_highlighted,
                     "set_selected_span": set_selected_span,
+                    "get_active_doc_id": get_active_doc_id,
+                    "get_selected_ranges": get_current_selected_ranges,
+                    "get_selected_text": get_current_selected_text,
+                    "add_span_from_selection": add_spans_from_current_selection,
                 },
-                [text_data, span_data, persistent_doc_idx],
+                [text_data, span_data, lead_doc_idx, docs_mode, active_doc_id],
             )
 
             def handle_mouse_hover_spans(span_ids: List[str], mod_keys: List[str]):
@@ -2013,7 +2415,7 @@ class DataWidgetFactory:
                 if selected_span_idx is None or selected_span_idx < 0:
                     set_selected_span_rows(selected_indices)
 
-            def filter_doc_spans():
+            def get_doc_spans(doc_id):
                 selected_ids = {
                     span_data[idx].get(spans_primary_key)
                     for idx in get_current_selected_span_indices()
@@ -2026,28 +2428,20 @@ class DataWidgetFactory:
                         **span,
                     }
                     for span in span_data
-                    if (
-                        text_primary_key not in span
-                        or str(span[text_primary_key]) == str(current_doc_id)
+                    if (text_primary_key not in span or str(span[text_primary_key]) == str(doc_id))
+                    and (
+                        not bool(span.get("hidden"))
+                        or span[spans_primary_key] in highlighted
+                        or span[spans_primary_key] in selected_ids
                     )
                 ]
-
-            doc_spans = use_memo(
-                filter_doc_spans,
-                [
-                    span_data,
-                    current_doc_id,
-                    highlighted,
-                    selected_span_rows_snapshot.get("rows"),
-                ],
-            )
 
             def flush_pending_span_scroll():
                 if pending_span_ids_ref.current is None:
                     return
                 span_ids = pending_span_ids_ref.current
-                doc_span_ids = {span[spans_primary_key] for span in doc_spans}
-                if not any(span_id in doc_span_ids for span_id in span_ids):
+                span_ids_in_store = {span.get(spans_primary_key) for span in span_data}
+                if not any(span_id in span_ids_in_store for span_id in span_ids):
                     return
                 pending_span_ids_ref.current = None
                 if on_add_span:
@@ -2077,37 +2471,7 @@ class DataWidgetFactory:
 
             @use_event_callback
             async def handle_add_span(label):
-                if not current_doc_id or not selected_ranges:
-                    return
-                added_span_ids = []
-                for r in selected_ranges:
-                    text_content = current_doc[text_key][r["begin"] : r["end"]]
-                    span_id = f"{current_doc_id}-{r['begin']}-{r['end']}-{label}"
-                    if label in labels and "defaults" in labels[label]:
-                        span_defaults = labels[label]["defaults"]
-                    else:
-                        span_defaults = {}
-                    spans_store.append(
-                        {
-                            "text": text_content,
-                            spans_primary_key: span_id,
-                            begin_key: r["begin"],
-                            end_key: r["end"],
-                            button_key: label,
-                            # todo, only add when spans use the key ?
-                            #    we would actually maybe need to analyze the
-                            #    shape of the full data first, in init for instance.
-                            text_primary_key: current_doc_id,
-                            **span_defaults,
-                        }
-                    )
-                    added_span_ids.append(span_id)
-                set_selected_ranges([])
-                if text_ref.current:
-                    text_ref.current.clear_current_mouse_selection()
-                if added_span_ids:
-                    set_move_mode(False)
-                    pending_span_ids_ref.current = added_span_ids
+                add_spans_from_current_selection({button_key: label})
 
             @use_event_callback
             def on_delete():
@@ -2119,21 +2483,23 @@ class DataWidgetFactory:
                             del spans_store[idx]
                     set_selected_span_rows([])
                     return
+                target_doc_id = get_active_doc_id()
+                selected_ranges = get_doc_selected_ranges(target_doc_id)
                 to_remove = []
                 for idx, span in enumerate(spans_store):
                     if text_primary_key in span and str(span.get(text_primary_key)) != str(
-                        current_doc_id
+                        target_doc_id
                     ):
                         continue
                     for r in selected_ranges:
                         if not (span["end"] <= r["begin"] or r["end"] <= span["begin"]):
-                            to_remove.append(span)
+                            to_remove.append(idx)
                             break
                 with transact(spans_store):
                     for item in sorted(to_remove, reverse=True):
                         del spans_store[item]
                 if to_remove:
-                    set_selected_ranges([])
+                    set_doc_selected_ranges(target_doc_id, [])
 
             @use_event_callback
             def handle_toggle_move(event=None):
@@ -2142,14 +2508,41 @@ class DataWidgetFactory:
             @use_event_callback
             def on_key_press(k, modkeys, selection):
                 next_idx = None
+                current_idx = (
+                    lead_doc_idx
+                    if docs_mode == "lead"
+                    else doc_idx_by_id.get(get_active_doc_id() or "")
+                )
                 if k == "ArrowRight":
-                    next_idx = get_adjacent_doc_idx(persistent_doc_idx, 1)
-                    if next_idx is None and text_data:
-                        next_idx = (persistent_doc_idx + 1) % len(text_data)
+                    if docs_mode == "lead":
+                        next_idx = get_adjacent_doc_idx(current_idx, 1)
+                        if next_idx is None and text_data and current_idx is not None:
+                            next_idx = (current_idx + 1) % len(text_data)
+                    else:
+                        if len(visible_doc_ids) > 0:
+                            current_doc_id = get_active_doc_id()
+                            if current_doc_id not in set(visible_doc_ids):
+                                set_active_doc_id(visible_doc_ids[0])
+                            else:
+                                current_pos = visible_doc_ids.index(current_doc_id)
+                                set_active_doc_id(
+                                    visible_doc_ids[(current_pos + 1) % len(visible_doc_ids)]
+                                )
                 elif k == "ArrowLeft":
-                    next_idx = get_adjacent_doc_idx(persistent_doc_idx, -1)
-                    if next_idx is None and text_data:
-                        next_idx = (persistent_doc_idx - 1) % len(text_data)
+                    if docs_mode == "lead":
+                        next_idx = get_adjacent_doc_idx(current_idx, -1)
+                        if next_idx is None and text_data and current_idx is not None:
+                            next_idx = (current_idx - 1) % len(text_data)
+                    else:
+                        if len(visible_doc_ids) > 0:
+                            current_doc_id = get_active_doc_id()
+                            if current_doc_id not in set(visible_doc_ids):
+                                set_active_doc_id(visible_doc_ids[0])
+                            else:
+                                current_pos = visible_doc_ids.index(current_doc_id)
+                                set_active_doc_id(
+                                    visible_doc_ids[(current_pos - 1) % len(visible_doc_ids)]
+                                )
 
                 if next_idx is not None:
                     handle_text_change(next_idx)
@@ -2163,38 +2556,48 @@ class DataWidgetFactory:
                             handle_add_span(label)
                             break
 
-            def handle_toolbar_action():
-                action_id = toolbar_snapshot.get("action_id", 0)
-                if action_id == last_action_id_ref.current:
-                    return
-                last_action_id_ref.current = action_id
-                action = toolbar_snapshot.get("action")
-                payload = toolbar_snapshot.get("action_payload") or {}
-                selected_indices = get_current_selected_span_indices()
-                if action == "label_click":
-                    label = payload.get("label")
-                    if not label:
-                        return
-                    if len(selected_indices) > 0:
-                        update_selected_span(button_key, label)
-                    else:
-                        handle_add_span(label)
-                elif action == "delete":
-                    on_delete()
-                elif action == "toggle_move":
-                    toggle_move_mode()
-                elif action == "update_span":
-                    key = payload.get("key")
-                    if key is None:
-                        return
-                    update_selected_span(key, payload.get("value"))
+            def handle_doc_key_press(k, modkeys, selection, doc):
+                doc_id = doc.get(text_primary_key)
+                if doc_id is not None:
+                    set_active_doc_id(str(doc_id))
+                on_key_press(k, modkeys, selection)
 
+            def handle_toolbar_action():
+                try:
+                    action_id = toolbar_snapshot.get("action_id", 0)
+                    if action_id == last_action_id_ref.current:
+                        return
+                    last_action_id_ref.current = action_id
+                    action = toolbar_snapshot.get("action")
+                    payload = toolbar_snapshot.get("action_payload") or {}
+                    selected_indices = get_current_selected_span_indices()
+                    if action == "label_click":
+                        label = payload.get("label")
+                        if not label:
+                            return
+                        if len(selected_indices) > 0:
+                            update_selected_span(button_key, label)
+                        else:
+                            handle_add_span(label)
+                    elif action == "delete":
+                        on_delete()
+                    elif action == "toggle_move":
+                        toggle_move_mode()
+                    elif action == "update_span":
+                        key = payload.get("key")
+                        if key is None:
+                            return
+                        update_selected_span(key, payload.get("value"))
+                except BaseException as e:
+                    print("Got error during user toolbar action", e)
+
+            # it works this way, but maybe we should try to fix instead the
+            # re-rendering issue that pushed this persistent event handling mechanism
             use_effect(handle_toolbar_action, [toolbar_snapshot.get("action_id", 0)])
 
-            if not current_doc:
-                return div("No document selected")
-
-            def handle_click_span(span_id, modkeys):
+            def handle_click_span(span_id, modkeys, doc_id):
+                if doc_id is not None:
+                    set_active_doc_id(str(doc_id))
                 if span_id is None:
                     set_selected_span_rows([])
                     return
@@ -2235,34 +2638,47 @@ class DataWidgetFactory:
 
                 # auto synchronization with other text widgets
                 for other in handles.get(store_spans_key, []):
-                    # other_handle, other_kind, *_ = other
-                    if other[1] == "table" and other[0].current:
-                        other[0].current.set_highlighted([span_id])
-                        other[0].current.scroll_to_row_id(span_id)
+                    other_handle = other[0]
+                    if other_handle.current is None or other_handle == handle:
+                        continue
+                    set_highlighted = getattr(other_handle.current, "set_highlighted", None)
+                    scroll_to_row_id = getattr(other_handle.current, "scroll_to_row_id", None)
+                    if callable(set_highlighted):
+                        set_highlighted([span_id])
+                    if callable(scroll_to_row_id):
+                        scroll_to_row_id(span_id)
                 if on_click_span:
                     on_click_span(span_id, modkeys)
 
-            def handle_mouse_select(ranges, modkeys):
+            def handle_mouse_select(ranges, modkeys, doc):
+                doc_id = doc.get(text_primary_key)
+                doc_id_str = str(doc_id) if doc_id is not None else None
+                if doc_id_str is not None:
+                    set_active_doc_id(doc_id_str)
                 if len(ranges) == 0 and suppress_next_empty_select_clear_ref.current:
                     suppress_next_empty_select_clear_ref.current = False
-                    set_selected_ranges(ranges)
+                    set_doc_selected_ranges(doc_id_str, ranges)
                     return
+                selected_span_doc_id = (
+                    span_data[selected_span_idx].get(text_primary_key) or doc_id
+                    if selected_span_idx is not None and 0 <= selected_span_idx < len(span_data)
+                    else doc_id
+                )
                 if (
                     move_mode
                     and selected_span_idx is not None
                     and 0 <= selected_span_idx < len(spans_store)
+                    and selected_span_doc_id == doc_id
                     and len(ranges) > 0
                 ):
                     r = ranges[0]
                     spans_store[selected_span_idx][begin_key] = r["begin"]
                     spans_store[selected_span_idx][end_key] = r["end"]
-                    spans_store[selected_span_idx]["text"] = current_doc[text_key][
-                        r["begin"] : r["end"]
-                    ]
+                    spans_store[selected_span_idx]["text"] = doc[text_key][r["begin"] : r["end"]]
                     set_selected_span_rows([selected_span_idx])
                     set_move_mode(False)
-                    set_selected_ranges([])
-                    if text_ref.current:
+                    set_doc_selected_ranges(doc_id_str, [])
+                    if docs_mode == "lead" and text_ref.current:
                         text_ref.current.clear_current_mouse_selection()
                     return
                 elif len(ranges) > 0:
@@ -2271,37 +2687,77 @@ class DataWidgetFactory:
                     selected_span_idx is not None and selected_span_idx >= 0
                 ) or selected_span_rows_snapshot.get("rows"):
                     set_selected_span_rows([])
-                set_selected_ranges(ranges)
+                set_doc_selected_ranges(doc_id_str, ranges)
 
-            return div(
-                AnnotatedText(
-                    text=current_doc[text_key],
-                    spans=doc_spans,
+            if len(visible_doc_indices) == 0:
+                return [div("No document selected", key="no-document-selected")]
+
+            rendered_docs = []
+            visible_doc_count = len(visible_doc_indices)
+            for note_idx, doc_idx in enumerate(visible_doc_indices):
+                if doc_idx is None or not (0 <= doc_idx < len(text_data)):
+                    continue
+                doc = text_data[doc_idx]
+                doc_id = doc.get(text_primary_key)
+                doc_id_str = str(doc_id) if doc_id is not None else f"idx-{doc_idx}"
+                doc_text_ref = (
+                    text_ref
+                    if docs_mode == "lead"
+                    else get_doc_text_ref(
+                        doc_ref_key_by_idx.get(doc_idx, f"{text_context_key}|idx:{doc_idx}")
+                    )
+                )
+                annotated_text = AnnotatedText(
+                    text=doc[text_key],
+                    spans=get_doc_spans(doc_id),
                     annotation_styles=labels,
-                    mouse_selection=selected_ranges,
+                    mouse_selection=get_doc_selected_ranges(
+                        str(doc_id) if doc_id is not None else None
+                    ),
                     primary_key=spans_primary_key,
                     begin_key=begin_key,
                     end_key=end_key,
                     style_key=style_key,
                     label_key=label_key,
                     label_formatter=label_formatter,
-                    on_key_press=on_key_press,
-                    on_mouse_select=handle_mouse_select,
+                    on_key_press=lambda k, modkeys, selection, d=doc: handle_doc_key_press(
+                        k, modkeys, selection, d
+                    ),
+                    on_mouse_select=lambda ranges, modkeys, d=doc: handle_mouse_select(
+                        ranges, modkeys, d
+                    ),
                     on_mouse_hover_spans=handle_mouse_hover_spans,
-                    on_click_span=handle_click_span,
-                    handle=text_ref,
-                    style={"flex": 1, "minHeight": 0, "overflow": "scroll", **(style or {})},
-                ),
-                style={
-                    "display": "flex",
-                    "flexDirection": "column",
-                    "flex": 1,
-                    "minHeight": 0,
-                    **(style or {}),
-                },
-            )
+                    on_click_span=lambda span_id, modkeys, d=doc: handle_click_span(
+                        span_id, modkeys, d.get(text_primary_key)
+                    ),
+                    handle=doc_text_ref,
+                    style=(
+                        {"flex": 1, "minHeight": 0, "overflow": "scroll", **(style or {})}
+                        if docs_mode == "lead"
+                        else {"minHeight": "180px", "overflow": "scroll", **(style or {})}
+                    ),
+                )
+                wrapper_key = (
+                    "doc-lead"
+                    if docs_mode == "lead"
+                    else f"{text_context_key}:doc:{doc_idx}:{doc_id_str}"
+                )
+                wrapped_component = container_renderer(
+                    doc,
+                    annotated_text,
+                    toolbar_view,
+                    key=wrapper_key,
+                    note_idx=note_idx,
+                    note_count=visible_doc_count,
+                )
+                rendered_docs.append(
+                    wrapped_component,
+                )
+            return rendered_docs
 
-        return TextWidget(), ToolbarWidget()
+        toolbar_view = ToolbarWidget()
+        text_view = TextWidget()
+        return text_view, toolbar_view
 
     def create_connection_status_bar(self):
         is_synced = self.is_synced
@@ -2309,6 +2765,7 @@ class DataWidgetFactory:
         @component
         def StatusBar():
             status = use_connection_status()
+            state_write_rejection_count = status["state_write_rejection_count"] or 0
             if status["connected"]:
                 connected = "Connected"
                 color = "success"
@@ -2319,15 +2776,38 @@ class DataWidgetFactory:
                 connected = "Offline (changes won't be saved)"
                 color = "neutral"
 
+            sx = {
+                "width": "100%",
+                "px": 1.5,
+                "py": 0.25,
+                "borderTop": "1px solid var(--joy-palette-divider, #d6d6d6)",
+                "background": "var(--joy-palette-background-surface, #fff)",
+            }
+            if is_synced and status["connected"] is False and state_write_rejection_count:
+                animation_name = f"pret-disconnected-status-pulse-{state_write_rejection_count}"
+                sx.update(
+                    {
+                        "animation": f"{animation_name} 500ms ease-out",
+                        f"@keyframes {animation_name}": {
+                            "0%": {
+                                "borderTopColor": "var(--joy-palette-danger-500, #c41c1c)",
+                                "background": "var(--joy-palette-danger-100, #ffe9e8)",
+                            },
+                            "55%": {
+                                "borderTopColor": "var(--joy-palette-danger-400, #e4746b)",
+                                "background": "var(--joy-palette-danger-50, #fff4f3)",
+                            },
+                            "100%": {
+                                "borderTopColor": "var(--joy-palette-divider, #d6d6d6)",
+                                "background": "var(--joy-palette-background-surface, #fff)",
+                            },
+                        },
+                    }
+                )
+
             return Box(
                 Typography(f"Connection status: {connected}", level="body-sm", color=color),
-                sx={
-                    "width": "100%",
-                    "px": 1.5,
-                    "py": 0.25,
-                    "borderTop": "1px solid var(--joy-palette-divider, #d6d6d6)",
-                    "background": "var(--joy-palette-background-surface, #fff)",
-                },
+                sx=sx,
             )
 
         return StatusBar()

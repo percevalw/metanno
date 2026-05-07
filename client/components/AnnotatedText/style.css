@@ -1,6 +1,12 @@
 @import url('//fonts.googleapis.com/css?family=Roboto+Mono&display=swap');
 @import url("//cdn.jsdelivr.net/npm/hack-font@3/build/web/hack.css");
 
+.metanno-text-view {
+    --metanno-line-height: 2.8em;
+    --metanno-line-bleed: calc(var(--metanno-line-height) / 3);
+    --metanno-line-gutter-width: 41px;
+}
+
 .metanno-text-view:focus-visible {
     outline: none;
 }
@@ -9,9 +15,9 @@
     /*background: var(--metanno-background-color);*/
     font-family: var(--metanno-font-family);
     font-size: var(--metanno-font-size);
-    padding-top: 10px;
-    padding-bottom: 5px;
-    line-height: 2.8em;
+    padding-top: calc(var(--metanno-line-bleed) * 2);
+    padding-bottom: calc(var(--metanno-line-bleed) * 2);
+    line-height: var(--metanno-line-height);
     color: var(--metanno-color);
     position: relative;
 
@@ -21,7 +27,8 @@
 }
 
 .metanno-text-view .line {
-    padding-left: 41px;
+    margin: calc(var(--metanno-line-bleed) * -2) 0;
+    padding: var(--metanno-line-bleed) 0 var(--metanno-line-bleed) var(--metanno-line-gutter-width);
     box-sizing: border-box;
     width: 100%;
     contain: layout paint style;
@@ -30,7 +37,7 @@
 }
 
 .metanno-text-view .line-number {
-    margin-left: -41px;
+    margin-left: calc(var(--metanno-line-gutter-width) * -1);
     width: 0;
     display: inline-block;
     padding: 0 30px 0 11px;
@@ -145,7 +152,7 @@
 .metanno-text-view .mouse_selected {
     background: rgba(137, 188, 250, 0.6); /*#b2d7ff88;*/
     border: none;
-    min-height: 2.8em;
+    min-height: var(--metanno-line-height);
     z-index: 1000;
 }
 
