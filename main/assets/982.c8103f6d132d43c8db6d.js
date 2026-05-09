@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunkreact_simple_dock=self.webpackChunkreact_simple_dock||[]).push([[982],{982:(e,t,a)=>{a.r(t),a.d(t,{default:()=>l});var c=a(33);window.SimpleDock={Panel:c.Panel,Layout:c.Layout},a(820);const l={id:"pret_simple_dock:plugin",activate:function(){return null},autoStart:!0}}}]);
