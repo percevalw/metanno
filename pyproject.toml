@@ -36,7 +36,7 @@ classifiers = [
 ]
 requires-python = ">=3.7,<4.0,!=3.8.1"
 dependencies = [
-    "pret",
+    "pret>=0.6.3",
     "pret-joy",
     "pret-markdown",
     "pret-simple-dock",
