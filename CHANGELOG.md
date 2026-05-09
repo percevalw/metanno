@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.0.0 (2025-05-10)
 
 - Added multi-document rendering to `DataWidgetFactory.create_text_widget` with `docs_mode="lead" | "selected" | "all"` and an optional `container_renderer` for custom document wrappers (e.g. sticky headers)
 - Added text-widget imperative helpers to inspect and act on the active selection: `get_active_doc_id`, `get_selected_ranges`, `get_selected_text`, and `add_span_from_selection`.
