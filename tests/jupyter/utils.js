@@ -26,4 +26,22 @@ function createDirectoryResetController(targetDir) {
   };
 }
 
-module.exports = { createDirectoryResetController };
+async function setCellSource(page, activePanel, cellIndex, source) {
+  await page.notebook.setCellType(cellIndex, "code");
+  await page.notebook.selectCells(cellIndex);
+  await page.notebook.enterCellEditingMode(cellIndex);
+  const cell = page.locator(
+    `${activePanel} .jp-Cell:nth-child(${cellIndex + 1})`
+  );
+  await cell.getByRole("textbox").fill(source);
+  await page.notebook.leaveCellEditingMode(cellIndex);
+}
+
+async function addCodeCell(page, activePanel, source) {
+  const cellIndex = await page.notebook.getCellCount();
+  await page.notebook.addCell("code", "");
+  await setCellSource(page, activePanel, cellIndex, source);
+  return cellIndex;
+}
+
+module.exports = { createDirectoryResetController, setCellSource, addCodeCell };
