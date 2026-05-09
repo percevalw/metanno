@@ -1,5 +1,5 @@
 let { expect, test } = require("@jupyterlab/galata");
-const { createDirectoryResetController } = require("../reset-test-dir");
+const { createDirectoryResetController } = require("../utils");
 
 // JUPYTERLAB_VERSION is set in run.sh
 if (process.env.JUPYTERLAB_VERSION < "4") {
