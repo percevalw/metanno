@@ -1,0 +1,35 @@
+.code-output > pre {
+    margin-top: 0;
+}
+
+div:has(+ .code-output) > pre {
+    margin-bottom: 0;
+}
+
+.code-output pre > code {
+    /* --md-code-bg-color: hsl(0deg 0% 80% / 80%); */
+    border-top-left-radius: 0px;
+    border-top-right-radius: 0px;
+}
+
+div:has(+ .code-output) > pre > code {
+    margin-bottom: 0;
+    border-bottom-left-radius: 0px;
+    border-bottom-right-radius: 0px;
+}
+
+@media screen {
+    [data-md-color-scheme=default] {
+        .code-output pre > code {
+            --md-code-bg-color: hsl(0deg 0% 80% / 80%);
+        }
+    }
+}
+
+@media screen {
+    [data-md-color-scheme=slate] {
+        .code-output pre > code {
+            --md-code-bg-color: hsl(232deg 13.76% 33.11%);
+        }
+    }
+}
