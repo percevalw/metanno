@@ -44,6 +44,9 @@
     "ts-loader": "^9.4.2",
     "typescript": "^5.8.2"
   },
+  "resolutions": {
+    "webpack": "5.88.2"
+  },
   "jupyterlab": {
     "extension": "client/plugin.ts",
     "schemaDir": "client/schema",
