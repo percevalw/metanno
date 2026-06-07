@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Fix `on_hover_spans` callback to trigger also when the cursor leaves a span while leaving its line
+
 ## v1.0.0 (2025-05-10)
 
 - Added multi-document rendering to `DataWidgetFactory.create_text_widget` with `docs_mode="lead" | "selected" | "all"` and an optional `container_renderer` for custom document wrappers (e.g. sticky headers)
