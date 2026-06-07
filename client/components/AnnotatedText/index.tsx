@@ -317,7 +317,11 @@ const Line = React.memo(
           }
         })
         .filter((e) => !!e);
-      let newSet = new Set(hitElements.map((e) => e.getAttribute("span_key")));
+      let newSet = new Set(
+        hitElements
+          .map((e) => e.getAttribute("span_key"))
+          .filter((x) => x !== null)
+      );
       let changed = false;
       // @ts-ignore
       hoveredKeys.current.forEach(
@@ -346,6 +350,9 @@ const Line = React.memo(
       if (!hoveredKeys) return;
       // @ts-ignore
       hoveredKeys.current.forEach((x) => handleMouseLeaveSpan(event, x));
+      if (hoveredKeys.current.size > 0 && handleMouseHoverSpans) {
+        handleMouseHoverSpans(event, []);
+      }
       hoveredKeys.current.clear();
     };
     const onMouseUp = (e) => {
