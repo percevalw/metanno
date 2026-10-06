@@ -2,7 +2,27 @@
 
 ## Unreleased
 
+Metanno 2 requires Pret 0.7.
+
+### JupyterLab viewer
+
+- `view_opener(store)` displays an **Open with Metanno** button that opens a Store in a JupyterLab tab, with the built in table view (a table and a form of the selected rows) or a view recipe.
+- View recipes are Python files of a views directory, `main(store, ...)` returns the interface. Saved views (`views/*.yml`) select source tables, a recipe and its parameters.
+- The **Metanno** sidebar browses sources configured in `metanno.yaml` (Ibis URLs or Python connection factories), saved views, and saved annotation Stores grouped by folder, eg one file per annotator.
+- Source tables open in tabs backed by a shared query kernel, with **Copy code** to customize the query in a notebook, as plain Ibis code opening the configured connection, or to prepare an editable annotation Store.
+- Tabs have a recipe selector to show the same data with another recipe, a kernel selector, a reload button and fullscreen links. Annotations reopen in their saved kernel with their saved view, independently of the notebook that created them.
+- Errors above views and widgets can be dismissed.
+
+### Widgets
+
+- `DataWidgetFactory` displays and edits Pret DataFrames as well as lists of dictionaries: paged tables with server side filtering and sorting, forms of the selected rows (long text fields included), text views and related tables linked through `DataRelation`.
+- Tables of very large sources show their first 600,000 rows, which browsers can scroll, filters and sorting apply to all rows.
+- `create_pdf_widget` shows the PDF of the selected row with the browser viewer.
+- `create_status_bar` shows rejected edits and undo controls of a Store, `create_connection_status_bar` remains as an alias.
 - Fix `on_hover_spans` callback to trigger also when the cursor leaves a span while leaving its line
+
+### Other changes
+
 
 ## v1.0.0 (2025-05-10)
 

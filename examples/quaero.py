@@ -1,9 +1,8 @@
-# <!--8<-- [start:imports]
 import uuid
 from pathlib import Path
 
 import edsnlp
-from pret import use_ref
+from pret import DataFrame, use_ref
 from pret.hooks import RefType
 from pret.react import div
 from pret_joy import Box, Divider, Stack
@@ -11,14 +10,12 @@ from pret_markdown import Markdown
 from pret_simple_dock import Layout, Panel
 
 from metanno.recipes.data_widget_factory import (
+    DataRelation,
     DataWidgetFactory,
     FormWidgetHandle,
     TableWidgetHandle,
     TextWidgetHandle,
-    infer_fields,
 )
-
-# <--8<-- [end:imports]
 
 PALETTE = [
     "rgb(255,200,206)",
@@ -51,7 +48,7 @@ It contains three panels, that you can rearrange as you like:
 - one view for the note metadata displayed as a form (a fake field "note_kind" was added
   for demo purposes, and only applied to EMEA notes)
 
-Visit the [tutorial](https://percevalw.github.io/metanno/latest/tutorials/run-quaero-explorer) to
+Visit the [tutorial](https://percevalw.github.io/metanno/latest/tutorials/design-your-view/) to
 learn how to build such an app yourself.
 
 Happy exploring!
@@ -89,39 +86,31 @@ def download_quaero():
 
 
 def build_data():
-    # --8<-- [start:import-data]
+    """
+    Read the Quaero notes and their entities as two tables linked by note_id
+    """
     download_quaero()
-
-    data = edsnlp.data.read_standoff(
-        DOWNLOAD_DIR / "QUAERO_FrenchMed/corpus",
-        span_setter="entities",
-        notes_as_span_attribute="cui",
-    )
-    notes = []
-    for idx, doc in enumerate(data):
-        notes.append(
-            {
-                "note_id": str(doc._.note_id),
-                "note_text": doc.text,
-                "note_kind": ("interesting" if idx % 2 == 0 else "very interesting")
-                if "EMEA" in doc._.note_id
-                else "",
-                "seen": False,
-                "entities": [
-                    {
-                        "id": f"#{uuid.uuid4()}",
-                        "text": str(e),
-                        "begin": e.start_char,
-                        "end": e.end_char,
-                        "label": e.label_,
-                        "concept": e._.cui,
-                    }
-                    for e in sorted(doc.spans["entities"])
-                ],
-            }
+    docs = list(
+        edsnlp.data.read_standoff(
+            DOWNLOAD_DIR / "QUAERO_FrenchMed/corpus",
+            span_setter="entities",
+            notes_as_span_attribute="cui",
         )
-    # --8<-- [end:import-data]
-    return {"notes": notes}
+    )
+    notes = edsnlp.data.from_iterable(docs).to_pandas(converter="omop")[["note_id", "note_text"]]
+    # A demo field, only filled for EMEA notes
+    emea = notes["note_id"].str.contains("EMEA")
+    notes["note_kind"] = ""
+    notes.loc[emea, "note_kind"] = ["interesting" if idx % 2 == 0 else "very interesting" for idx in notes.index[emea]]
+    notes["seen"] = False
+    entities = (
+        edsnlp.data.from_iterable(docs)
+        .to_pandas(converter="ents", span_getter="entities", span_attributes={"cui": "concept"})
+        .rename(columns={"start": "begin", "lexical_variant": "text"})
+        .drop(columns="span_type")
+    )
+    entities["id"] = [f"#{uuid.uuid4()}" for _ in range(len(entities))]
+    return {"notes": DataFrame(notes), "entities": DataFrame(entities)}
 
 
 def app(save_path=None, deduplicate=False):
@@ -131,11 +120,12 @@ def app(save_path=None, deduplicate=False):
         # This is why we pass a function
         data=build_data,
         sync=save_path,
+        # Selecting a note shows its entities
+        relations=[DataRelation("notes", "entities", on="note_id")],
     )
-    data = factory.data
 
     # Compute shortcuts and colors for labels
-    all_labels = list(dict.fromkeys(e["label"] for n in data["notes"] for e in n["entities"]))
+    all_labels = list(dict.fromkeys(factory.data["entities"].materialize()["label"].to_pylist()))
     shortcuts = set()
     labels_config = {}
     for i, lab in enumerate(all_labels):
@@ -148,7 +138,6 @@ def app(save_path=None, deduplicate=False):
             labels_config[lab]["shortcut"] = letter
 
     # Interaction Logic
-    # --8<-- [start:render-views]
     # Create handles to control the widgets imperatively
 
     def make_note_kind_options(note):
@@ -163,15 +152,12 @@ def app(save_path=None, deduplicate=False):
     notes_view = factory.create_table_widget(
         store_key="notes",
         primary_key="note_id",
-        # Instead of using infer_fields, we can also define the
-        # fields manually which can actually be simpler
         fields=[  # type: ignore
             {"key": "note_id", "name": "note_id", "kind": "text", "filterable": True},
             {"key": "note_text", "name": "note_text", "kind": "text", "editable": False, "filterable": True},  # noqa: E501
             {"key": "note_kind", "name": "note_kind", "kind": "text", "editable": True, "options": make_note_kind_options, "filterable": True},  # noqa: E501
             {"key": "seen", "name": "seen", "kind": "boolean", "editable": True, "filterable": True},  # noqa: E501
         ],
-        style={"--min-notebook-height": "300px"},
         handle=notes_table_handle,
     )
     # fmt: on
@@ -188,7 +174,7 @@ def app(save_path=None, deduplicate=False):
             {"key": "seen", "kind": "boolean", "editable": True},
         ],
         add_navigation_buttons=True,
-        style={"--min-notebook-height": "300px", "margin": "10px"},
+        style={"margin": "10px"},
         handle=note_form_handle,
     )
     # fmt: on
@@ -196,16 +182,14 @@ def app(save_path=None, deduplicate=False):
     # View the entities as a table
     ents_table_handle: RefType[TableWidgetHandle] = use_ref()
     entities_view = factory.create_table_widget(
-        store_key="notes.entities",
+        store_key="entities",
         primary_key="id",
-        fields=infer_fields(
-            [e for n in data["notes"] for e in n["entities"]],
-            visible_keys=["id", "text", "label", "concept"],
-            id_keys=["id"],
-            editable_keys=["label", "concept"],
-            categorical_keys=["label", "concept"],
-        ),
-        style={"--min-notebook-height": "300px"},
+        fields=[
+            {"key": "id", "kind": "text"},
+            {"key": "text", "kind": "text"},
+            {"key": "label", "kind": "select", "editable": True, "options": all_labels},
+            {"key": "concept", "kind": "text", "editable": True},
+        ],
         handle=ents_table_handle,
     )
 
@@ -215,19 +199,16 @@ def app(save_path=None, deduplicate=False):
     note_text_view, ent_view = factory.create_text_widget(
         store_text_key="notes",
         # Where to look for spans data in the app data
-        store_spans_key="notes.entities",
+        store_spans_key="entities",
         # Fields that will be displayed in the toolbar
-        fields=infer_fields(
-            [e for n in data["notes"] for e in n["entities"]],
-            visible_keys=["label", "concept"],
-            editable_keys=["label", "concept"],
-            categorical_keys=["label", "concept"],
-        ),
+        fields=[
+            {"key": "label", "kind": "select", "editable": True, "options": all_labels},
+            {"key": "concept", "kind": "text", "editable": True},
+        ],
         text_key="note_text",
         text_primary_key="note_id",
         spans_primary_key="id",
         labels=labels_config,
-        style={"--min-notebook-height": "300px"},
     )
 
     # Create a header for the note text panel
@@ -236,9 +217,7 @@ def app(save_path=None, deduplicate=False):
         shown_key="note_id",
         fallback="Note",
     )
-    # --8<-- [end:render-views]
 
-    # --8<-- [start:layout]
     layout = Stack(
         Layout(
             Panel(div(Markdown(DESC), style={"margin": "10px"}), key="Description"),
@@ -277,7 +256,7 @@ def app(save_path=None, deduplicate=False):
                 "Entities",
             ],
         ),
-        factory.create_connection_status_bar(),
+        factory.create_status_bar(),
         style={
             "background": "var(--joy-palette-background-level2, #f0f0f0)",
             "width": "100%",
@@ -287,7 +266,6 @@ def app(save_path=None, deduplicate=False):
         },
     )
     # Display `layout` in a cell to see the app
-    # --8<-- [end:layout]
 
     return (
         # Return the pret component
@@ -318,8 +296,7 @@ if __name__ == "__main__":
         "--host",
         type=str,
         default=None,
-        help="Host to run the app on (default: None, localhost). "
-        "Use '0.0.0.0' to make the app publicly available.",
+        help="Host to run the app on (default: None, localhost). Use '0.0.0.0' to make the app publicly available.",
     )
     parser.add_argument(
         "--save-path",

@@ -4,14 +4,11 @@ Learn how to install **Metanno** in a brand‑new project or add it to an existi
 
 ## Prerequisites
 
-- Python >= 3.7
-- A clean environment (Conda/Mamba recommended).
-  **On JupyterHub:** use a **conda/mamba** environment (or micromamba). Avoid local environments like `venv` there to ensure JupyterLab picks up the front‑end code properly.
+- Python >= 3.10
+- An environment with Pret and Metanno installed as described in [installation](../installation.md)
 
-!!! tip "Two ways to run Metanno"
-
-    - **Inside JupyterLab** (great for notebooks and quick prototyping)
-    - **Standalone app** (run a local web server)
+This tutorial builds a custom component application. For the integrated explorer, follow the
+[JupyterLab guide](../jupyterlab.md). The same components can also be used in a [view recipe](../recipes.md).
 
 ## Create (or reuse) a project
 
@@ -24,14 +21,14 @@ You can manage your project dependencies with a pyproject.toml or a requirements
     [project]
     name = "my-app"
     version = "0.1.0"
-    requires-python = ">=3.7"
+    requires-python = ">=3.10"
     dependencies = [
       "edsnlp>=0.17",  # example base dependency
     ]
 
     [dependency-groups]
     metanno = [
-      "metanno>=1.0.0",   # the annotation framework
+      "metanno>=2.0.0",   # exploration and annotation components
       # add other dependencies as your annotation app grows
     ]
     ```
@@ -50,7 +47,7 @@ You can manage your project dependencies with a pyproject.toml or a requirements
     If you don’t want a pyproject.toml, create a requirements.txt:
 
     ```text
-    metanno>=1.0.0
+    metanno>=2.0.0
     edsnlp>=0.20  # example additional dependency, not required at the moment
     ```
 

@@ -1,64 +1,95 @@
 # Tutorials
 
-Here is a list of tutorials to help you learn how to use Metanno.
+These tutorials follow one path, from opening your first table to building your own annotation interface. Each
+one takes a few minutes and builds on the previous ones, so start with the first one even if you plan to write
+code later.
 
-For a deeper understanding of the framework, check out the [Pret tutorials](https://percevalw.github.io/pret/main/tutorials/).
+## Get started
 
-!!! info "Notebook-first tutorials"
-
-    Most tutorials should have a "Download notebook" button at the top right : click it and drag the file
-    to your favorite jupyterlab instance to experiment with the library yourself.
+Open your data in Metanno and annotate it, with a cell to copy at most.
 
 <!-- --8<-- [start:tutorials] -->
 
-=== card {: href=/tutorials/new-project/ }
+=== card {: href=/tutorials/annotate-a-table/ }
 
-    :fontawesome-solid-plus:
-    **Set up a new project**
-
-    ---
-    Learn how to install Metanno in a new project or add it to an existing one.
-
-=== card {: href=/tutorials/run-quaero-explorer/ }
-
-    :fontawesome-solid-gear:
-    **Run the Data Explorer demo**
+    :fontawesome-solid-table:
+    **Annotate a table**
 
     ---
-    Run the Quaero Explorer demo app and discover the features of the DataWidgetFactory: persisting annotations, collaborating, and more.
+    Open a pandas table in a Metanno tab, annotate it and read your annotations in Python.
 
-=== card {: href=/tutorials/custom-fields/ }
+=== card {: href=/tutorials/browse-a-database/ }
 
-    :fontawesome-solid-robot:
-    **Adding custom fields**
-
-    ---
-    Learn how to extend the data model and expose custom fields in table, text, and form widgets.
-
-=== card {: href=/tutorials/pre-annotation/ }
-
-    :fontawesome-solid-stethoscope:
-    **Pre-annotate Data with EDS-NLP**
+    :fontawesome-solid-database:
+    **Browse a database**
 
     ---
-    Use EDS-NLP to pre-annotate your data.
+    Connect a database and explore its tables from the JupyterLab sidebar.
 
-=== card {: href=/tutorials/multi-collections/ }
-
-    :fontawesome-solid-diagram-project:
-    **Nested and Linked Collections**
-
-    ---
-    Structure multi-level datasets with nested paths or linked collections.
-
-<!--
-=== card {: href=/tutorials/byo-dataframe-annotator/ }
-
-    :fontawesome-solid-code:
-    **Build a dataframe annotator**
-
-    ---
-    Build a custom annotator that uses a dataframe as the data source.
--->
 
 <!-- --8<-- [end:tutorials] -->
+
+## Annotate a corpus
+
+Select notes in a database, pre-annotate them with EDS-NLP, then review them with your
+annotators.
+
+=== card {: href=/tutorials/pick-documents/ }
+
+    :fontawesome-solid-filter:
+    **Pick documents**
+
+    ---
+    Turn a query on your database into an annotation file.
+
+=== card {: href=/tutorials/pre-annotate/ }
+
+    :fontawesome-solid-robot:
+    **Pre-annotate**
+
+    ---
+    Find entities with EDS-NLP, so annotators only check them.
+
+=== card {: href=/tutorials/review-entities/ }
+
+    :fontawesome-solid-highlighter:
+    **Review entities**
+
+    ---
+    Write a view showing each note with its entities highlighted.
+
+## Customize the interface
+
+Build the interface your annotators need, and use it outside JupyterLab.
+
+=== card {: href=/tutorials/design-your-view/ }
+
+    :fontawesome-solid-table-columns:
+    **Design your view**
+
+    ---
+    Arrange panels, forms and keyboard shortcuts around the text.
+
+=== card {: href=/tutorials/annotate-across-levels/ }
+
+    :fontawesome-solid-sitemap:
+    **Annotate across levels**
+
+    ---
+    Decide on patients while reading their notes and entities.
+
+=== card {: href=/tutorials/custom-widgets/ }
+
+    :fontawesome-solid-puzzle-piece:
+    **Custom widgets**
+
+    ---
+    Put your own components next to the factory widgets. Work in progress.
+
+=== card {: href=/tutorials/outside-jupyterlab/ }
+
+    :fontawesome-solid-globe:
+    **Outside JupyterLab**
+
+    ---
+    Show a view in a notebook output, or serve it as a web app.
