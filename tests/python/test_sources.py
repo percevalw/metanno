@@ -1,0 +1,292 @@
+"""
+Source configuration discovery, connection ownership and Spark reconnection
+"""
+
+from contextlib import contextmanager
+from decimal import Decimal
+from types import SimpleNamespace
+
+import ibis
+import pytest
+import yaml
+
+from metanno.viewer.config import ConfigError, config_file, load_config
+from metanno.viewer.sources import QueryError, SourceCatalog
+
+
+def test_nearest_configuration_and_explicit_overrides(tmp_path, tmp_path_factory, config_path, monkeypatch):
+    """
+    Notebooks below the Jupyter root find its metanno.yaml, explicit files and directories override it
+    """
+    from metanno.viewer.recipes import views_directory
+
+    # Without a metanno.yaml above the notebook, the configuration would be beside it
+    empty = tmp_path_factory.mktemp("empty")
+    monkeypatch.chdir(empty)
+    assert config_file() == empty / "metanno.yaml"
+    assert load_config().sources == {}
+    assert views_directory(empty) == empty / "views"
+    # The fixture writes the metanno.yaml of a root above the notebooks, the nearest file wins
+    nested = tmp_path / "project" / "notebooks"
+    nested.mkdir(parents=True)
+    monkeypatch.chdir(nested)
+    assert config_file() == config_path
+    assert load_config().sources["planner"].connection == "local"
+    assert config_file(tmp_path) == config_path
+    project = tmp_path / "project" / "metanno.yaml"
+    project.write_text(config_path.read_text() + "\nviews: " + str(tmp_path / "shared_views") + "\n")
+    assert config_file() == project
+    assert load_config().views == tmp_path / "shared_views"
+    with pytest.raises(ConfigError):
+        load_config(tmp_path / "missing.yaml")
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        {"connections": {"local": {"url": "duckdb://", "factory": "app:connect"}}},
+        {"sources": {"source": {"connection": "missing"}}},
+        {"preview": {"rows": 0}},
+        {
+            "connections": {"local": {"url": "duckdb://"}},
+            "sources": {"source": {"connection": "local", "kind": "files", "format": "csv", "uri": "/data"}},
+        },
+    ],
+)
+def test_invalid_config(tmp_path, data):
+    path = tmp_path / "metanno.yaml"
+    path.write_text(yaml.safe_dump(data))
+    with pytest.raises(ConfigError):
+        load_config(path)
+
+
+def test_catalogue_queries_and_file_sources(tmp_path, config_path):
+    path = config_path
+    service = SourceCatalog(path)
+    assert service.list_sources() == [{"name": "planner", "kind": "catalogue"}]
+    assert service.connections == {}
+    backend = service.connection("local")
+    with pytest.raises(QueryError, match="Table 'missing' is not available in source 'planner'"):
+        service.table("planner", "missing")
+    backend.create_table(
+        "lists",
+        ibis.memtable({"id": [1, 2], "name": ["Home", "Work"], "amount": [Decimal("1.20"), Decimal("2.40")]}),
+    )
+    assert {"name": "lists", "source": "planner"} in service.list_tables("planner")
+    assert service.table("planner", "lists").schema().names[0] == "id"
+    root = tmp_path / "exports"
+    root.mkdir()
+    backend.table("lists").to_parquet(root / "lists.parquet")
+    config = yaml.safe_load(path.read_text())
+    config["sources"]["files"] = {
+        "connection": "local",
+        "kind": "files",
+        "format": "parquet",
+        "uri": "exports",
+    }
+    path.write_text(yaml.safe_dump(config))
+    service.config = load_config(path)
+    assert service.list_tables("files") == [{"name": "lists.parquet", "source": "files"}]
+    assert service.table("files", "lists.parquet").limit(1).to_pyarrow().num_rows == 1
+    service.close()
+    assert not service.connections
+
+
+def test_factory_ownership_and_missing_drivers(tmp_path, monkeypatch):
+    import sys
+
+    created, closed = [], []
+    borrowed = ibis.duckdb.connect()
+
+    @contextmanager
+    def owned():
+        created.append("owned")
+        backend = ibis.duckdb.connect()
+        try:
+            yield backend
+        finally:
+            closed.append("owned")
+            backend.disconnect()
+
+    def missing():
+        raise ImportError("optional driver")
+
+    monkeypatch.setitem(
+        sys.modules,
+        "viewer_connections",
+        SimpleNamespace(owned=owned, borrowed=lambda: borrowed, missing=missing),
+    )
+    path = tmp_path / "metanno.yaml"
+    path.write_text(
+        yaml.safe_dump(
+            {
+                "connections": {
+                    "owned": {"factory": "viewer_connections:owned"},
+                    "borrowed": {"factory": "viewer_connections:borrowed"},
+                    "missing": {"factory": "viewer_connections:missing"},
+                },
+                "sources": {name: {"connection": name} for name in ("owned", "borrowed", "missing")},
+            }
+        )
+    )
+    service = SourceCatalog(path)
+    assert len(service.list_sources()) == 3 and not created
+    assert service.connection("owned") is service.connection("owned")
+    assert service.connection("borrowed") is borrowed
+    with pytest.raises(QueryError, match=r"could not import a module \(optional driver\)"):
+        service.connection("missing")
+    assert created == ["owned"]
+    service.close()
+    assert closed == ["owned"]
+    assert borrowed.sql("select 1 as value").execute().value.tolist() == [1]
+    borrowed.disconnect()
+
+
+def test_stopped_spark_session_reconnects(tmp_path, monkeypatch):
+    """
+    Reopen a factory Spark session after the cluster stops its context, as YARN does after the 2 hour TCP limit
+    """
+    import sys
+
+    pytest.importorskip("pyspark")
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    from pyspark.sql import SparkSession
+
+    # The local session reads local files even where the Hadoop configuration defaults to HDFS
+    @contextmanager
+    def spark():
+        session = SparkSession.builder.master("local[1]").config("spark.hadoop.fs.defaultFS", "file:///").getOrCreate()
+        try:
+            yield ibis.pyspark.connect(session=session)
+        finally:
+            session.stop()
+
+    monkeypatch.setitem(sys.modules, "viewer_connections", SimpleNamespace(spark=spark))
+    (tmp_path / "data").mkdir()
+    pq.write_table(pa.table({"todo_id": [1, 2]}), tmp_path / "data/todos.parquet")
+    path = tmp_path / "metanno.yaml"
+    path.write_text(
+        yaml.safe_dump(
+            {
+                "connections": {"spark": {"factory": "viewer_connections:spark"}},
+                "sources": {
+                    "files": {
+                        "connection": "spark",
+                        "kind": "files",
+                        "format": "parquet",
+                        "uri": str(tmp_path / "data"),
+                    }
+                },
+            }
+        )
+    )
+    service = SourceCatalog(path)
+    first = service.connection("spark")
+    assert service.table("files", "todos.parquet").count().execute() == 2
+    # Stop only the JVM context, the Python session still references it like after a lost YARN connection
+    first._session.sparkContext._jsc.sc().stop()
+    assert service.table("files", "todos.parquet").count().execute() == 2
+    assert service.connection("spark") is not first
+    service.close()
+
+
+def test_trino_cancellation_tracks_all_cursors():
+    from metanno.viewer.ibis_cancellation import CancellableQuery
+
+    cancelled = []
+    connection = SimpleNamespace(cursor=lambda: SimpleNamespace(cancel=lambda: cancelled.append(True)))
+    backend = SimpleNamespace(name="trino", con=connection)
+    with CancellableQuery(backend, "query") as execution:
+        backend.con.cursor()
+        backend.con.cursor()
+        assert execution.cancel()
+        with pytest.raises(RuntimeError, match="cancelled"):
+            backend.con.cursor()
+    assert backend.con is connection
+    assert cancelled == [True, True]
+
+
+def test_application_import_and_empty_sources_without_backend_drivers(tmp_path):
+    import subprocess
+    import sys
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            """
+import importlib.abc
+import sys
+
+class NoDrivers(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname.split(".")[0] in ("pyspark", "duckdb", "trino"):
+            raise ImportError("Backend driver is not installed")
+
+sys.meta_path.insert(0, NoDrivers())
+from metanno import view_opener
+import metanno.viewer.explorer_kernel
+assert "pret.manager" not in sys.modules
+from metanno.viewer.sources import SourceCatalog
+from metanno.viewer.view_opener import ViewOpener
+from pret import DataFrame, create_store
+service = SourceCatalog(sys.argv[1])
+assert service.list_sources() == []
+store = create_store({"todos": DataFrame([{"id": 1}])}, sync=True)
+output = ViewOpener(store, None, None, sys.argv[1], None, True)
+assert output.read_only and output._repr_mimebundle_()
+""",
+            str(tmp_path),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_explorer_registration_records_the_selected_python(tmp_path):
+    import json
+    import os
+    import subprocess
+    import sys
+
+    subprocess.run(
+        [sys.executable, "-m", "metanno.viewer.explorer_kernel", "--install"],
+        env={**os.environ, "JUPYTER_DATA_DIR": str(tmp_path)},
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    spec = json.loads((tmp_path / "kernels/metanno-explorer/kernel.json").read_text())
+    assert spec["argv"] == [
+        sys.executable,
+        "-m",
+        "metanno.viewer.explorer_kernel",
+        "-f",
+        "{connection_file}",
+    ]
+    assert spec["display_name"] == "Metanno Data Explorer"
+
+
+def test_project_factories_are_resolved_from_the_configuration_directory(tmp_path):
+    services = []
+    try:
+        for name in ("first", "second"):
+            root = tmp_path / name
+            root.mkdir()
+            (root / "connections.py").write_text(
+                "from contextlib import contextmanager\nimport ibis\n"
+                "@contextmanager\ndef connect():\n    backend = ibis.duckdb.connect()\n"
+                f'    backend.raw_sql("CREATE TABLE {name}(id INTEGER)")\n'
+                "    try:\n        yield backend\n    finally:\n        backend.disconnect()\n"
+            )
+            (root / "metanno.yaml").write_text(
+                "connections:\n  local:\n    factory: connections:connect\nsources:\n  data:\n    connection: local\n"
+            )
+            service = SourceCatalog(root)
+            services.append(service)
+            assert service.list_tables("data") == [{"name": name, "source": "data"}]
+    finally:
+        for service in services:
+            service.close()
