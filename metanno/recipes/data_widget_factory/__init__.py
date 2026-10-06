@@ -24,6 +24,7 @@ from .data_relations import DataRelation, make_dataframe_queries
 from .fields import FieldSpec, render_select_field, render_text_field
 from .fields import infer_fields as infer_fields
 from .form_widget import FormWidgetHandle, FormWidgets
+from .pdf_widget import PdfWidgets
 from .table_widgets import TableWidgetHandle, TableWidgets
 from .text_widget import TextWidgetHandle, TextWidgets
 from .widget_data import StatusBar, get_parent_selection, use_selected_rows
@@ -31,7 +32,7 @@ from .widget_data import StatusBar, get_parent_selection, use_selected_rows
 VIEW_READ_ONLY = ContextVar("metanno_view_read_only", default=False)
 
 
-class DataWidgetFactory(TableWidgets, FormWidgets, TextWidgets):
+class DataWidgetFactory(TableWidgets, FormWidgets, TextWidgets, PdfWidgets):
     """
     Build tables, forms and annotation views that share a PRET Store.
 
