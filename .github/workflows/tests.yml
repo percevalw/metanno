@@ -1,4 +1,4 @@
-name: Jupyter Tests
+name: Tests
 on:
   push:
     branches: [ main, master ]
@@ -34,75 +34,70 @@ jobs:
           extra_args: --color=always --from-ref ${{ github.event.pull_request.base.sha }} --to-ref ${{ github.event.pull_request.head.sha }}
 
   test:
-    name: 'Run tests'
+    name: Python ${{ matrix.python }} JupyterLab ${{ matrix.jupyter }} ${{ matrix.browser }} ${{ matrix.extra }}
     timeout-minutes: 60
     runs-on: ubuntu-22.04
     strategy:
+      fail-fast: false
       matrix:
-        python-version: [ "3.8", "3.9", "3.10", "3.11" ]
-
+        python: ["3.10", "3.11"]
+        jupyter: ["3", "4"]
+        browser: [chromium, firefox]
+        extra: [testing]
+        include:
+          # Coverage run, webpack reads PRET_COVERAGE to build source mapped and unminified extensions
+          - { python: "3.11", jupyter: "4.4", browser: chromium, extra: coverage }
+    env:
+      PRET_COVERAGE: ${{ matrix.extra == 'coverage' && '1' || '' }}
     steps:
-      - name: 'Compute git fetch depth'
-        run: echo "PR_FETCH_DEPTH=$(( ${{ github.event.pull_request.commits }} + 1 ))" >> "${GITHUB_ENV}"
-
-      # To support coverage diffing
-      - name: 'Checkout PR branch and all PR commits'
-        uses: actions/checkout@v4
+      # Pret and Metanno side by side, as in the contributing guide, so Pret's tests stay out of Metanno's runs
+      - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
-          fetch-depth: ${{ env.PR_FETCH_DEPTH }}
-          submodules: 'recursive'
-
-      - name: 'Set up Node'
-        uses: actions/setup-node@v4
+          path: metanno
+          submodules: recursive
+      - uses: actions/checkout@v4
         with:
-          node-version: "22.x"
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+          repository: percevalw/pret
+          ref: main
+          path: pret
+          submodules: recursive
+      - uses: actions/setup-node@v4
         with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: 'Install uv'
-        uses: astral-sh/setup-uv@v6
+          node-version: "22"
+      - uses: astral-sh/setup-uv@v6
         with:
-          enable-cache: true
+          python-version: ${{ matrix.python }}
           activate-environment: true
-          cache-dependency-glob: |
-            pyproject.toml
-            uv.lock
-
-      - name: 'Install project'
+      - name: Install build dependencies
+        run: uv pip install 'jupyterlab>=3.6,<4' hatchling editables hatch-jupyter-builder 'setuptools<82'
+      - name: Install frontend dependencies
         run: |
-          yarn install
-          if [ "${{ github.event_name }}" = "pull_request" ] || [ "${{ github.ref }}" = "refs/heads/main" ] || [ "${{ github.ref }}" = "refs/heads/master" ]; then
-            uv pip install -e . --group dev --group unreleased-deps
-          else
-            uv pip install -e . --group dev
-          fi
-
-      - name: 'Install Playwright Browsers'
-        run: yarn playwright install --with-deps
-
-      - name: 'Run tests for JupyterLab 4'
+          npm --prefix pret install
+          yarn --cwd metanno install
+          yarn --cwd pret link
+          yarn --cwd metanno link pret
+      - name: Build and install
         run: |
-          uv pip install pip "jupyterlab>=4"
-          export PYV=$(python --version | cut -d' ' -f2)
-          sh tests/jupyter/run.sh tests/jupyter --project=chromium-$PYV --project=firefox-$PYV --retries=3
-
-      - name: 'Run tests for JupyterLab 3'
+          uv pip install --no-build-isolation -e './pret[${{ matrix.extra }}]' -e './metanno[${{ matrix.extra }}]'
+      - name: Install test runtime
+        run: uv pip install 'jupyterlab>=${{ matrix.jupyter }},<${{ matrix.jupyter }}.99' 'ibis-framework[sqlite]>=12,<13'
+      - name: Install browser
+        working-directory: metanno
+        run: npx playwright install --with-deps chromium ${{ matrix.browser }}
+      - name: Run tests
+        working-directory: metanno
+        timeout-minutes: 30
         run: |
-          uv pip install pip "jupyterlab<4"
-          export PYV=$(python --version | cut -d' ' -f2)
-          sh tests/jupyter/run.sh tests/jupyter --project=chromium-$PYV --project=firefox-$PYV
-
-      - name: 'Upload blob report'
+          python -m pret.testing run --browser ${{ matrix.browser }} --output test-results \
+            ${{ matrix.extra == 'coverage' && '--coverage' || '' }}
+      - name: Upload test results
+        if: always()
         uses: actions/upload-artifact@v4
-        if: ${{ !cancelled() }}
         with:
-          name: blob-report-${{ matrix.python-version }}
-          path: blob-report/
-          retention-days: 7
+          name: tests-${{ matrix.python }}-jupyter${{ matrix.jupyter }}-${{ matrix.browser }}-${{ matrix.extra }}
+          path: metanno/test-results/
+          include-hidden-files: true
+          retention-days: 14
 
   test-build:
     name: 'Test build'
@@ -126,48 +121,30 @@ jobs:
         with:
           python-version: "3.10"
 
+      # Metanno's client imports the pret package, provided by a Pret checkout linked into node_modules
+      - &checkout-pret
+        name: 'Checkout Pret'
+        uses: actions/checkout@v4
+        with:
+          repository: percevalw/pret
+          ref: main
+          path: _pret
+          submodules: 'recursive'
+
+      - &link-pret
+        name: 'Link Pret'
+        run: |
+          npm --prefix _pret install
+          yarn install
+          yarn --cwd _pret link
+          yarn link pret
+
       - name: 'Install build'
         run: pip install build
 
       - name: "Build wheel distribution"
         run: |
           python -m build --wheel
-
-  combine-report:
-    name: 'Generate combined report'
-    needs: test
-    runs-on: ubuntu-22.04
-    if: ${{ !cancelled() }}
-    steps:
-      - name: 'Checkout'
-        uses: actions/checkout@v4
-
-      - name: 'Download all blob-reports'
-        uses: actions/download-artifact@v4
-        with:
-          pattern: blob-report-*
-          path: blob-report/
-          merge-multiple: true
-
-      - name: 'Set up Node'
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22.x"
-
-      - name: 'Generate Playwright report'
-        run: |
-          npx playwright merge-reports --reporter html ./blob-report
-          rm -rf ./blob-report
-        # Even if the tests fail, we want to generate the report
-        if: ${{ !cancelled() }}
-
-      - name: 'Upload Playwright report'
-        uses: actions/upload-artifact@v4
-        if: ${{ !cancelled() }}
-        with:
-          name: playwright-report
-          path: playwright-report/
-          retention-days: 30
 
   docs:
     name: 'Test documentation'
@@ -201,12 +178,14 @@ jobs:
           git config user.email ${{ github.actor }}@users.noreply.github.com
           echo Current branch: $BRANCH_NAME
 
+      - *checkout-pret
+      - *link-pret
+
       - name: 'Install'
         run: |
-          yarn install
           # install setuptools < 81 to fix issue with pkg_resources
           if [ "${{ github.event_name }}" = "pull_request" ] || [ "${{ github.ref }}" = "refs/heads/main" ] || [ "${{ github.ref }}" = "refs/heads/master" ]; then
-            uv pip install -e . --group docs --group unreleased-deps "setuptools<81"
+            uv pip install -e ./_pret -e . --group docs "setuptools<81"
           else
             uv pip install -e . --group docs "setuptools<81"
           fi
