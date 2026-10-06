@@ -1,8 +1,10 @@
 import sys
-from typing import Any, Union, List, Optional, Dict, Callable
-from typing_extensions import NotRequired, TypedDict
+from typing import Any, Callable, Dict, List, Optional, Union
+
+from pret.marshal import js, make_stub_js_module
 from pret.render import stub_component
-from pret.marshal import js, make_stub_js_module, marshal_as
+from typing_extensions import NotRequired, TypedDict
+
 from .version import __version__
 
 _py_package_name = "metanno"
@@ -17,6 +19,8 @@ else:
     from typing_extensions import Literal
 
 props_mapping = {
+    "row_source": "rowSource",
+    "preserve_selection": "preserveSelection",
     "annotation_styles": "annotationStyles",
     "mouse_selection": "mouseSelection",
     "on_click": "onClick",
@@ -32,6 +36,7 @@ props_mapping = {
     "on_cell_change": "onCellChange",
     "on_click_cell_content": "onClickCellContent",
     "on_filters_change": "onFiltersChange",
+    "on_sort_change": "onSortChange",
     "on_mouse_enter_row": "onMouseEnterRow",
     "on_mouse_leave_row": "onMouseLeaveRow",
     "on_mouse_hover_row": "onMouseHoverRow",
@@ -52,8 +57,23 @@ props_mapping = {
     "primary_key": "primaryKey",
 }
 
+
 @stub_component(js.Metanno.AnnotatedImage, props_mapping)
-def AnnotatedImage(*children, annotations: Any, annotation_styles: Any, image: str, mouse_selection: Any, style: Any, handle: Any, key: Union[str, int], on_click: Any, on_key_press: Any, on_mouse_enter_shape: Any, on_mouse_leave_shape: Any, on_mouse_select: Any):
+def AnnotatedImage(
+    *children,
+    annotations: Any,
+    annotation_styles: Any,
+    image: str,
+    mouse_selection: Any,
+    style: Any,
+    handle: Any,
+    key: Union[str, int],
+    on_click: Any,
+    on_key_press: Any,
+    on_mouse_enter_shape: Any,
+    on_mouse_leave_shape: Any,
+    on_mouse_select: Any,
+):
     """
     An interactive image viewer that supports drawing, selecting, and styling
     geometric shapes (polygons, rectangles, points...) as annotations.
@@ -191,9 +211,11 @@ def AnnotatedImage(*children, annotations: Any, annotation_styles: Any, image: s
         - `shapes`: All shapes inside the lasso / rectangle
     """
 
+
 class Hyperlink(TypedDict):
     key: str
     text: str
+
 
 class ColumnData(TypedDict):
     key: str
@@ -202,10 +224,13 @@ class ColumnData(TypedDict):
     editable: bool
     filterable: bool
     choices: Optional[Any]
+    placeholder: NotRequired[str]
+
 
 class SelectionRange(TypedDict, total=False):
     row_idx: int
     rowIdx: int
+
 
 class Selection(TypedDict):
     row_idx: Optional[int]
@@ -213,13 +238,17 @@ class Selection(TypedDict):
     mode: Literal["EDIT", "SELECT"]
     ranges: NotRequired[List[SelectionRange]]
 
+
 @stub_component(js.Metanno.Table, props_mapping)
 def Table(
     *children,
-    rows: List[Dict[str, Any]],
+    rows: Any,
+    row_source: Any | None = None,
+    preserve_selection: bool = True,
     columns: ColumnData,
     primary_key: str,
     filters: Dict[str, str],
+    sort: List[Dict[str, str]],
     highlighted_rows: List[int],
     handle: Dict[str, Any],
     auto_filter: bool,
@@ -229,13 +258,13 @@ def Table(
     multi_selection_mode: Optional[Literal[False, "rows"]],
     subset: Any,
     style: Dict[str, Any],
-    key: Union[str,int],
-
+    key: Union[str, int],
     on_input_change: Callable,
     on_scroll_bottom: Callable,
     on_cell_change: Callable,
     on_click_cell_content: Callable,
     on_filters_change: Callable,
+    on_sort_change: Callable,
     on_mouse_enter_row: Callable,
     on_mouse_leave_row: Callable,
     on_mouse_hover_row: Callable,
@@ -299,6 +328,10 @@ def Table(
 
     Parameters
     ----------
+    row_source : Any|None
+        Async row source with rowCount and getRows, used instead of rows for virtualized data
+    preserve_selection : bool
+        Whether row identities remain valid when the row source changes
     rows: List[Dict[str, Any]]
         The data for each row in the table, where each row is a dictionary mapping column keys to their values.
     columns: "List[ColumnData]"
@@ -314,6 +347,9 @@ def Table(
         The key used to uniquely identify each row in the table.
     filters: Dict[str, str]
         The current filters applied to the table, mapping column keys to filter values.
+    sort: List[Dict[str, str]]
+        Sort chosen from the column menu, e.g. `[{"column": "date", "direction": "desc"}]`.
+        Tables given `rows` sort them locally when this is left undefined.
     highlighted_rows: List[int]
         List of row indices that should be highlighted.
     handle: Dict[str, Any]
@@ -377,6 +413,10 @@ def Table(
 
         - `values`: Dictionary mapping column keys to filter values.
         - `column`: Key of the column being filtered.
+    on_sort_change: Callable[[List[Dict[str, str]]], None]
+        Callback triggered when a sort is chosen in a column menu, required to sort a `row_source`:
+
+        - `sort`: New sort, in the same format as `sort`.
     on_mouse_enter_row: Callable[[str, int, List[str]], None]
         Callback triggered when the mouse enters a row:
 
@@ -411,6 +451,7 @@ def Table(
     """
     ...
 
+
 @stub_component(js.Metanno.AnnotatedText, props_mapping)
 def AnnotatedText(
     *children,
@@ -426,8 +467,8 @@ def AnnotatedText(
     label_formatter: Optional[Callable[[Dict[str, Any]], str]] = None,
     style_key: str = "style",
     highlighted_key: str = "highlighted",
+    highlighted: Optional[List[str]] = None,
     primary_key: str = "id",
-
     on_click_span: Callable[[str, List[str]], None],
     on_key_press: Callable[[str, List[Dict[str, int]], List[str]], None],
     on_mouse_enter_span: Callable[[str, List[str]], None],
@@ -598,6 +639,9 @@ def AnnotatedText(
     highlighted_key: str
         Name of the field in `spans` that indicates whether the span is
         highlighted.
+    highlighted: List[str] | None
+        Identifiers of spans styled as highlighted by adding a class to their elements, without
+        tokenizing the text again. Prefer it for fast changing highlights such as hovered spans.
     on_click_span: Callable[[Any, List[str]], None]
         Called when the user clicks on a span.
 

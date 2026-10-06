@@ -2,7 +2,7 @@
   "include": ["client"],
   "compilerOptions": {
     "module": "esnext",
-    "target": "es5",
+    "target": "es2020",
     "lib": [
       "es2020",
       "dom",
@@ -19,6 +19,7 @@
     "skipLibCheck": true,
     "downlevelIteration": true,
     "paths": {
+      "pret": ["../pret/client/index.d.ts"],
       "react": [ "./node_modules/@types/react" ]
     }
   }
