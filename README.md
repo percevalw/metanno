@@ -10,15 +10,16 @@
 
 --------------------------------------------------------------------------------
 
-Metanno is a Python library built on top of the [Pret framework](https://github.com/percevalw/pret) for building dynamic, customizable annotation interfaces.
+Metanno brings data exploration and annotation into JupyterLab. Open data prepared in Python,
+inspect it through tables, text and image views, and save an editable dataset. Move between your
+notebook and the viewer as you select data, add predictions and review annotations.
 
-Who is it for? Research groups, clinical NLP and biomedical teams, data labeling squads, and anyone who wants custom and interactive annotation tools without wrestling with JavaScript.
+Metanno supplies the visualization and annotation components. [Pret](https://github.com/percevalw/pret)
+connects them to shared Python data and saves your work. These components also work directly in
+notebook outputs and standalone Pret applications.
 
-Metanno currently focuses on text and images with richly structured entities. Its goals are:
-
-- **Modularity:** show your data from multiple synchronized angles. For example, highlight entities over text or images while editing the same rows in a table.
-- **Python‑first UI:** write the entire app in Python; it renders to a fast React UI under the hood.
-- **Interactivity:** handle annotations as plain Python objects at any time, so you can create, inspect, and transform them programmatically.
+Start with the [tutorials](https://percevalw.github.io/metanno/latest/tutorials/): annotate a first table in
+five minutes, then select notes in a database, pre-annotate them and build the interface your annotators need.
 
 ## Features
 
@@ -34,28 +35,24 @@ You can compose these views of the same underlying annotations to get a better g
 
 ### Run it your way
 
-Use Metanno in two modes:
+Use the JupyterLab application or compose widgets yourself:
 
+- **JupyterLab application:** explore sources, open view recipes and save annotations.
 - **Standalone app:** run a server and use it in your browser.
 - **JupyterLab widgets:** embed components directly in notebooks, with no extra ports or separate server process.
 
 Develop and test in a notebook. If you prefer, you can also run it as a standalone app.
 
-### Easy setup
-
-```bash { data-md-color-scheme="slate" }
-pip install metanno==1.0.0
-```
-
-To use it with Jupyter, if you install the library in a custom environment (conda, venv, or other),
-you will likely need to tell Jupyter where to find the front-end files.
-You can do this by running the following command (only once):
+### Installation
 
 ```bash
-pret update-jupyter-config --apply
+pip install metanno
+python -m metanno.viewer.explorer_kernel --install
 ```
 
-Unlike other alternatives, Metanno requires no additional ports and no separate server process when used in JupyterLab. Write your app in Python and benefit from a fast React front end under the hood.
+Install it in the environment running JupyterLab. If your notebooks use another environment, install it
+there too, and run `pret update-jupyter-config --apply` once so JupyterLab finds the frontend files.
+See [installation](docs/installation.md) for source drivers and separate environments.
 
 ### Interactive and customizable by design
 
@@ -73,20 +70,7 @@ Metanno takes a different approach: a modular, Python‑first framework that ada
 
 Check out the [demos](https://percevalw.github.io/metanno/latest/demos/)!
 
-## Todo
-
-- ~~add basic app samples~~
-- ~~add a documentation~~
-- add more table column types and renderers (numerical, dates, ...)
-- ~~add customizable column filterers~~
-- add relations visualizations and edition with editable arrows
-- ~~add an image annotation view~~
-- ~~finish javascript to typescript conversion~~
-- ~~customizable undo / redo logic~~
-- add multi-cell editing (see a [react-data-grid](https://github.com/adazzle/react-data-grid) PR)
-- ~~add a test suite (Cypress ?)~~
-- ~~make a standalone version (without Jupyter)~~
-
 ## Contribute
 
-Any contribution is welcome, feel free to open a PR.
+Any contribution is welcome, feel free to open a PR. See [CONTRIBUTING.md](https://github.com/percevalw/metanno/blob/main/CONTRIBUTING.md)
+to set up a development environment and run the tests.

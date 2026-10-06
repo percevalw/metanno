@@ -41,18 +41,33 @@ test.describe("Quaero Explorer Tests", () => {
     );
     expect(highlighted).toBeTruthy();
 
+    // DataFrame tables open without a selected row, select the highlighted note
+    await page.locator(".metanno-row--highlighted .rdg-cell").first().click();
     const checkbox = page.locator("label", { hasText: "seen" }).locator('+span input[type="checkbox"]');
     await checkbox.waitFor({ state: "visible" });
     await checkbox.click();
     const snapshotCellIndex = await addCodeCell(
       page,
       ".jp-NotebookPanel:not(.lm-mod-hidden)",
-      'import pret\nprint(pret.load_store_snapshot("state.bin")["notes"][0]["seen"])'
+      'import pret\nnotes = pret.load_store_snapshot("state.bin")["notes"].materialize().to_pandas()\n' +
+        'print(notes.set_index("note_id").loc["dev/EMEA/118_2", "seen"])'
     );
     await page.notebook.runCell(snapshotCellIndex, true);
     await expect(page.locator(`:nth-match(.jp-Cell, ${snapshotCellIndex + 1}) .jp-OutputArea-output pre`)).toHaveText(
       "True"
     );
+
+    // Next moves the form and the entities table to the following note, like a click in the notes table
+    // The output is too short to show entity rows, give the view room for them
+    await page.locator(".pret-view").first().evaluate((element) => (element.style.height = "900px"));
+    const entityIds = page.locator(".metanno-table").filter({ hasNotText: "note_id" }).getByRole("gridcell", {
+      name: /^#/,
+    });
+    const previousEntity = await entityIds.first().textContent();
+    await page.getByRole("button", { name: "Next →" }).click();
+    await expect(checkbox).not.toBeChecked();
+    await expect(entityIds.first()).toBeVisible();
+    await expect(entityIds.filter({ hasText: previousEntity })).toHaveCount(0);
 
     await page.unrouteAll({ behavior: "ignoreErrors" });
   });

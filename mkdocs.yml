@@ -34,11 +34,15 @@ nav:
       - demos/quaero-explorer.md
   - Tutorials:
       - tutorials/index.md
-      - tutorials/new-project.md
-      - tutorials/run-quaero-explorer.ipynb
-      - tutorials/custom-fields.ipynb
-      - tutorials/multi-collections.ipynb
-      - tutorials/pre-annotation.ipynb
+      - tutorials/annotate-a-table.ipynb
+      - tutorials/browse-a-database.ipynb
+      - tutorials/pick-documents.ipynb
+      - tutorials/pre-annotate.ipynb
+      - tutorials/review-entities.ipynb
+      - tutorials/design-your-view.ipynb
+      - tutorials/annotate-across-levels.ipynb
+      - tutorials/custom-widgets.ipynb
+      - tutorials/outside-jupyterlab.ipynb
       - Pret Tutorials: https://percevalw.github.io/pret/latest/tutorials" target="_blank
   - Building Blocks:
       - components/index.md
@@ -125,6 +129,7 @@ markdown_extensions:
   - md_in_html
   - attr_list
   - pymdownx.details
+  - pymdownx.keys
   - pymdownx.tasklist:
       custom_checkbox: true
   - pymdownx.emoji:
