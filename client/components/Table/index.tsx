@@ -1,100 +1,46 @@
+import { useRowSelection } from "./useRowSelection";
 import React, {
   useState,
   useRef,
   useEffect,
   useMemo,
   forwardRef,
-  KeyboardEvent,
   UIEvent,
   FocusEvent,
   useCallback,
   memo,
   useImperativeHandle,
 } from "react";
-import { DndProvider, DndContext } from "react-dnd";
-import { HTML5Backend } from "react-dnd-html5-backend";
-import DataGrid, {
-  CalculatedColumn,
-  DataGridHandle,
-  EditorProps,
-  Row,
-  RowRendererProps,
-} from "react-data-grid";
+import DataGrid, { CalculatedColumn, DataGridHandle, Row, RowRendererProps, SortColumn } from "react-data-grid";
 
 import "./style.css";
 import { makeModKeys, memoize } from "../../utils";
 
-import HeaderRenderer from "../DraggableHeaderRenderer";
-import {
-  InputTag,
-  SingleInputSuggest,
-  MultiInputSuggest,
-} from "../InputSuggest";
+import { TableCellEditor, TableEditorContext, TableFiltersContext, TableHeader } from "./cells";
+import { InputTag } from "../InputSuggest";
 import BooleanInput from "../BooleanInput";
-import { ColumnData, RowData, TableData, TableMethods } from "../../types";
-import {
-  getCurrentEvent,
-  useEventCallback,
-  useCachedReconcile,
-} from "../../utils";
+import { ColumnData, RowData, TableData, TableMethods, TableSort } from "../../types";
+import { getCurrentEvent, useEventCallback, useCachedReconcile } from "../../utils";
+import { compareSortValues } from "../../rows";
 
 const ROW_HEIGHT = 25;
 const HEADER_ROW_HEIGHT = 65;
+// Browsers stop scrolling past a maximum height, about 17.9 million px in Firefox and 33.5 million px in Chromium,
+// tables show the rows of a larger source that fit below it
+const MAX_ROWS = Math.floor(15_000_000 / ROW_HEIGHT);
 
-function inputStopPropagation(event: KeyboardEvent<HTMLInputElement>) {
-  const input = event.target as HTMLInputElement;
-  const cursorPosition = input.selectionStart;
-
-  if (event.key === "ArrowLeft" && cursorPosition > 0) {
-    event.stopPropagation();
-  }
-  if (event.key === "ArrowRight" && cursorPosition < input.value.length) {
-    event.stopPropagation();
-  }
-}
-
-const SuggestionsContext = React.createContext<any>(undefined);
-SuggestionsContext.displayName = "SuggestionsContext";
-DndContext.displayName = "DndContext";
-
-type TableFiltersContextValue = {
-  filters: { [key: string]: string };
-  onFilterChange: (columnKey: string, value: string) => void;
-};
-
-const TableFiltersContext = React.createContext<TableFiltersContextValue | null>(
-  null
-);
-TableFiltersContext.displayName = "TableFiltersContext";
-
-const TableFilterInput = memo(function TableFilterInput({
-  columnKey,
-  inputProps,
-}: {
-  columnKey: string;
-  inputProps: any;
-}) {
-  const filtersContext = React.useContext(TableFiltersContext);
-  const filterValue = filtersContext?.filters?.[columnKey];
-
-  return (
-    <input
-      {...inputProps}
-      className="metanno-table-filter"
-      value={(filterValue as string) || ""}
-      onChange={(e) => filtersContext?.onFilterChange(columnKey, e.target.value)}
-      onKeyDown={inputStopPropagation}
-    />
-  );
-});
+const EMPTY_ROWS: RowData[] = [];
 
 export const Table = function Table({
   primaryKey,
-  rows,
+  rows = EMPTY_ROWS,
+  rowSource: fullRowSource,
+  preserveSelection = true,
   selection,
   multiSelectionMode,
   filters,
-  columns,
+  sort,
+  columns: columnsProp,
   autoFilter,
   subset,
   onSubsetChange,
@@ -105,28 +51,69 @@ export const Table = function Table({
   onMouseLeaveRow,
   onMouseHoverRow,
   highlightedRows,
+  isRowHighlighted,
   style,
   onFiltersChange,
+  onSortChange,
   onSelectionChange,
   onCellChange,
   onScrollBottom,
   onClickCellContent,
   suggestions,
 }: TableData & TableMethods) {
-  const [columnsOrder, setColumnsOrder] = useState(
-    columns.map((column) => column.key)
+  // The grid sees the first MAX_ROWS rows of the source, filters and sorting still apply to all of them
+  const rowSource = useMemo(
+    () =>
+      fullRowSource &&
+      new Proxy(fullRowSource, {
+        get(target, prop) {
+          if (prop === "rowCount") return Math.min(target.rowCount, MAX_ROWS);
+          if (prop === "findRowIndex" && target.findRowIndex)
+            return async (key: string | number, signal: AbortSignal) => {
+              const index = await target.findRowIndex(key, signal);
+              return index >= MAX_ROWS ? -1 : index;
+            };
+          const value = Reflect.get(target, prop);
+          return typeof value === "function" ? value.bind(target) : value;
+        },
+      }),
+    [fullRowSource]
   );
-  const [localSelection, setLocalSelection] = useState<
-    TableData["selection"] | undefined
-  >(undefined);
+  const [localSelection, setLocalSelection] = useState<TableData["selection"] | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(false);
   // If filters are not controlled via props, we use local state
-  const [localFilters, setLocalFilters] = useState<{ [key: string]: string }>(
-    {}
-  );
+  const [localFilters, setLocalFilters] = useState<{ [key: string]: string }>({});
   const currentHoveredRow = useRef<number | null>(null);
   const effectiveFilters = filters === undefined ? localFilters : filters;
+  const columns = columnsProp || [];
+  const [columnsOrder, setColumnsOrder] = useState(columns.map((column) => column.key));
+  // Columns unchecked or pinned in the grid column menu
+  const [hiddenColumns, setHiddenColumns] = useState<string[]>([]);
+  const [pinnedColumns, setPinnedColumns] = useState<string[]>([]);
+  const [localSort, setLocalSort] = useState<TableSort>([]);
+  const effectiveSort = sort === undefined ? localSort : sort;
   const controlledSelection = selection;
+  const columnKeys = columns.map((column) => column.key).join("\u0000");
+
+  useEffect(() => {
+    setColumnsOrder(columns.map((column) => column.key));
+  }, [columnKeys]);
+
+  // Keep columns usable during the render before the effect updates their order for a new table schema
+  const effectiveColumnsOrder = useMemo(() => {
+    const availableColumns = new Set(columns.map((column) => column.key));
+    const retainedColumns = columnsOrder.filter((name) => availableColumns.has(name));
+    const retainedColumnSet = new Set(retainedColumns);
+    return [...retainedColumns, ...columns.map((column) => column.key).filter((name) => !retainedColumnSet.has(name))];
+  }, [columnKeys, columnsOrder]);
+  // Grid column positions count shown columns, pinned ones first, selection and copy map them back to keys
+  const shownColumnsOrder = useMemo(() => {
+    const shown = effectiveColumnsOrder.filter((name) => !hiddenColumns.includes(name));
+    return [
+      ...shown.filter((name) => pinnedColumns.includes(name)),
+      ...shown.filter((name) => !pinnedColumns.includes(name)),
+    ];
+  }, [effectiveColumnsOrder, hiddenColumns, pinnedColumns]);
 
   // Helper: convert relative row index (from DataGrid) to an absolute row index.
   const getAbsoluteRowIdx = useEventCallback((relativeIdx: number): number =>
@@ -142,14 +129,28 @@ export const Table = function Table({
   useEffect(() => {
     rowsRef.current = rows;
   }, [rows]);
+  const getRow = useEventCallback((index: number) => rowSource?.getCachedRow?.(index) ?? rowsRef.current[index]);
 
-  // Update subset when filters change
+  const activeSelection = selection === undefined ? localSelection : selection;
+  useRowSelection(
+    rowSource,
+    primaryKey,
+    preserveSelection,
+    selection,
+    activeSelection,
+    getRow,
+    setLocalSelection,
+    onSelectionChange
+  );
+
+  // Filter and sort row positions of a rows table, a row source table leaves both to its query
   const localSubset = useMemo(() => {
-    if (
-      autoFilter &&
-      effectiveFilters &&
-      (subset === undefined || onSubsetChange)
-    ) {
+    const filtering = autoFilter && effectiveFilters;
+    if (rowSource || (!filtering && !effectiveSort.length) || (subset !== undefined && !onSubsetChange)) {
+      return undefined;
+    }
+    let newSubset = rows.map((row, idx) => idx);
+    if (filtering) {
       const lowercaseFilters = memoize((filters: { [key: string]: string }) =>
         Object.fromEntries(
           Object.entries(filters)
@@ -157,23 +158,31 @@ export const Table = function Table({
             .map(([key, value]) => [key, value.toLowerCase()])
         )
       )(effectiveFilters);
-      const newSubset = rows
-        .map((row, idx) => ({ row, idx }))
-        .filter(({ row }) =>
-          Object.entries(lowercaseFilters).every(
-            ([key, value]) =>
-              row[key] === undefined ||
-              (row[key] !== null &&
-                row[key].toString().toLowerCase().includes(value))
-          )
+      newSubset = newSubset.filter((idx) =>
+        Object.entries(lowercaseFilters).every(
+          ([key, value]) =>
+            rows[idx][key] === undefined ||
+            (rows[idx][key] !== null && rows[idx][key].toString().toLowerCase().includes(value))
         )
-        .map(({ idx }) => idx);
-      onSubsetChange?.(newSubset);
-      return newSubset;
-    } else {
-      return undefined;
+      );
     }
-  }, [effectiveFilters, rows, autoFilter, filters]);
+    if (effectiveSort.length) {
+      const { column, direction } = effectiveSort[0];
+      const sign = direction === "desc" ? -1 : 1;
+      newSubset.sort((a, b) => compareSortValues(rows[a][column], rows[b][column], sign));
+    }
+    onSubsetChange?.(newSubset);
+    return newSubset;
+  }, [effectiveFilters, effectiveSort, rows, autoFilter, filters]);
+
+  const handleSortChange = useEventCallback((sortColumns: SortColumn[]) => {
+    const newSort: TableSort = sortColumns.map(({ columnKey, direction }) => ({
+      column: columnKey,
+      direction: direction === "DESC" ? "desc" : "asc",
+    }));
+    onSortChange?.(newSort);
+    if (sort === undefined) setLocalSort(newSort);
+  });
   const effectiveSubset = subset !== undefined ? subset : localSubset;
 
   const handleFilterChange = useEventCallback((columnKey: string, value: string) => {
@@ -190,32 +199,24 @@ export const Table = function Table({
     }
   });
 
-  const filtersContextValue = useMemo(
-    () => ({
-      filters: effectiveFilters,
-      onFilterChange: handleFilterChange,
-    }),
-    [effectiveFilters, handleFilterChange]
-  );
-
   // Update actions to work with absolute indices.
   useImperativeHandle(
     handle,
     () => ({
       scroll_to_row_idx: (absRowIdx: number) => {
-        const relativeIdx = effectiveSubset
-          ? effectiveSubset.indexOf(absRowIdx)
-          : absRowIdx;
+        const relativeIdx = effectiveSubset ? effectiveSubset.indexOf(absRowIdx) : absRowIdx;
         if (relativeIdx !== -1) {
           gridRef.current?.scrollToRow(relativeIdx);
         }
       },
       scroll_to_row_id: (key: string) => {
         if (!primaryKey) return;
+        if (rowSource?.findRowIndex) {
+          void gridRef.current?.scrollToRowKey(key);
+          return;
+        }
         const absRowIdx = rowsRef.current.findIndex((row) => row[primaryKey] === key);
-        const relativeIdx = effectiveSubset
-          ? effectiveSubset.indexOf(absRowIdx)
-          : absRowIdx;
+        const relativeIdx = effectiveSubset ? effectiveSubset.indexOf(absRowIdx) : absRowIdx;
         if (relativeIdx !== -1) {
           gridRef.current?.scrollToRow(relativeIdx);
         }
@@ -231,7 +232,7 @@ export const Table = function Table({
         }
       },
     }),
-    [handle, primaryKey, effectiveSubset]
+    [handle, primaryKey, effectiveSubset, rowSource]
   );
 
   // Compute visibleRows using the effectiveSubset.
@@ -244,14 +245,10 @@ export const Table = function Table({
   }, [rows, effectiveSubset]);
 
   const makeInputChangeHandler =
-    (
-      relativeRowIdx: number,
-      column: ColumnData | CalculatedColumn<RowData, RowData>
-    ) =>
-    (value: any, cause: any) => {
+    (relativeRowIdx: number, column: ColumnData | CalculatedColumn<RowData, RowData>) => (value: any, cause: any) => {
       const absRowIdx = getAbsoluteRowIdx(relativeRowIdx);
       onInputChange?.(
-        primaryKey && absRowIdx !== null ? rowsRef.current[absRowIdx][primaryKey] : null,
+        primaryKey && absRowIdx !== null ? getRow(absRowIdx)?.[primaryKey] : null,
         absRowIdx,
         column.key,
         value,
@@ -259,98 +256,36 @@ export const Table = function Table({
       );
     };
 
-  const onHeaderDrop = (source: string, target: string) => {
-    const columnSourceIndex = columnsOrder.indexOf(source);
-    const columnTargetIndex = columnsOrder.indexOf(target);
-    const reorderedColumns = [...columnsOrder];
-    reorderedColumns.splice(
-      columnTargetIndex,
-      0,
-      reorderedColumns.splice(columnSourceIndex, 1)[0]
-    );
+  const onHeaderDrop = useEventCallback((source: string, target: string) => {
+    const columnSourceIndex = effectiveColumnsOrder.indexOf(source);
+    const columnTargetIndex = effectiveColumnsOrder.indexOf(target);
+    const reorderedColumns = [...effectiveColumnsOrder];
+    reorderedColumns.splice(columnTargetIndex, 0, reorderedColumns.splice(columnSourceIndex, 1)[0]);
     setColumnsOrder(reorderedColumns);
-  };
+  });
 
-  const makeFilterInput = (column: ColumnData) =>
-    column.filterable
-      ? (inputProps: any) => (
-          <TableFilterInput inputProps={inputProps} columnKey={column.key} />
-        )
-      : null;
+  const filtersContextValue = useMemo(
+    () => ({ filters: effectiveFilters, onFilterChange: handleFilterChange }),
+    [effectiveFilters, handleFilterChange]
+  );
 
-  const buildFormatter = (
-    type: string,
-    readonly: boolean,
-    filterable: boolean
-  ) => {
+  const clickCellContent = useEventCallback((...args: Parameters<NonNullable<TableMethods["onClickCellContent"]>>) =>
+    onClickCellContent?.(...args)
+  );
+
+  const buildFormatter = (type: string, readonly: boolean) => {
     switch (type) {
       case "hyperlink":
         return {
-          editor: readonly
-            ? null
-            : forwardRef(
-                (
-                  {
-                    row,
-                    column,
-                    onRowChange,
-                    onClose,
-                    rowIdx,
-                  }: EditorProps<RowData, RowData>,
-                  ref: any
-                ) => {
-                  const suggestions = React.useContext(SuggestionsContext);
-                  return (
-                    <SingleInputSuggest
-                      ref={ref}
-                      // EditorProps provide rowIdx.
-                      row_id={getAbsoluteRowIdx(rowIdx)}
-                      inputRef={inputRef}
-                      value={row[column.key]}
-                      column={column.key}
-                      inputValue={inputValue}
-                      onInputChange={makeInputChangeHandler(rowIdx, column)}
-                      suggestions={
-                        suggestions === undefined
-                          ? columns[column.idx].choices
-                          : suggestions
-                      }
-                      onRowChange={onRowChange}
-                      onClose={onClose}
-                      hyperlink
-                    />
-                  );
-                }
-              ),
-          headerCellClass: filterable
-            ? "metanno-table-header-filter"
-            : undefined,
-          headerRenderer: (p: any) => (
-            <HeaderRenderer {...p} onColumnsReorder={onHeaderDrop}>
-              {makeFilterInput(p.column)}
-            </HeaderRenderer>
-          ),
-          formatter: ({
-            row,
-            rowIdx,
-            column,
-          }: {
-            row: RowData;
-            rowIdx: number;
-            column: ColumnData;
-          }) => {
+          editor: readonly ? null : TableCellEditor,
+          formatter: ({ row, rowIdx, column }: { row: RowData; rowIdx: number; column: ColumnData }) => {
             const value = row[column.key];
             const text = value?.text || value;
             const href = value?.key || value;
             return value ? (
               <a
                 onClick={(event) => {
-                  const res = onClickCellContent?.(
-                    primaryKey ? row[primaryKey] : null,
-                    rowIdx,
-                    column.key,
-                    href
-                  );
+                  const res = clickCellContent(primaryKey ? row[primaryKey] : null, rowIdx, column.key, href);
                   if (res) {
                     event.preventDefault();
                     event.stopPropagation();
@@ -364,61 +299,14 @@ export const Table = function Table({
         };
       case "multi-hyperlink":
         return {
-          editor: readonly
-            ? null
-            : forwardRef(
-                (
-                  {
-                    row,
-                    rowIdx,
-                    column,
-                    onRowChange,
-                    onClose,
-                  }: EditorProps<RowData, RowData>,
-                  ref: any
-                ) => {
-                  const suggestions = React.useContext(SuggestionsContext);
-                  return (
-                    <MultiInputSuggest
-                      ref={ref}
-                      row_id={getAbsoluteRowIdx(rowIdx)}
-                      inputRef={inputRef}
-                      value={row[column.key]}
-                      inputValue={inputValue}
-                      column={column.key}
-                      suggestions={
-                        suggestions === undefined
-                          ? columns[column.idx].choices
-                          : suggestions
-                      }
-                      onRowChange={onRowChange}
-                      onInputChange={makeInputChangeHandler(rowIdx, column)}
-                      onClose={onClose}
-                      hyperlink
-                    />
-                  );
-                }
-              ),
-          headerCellClass: filterable
-            ? "metanno-table-header-filter"
-            : undefined,
-          headerRenderer: (p: any) => (
-            <HeaderRenderer {...p} onColumnsReorder={onHeaderDrop}>
-              {makeFilterInput(p.column)}
-            </HeaderRenderer>
-          ),
+          editor: readonly ? null : TableCellEditor,
           formatter: ({ row, rowIdx, column }: any) => (
             <InputTag
               autocontain
               readOnly
               hyperlink
               onClick={(value: any) =>
-                onClickCellContent?.(
-                  primaryKey ? row[primaryKey] : null,
-                  rowIdx,
-                  column.key,
-                  value
-                )
+                clickCellContent(primaryKey ? row[primaryKey] : null, rowIdx, column.key, value)
               }
               value={row[column.key]}
             />
@@ -426,127 +314,28 @@ export const Table = function Table({
         };
       case "text":
         return {
-          editor: readonly
-            ? null
-            : forwardRef(
-                (
-                  {
-                    row,
-                    column,
-                    rowIdx,
-                    onRowChange,
-                    onClose,
-                  }: EditorProps<RowData, RowData>,
-                  ref: any
-                ) => {
-                  const suggestions = React.useContext(SuggestionsContext);
-                  return (
-                    <SingleInputSuggest
-                      ref={ref}
-                      row_id={getAbsoluteRowIdx(rowIdx)}
-                      inputRef={inputRef}
-                      value={row[column.key]}
-                      column={column.key}
-                      inputValue={inputValue}
-                      onInputChange={makeInputChangeHandler(rowIdx, column)}
-                      suggestions={
-                        suggestions === undefined
-                          ? columns[column.idx].choices
-                          : suggestions
-                      }
-                      onRowChange={onRowChange}
-                      onClose={onClose}
-                    />
-                  );
-                }
-              ),
-          headerCellClass: filterable
-            ? "metanno-table-header-filter"
-            : undefined,
-          headerRenderer: (p: any) => (
-            <HeaderRenderer {...p} onColumnsReorder={onHeaderDrop}>
-              {makeFilterInput(p.column)}
-            </HeaderRenderer>
-          ),
-          formatter: ({ row, column }: any) => <span>{row[column.key]}</span>,
+          editor: readonly ? null : TableCellEditor,
+          // List and struct columns hold arrays and objects, shown as JSON
+          formatter: ({ row, column }: any) => {
+            const value = row[column.key];
+            return <span>{value !== null && typeof value === "object" ? JSON.stringify(value) : value}</span>;
+          },
         };
       case "multi-text":
         return {
-          editor: readonly
-            ? null
-            : forwardRef(
-                (
-                  {
-                    row,
-                    rowIdx,
-                    column,
-                    onRowChange,
-                    onClose,
-                  }: EditorProps<RowData, RowData>,
-                  ref: any
-                ) => {
-                  const suggestions = React.useContext(SuggestionsContext);
-                  return (
-                    <MultiInputSuggest
-                      ref={ref}
-                      row_id={getAbsoluteRowIdx(rowIdx)}
-                      inputRef={inputRef}
-                      value={row[column.key]}
-                      column={column.key}
-                      inputValue={inputValue}
-                      onInputChange={makeInputChangeHandler(rowIdx, column)}
-                      suggestions={
-                        suggestions === undefined
-                          ? columns[column.idx].choices
-                          : suggestions
-                      }
-                      onRowChange={onRowChange}
-                      onClose={onClose}
-                    />
-                  );
-                }
-              ),
-          headerCellClass: filterable
-            ? "metanno-table-header-filter"
-            : undefined,
-          headerRenderer: (p: any) => (
-            <HeaderRenderer {...p} onColumnsReorder={onHeaderDrop}>
-              {makeFilterInput(p.column)}
-            </HeaderRenderer>
-          ),
+          editor: readonly ? null : TableCellEditor,
           formatter: (propsInner: any) => (
-            <InputTag
-              autocontain
-              readOnly
-              {...propsInner}
-              value={propsInner.row[propsInner.column.key]}
-            />
+            <InputTag autocontain readOnly {...propsInner} value={propsInner.row[propsInner.column.key]} />
           ),
         };
       case "boolean":
         return {
-          formatter: ({
-            row,
-            rowIdx,
-            column,
-            onRowChange,
-            isCellSelected,
-          }: any) => (
+          formatter: ({ row, rowIdx, column, onRowChange, isCellSelected }: any) => (
             <BooleanInput
               isCellSelected={isCellSelected}
               value={row[column.key]}
-              onChange={(value: any) =>
-                onRowChange({ ...row, [column.key]: value })
-              }
+              onChange={(value: any) => onRowChange({ ...row, [column.key]: value })}
             />
-          ),
-          headerCellClass: filterable
-            ? "metanno-table-header-filter"
-            : undefined,
-          headerRenderer: (p: any) => (
-            <HeaderRenderer {...p} onColumnsReorder={onHeaderDrop}>
-              {makeFilterInput(p.column)}
-            </HeaderRenderer>
           ),
         };
       case "button":
@@ -554,8 +343,8 @@ export const Table = function Table({
           formatter: ({ row, rowIdx, column }: any) => (
             <button
               onClick={() =>
-                onClickCellContent?.(
-                  primaryKey && rowIdx !== null ? rowsRef.current[rowIdx][primaryKey] : null,
+                clickCellContent(
+                  primaryKey && rowIdx !== null ? getRow(rowIdx)?.[primaryKey] : null,
                   rowIdx,
                   column.key
                 )
@@ -572,22 +361,19 @@ export const Table = function Table({
 
   const builtColumns = useMemo(() => {
     const columnObjects = columns.map((column) => {
-      const { formatter, editor, ...columnProps } = buildFormatter(
-        column.kind,
-        !column.editable,
-        column.filterable
-      );
+      const { formatter, editor, ...columnProps } = buildFormatter(column.kind, !column.editable);
       return {
         [column.key]: {
           key: column.key,
           name: column.name,
-          draggable: true,
           resizable: true,
+          sortable: true,
           editable: !!editor,
           filterable: column.filterable,
+          headerCellClass: columns.some((col) => col.filterable) ? "metanno-table-header-filter" : undefined,
+          headerRenderer: TableHeader,
           editorOptions: {
-            commitOnOutsideClick:
-              column.kind !== "hyperlink" && column.kind !== "multi-hyperlink",
+            commitOnOutsideClick: column.kind !== "hyperlink" && column.kind !== "multi-hyperlink",
           },
           ...(formatter ? { formatter } : {}),
           ...(editor ? { editor } : {}),
@@ -596,35 +382,40 @@ export const Table = function Table({
       };
     });
     const nameToCol = Object.assign({}, ...columnObjects);
-    return columnsOrder.map((name) => nameToCol[name]);
-  }, [columns, columnsOrder, inputValue]);
+    return effectiveColumnsOrder.map((name) => nameToCol[name]);
+    // Rebuild only when column settings change, new formatter types would remount every cell and drop focus
+  }, [
+    JSON.stringify(columns.map(({ key, name, kind, editable, filterable }) => [key, name, kind, editable, filterable])),
+    effectiveColumnsOrder,
+    primaryKey,
+  ]);
 
-  const onRowsChange = useEventCallback((newRows: RowData[]) => {
+  const onRowsChange = useEventCallback((newRows: RowData[], data?: any) => {
+    if (rowSource && data?.indexes?.length === 1) {
+      const rowIdx = data.indexes[0];
+      const row = newRows[rowIdx];
+      if (Object.is(row?.[data.column.key], getRow(rowIdx)?.[data.column.key])) return;
+      onCellChange?.(primaryKey ? row?.[primaryKey] : null, rowIdx, data.column.key, row?.[data.column.key]);
+      return;
+    }
     const updatedRows = newRows
       .map((newRow, relativeIdx) => {
-        const absRowIdx = effectiveSubset
-          ? effectiveSubset[relativeIdx]
-          : relativeIdx;
+        const absRowIdx = effectiveSubset ? effectiveSubset[relativeIdx] : relativeIdx;
         return { oldRow: visibleRows[relativeIdx], newRow, absRowIdx };
       })
       .filter(({ newRow, oldRow }) => newRow !== oldRow);
     if (updatedRows.length === 1) {
       const { newRow, oldRow, absRowIdx } = updatedRows[0];
-      const changedKeys = Object.keys(newRow).filter(
-        (key) => newRow[key] !== oldRow[key]
-      );
-      onCellChange?.(
-        primaryKey ? oldRow[primaryKey] : null,
-        absRowIdx,
-        changedKeys[0],
-        newRow[changedKeys[0]]
-      );
+      const changedKeys = Object.keys(newRow).filter((key) => newRow[key] !== oldRow[key]);
+      if (changedKeys.length === 0) return;
+      onCellChange?.(primaryKey ? oldRow[primaryKey] : null, absRowIdx, changedKeys[0], newRow[changedKeys[0]]);
     }
   });
 
   // We create a custom memoized MetannoRow, but don't make it depend on highlightedRows as it would cause
   // complete re-renders whenever the highlightedRows change, as the react component itself would be different.
-  // Also, having it aide (and not in renderRow) let us only re-create the event handlers when the props (ie p.rowIdx) change.
+  // Also, having it aide (and not in renderRow) let us only re-create the event handlers when the props (ie p.rowIdx)
+  // change.
   // Instead, we trigger re-renders via props computed in renderRow.
   const MetannoRow = useMemo(
     () =>
@@ -638,19 +429,11 @@ export const Table = function Table({
               if (currentHoveredRow.current === rowIdx) {
                 return;
               }
-              onMouseEnterRow?.(
-                primaryKey ? rowsRef.current[rowIdx][primaryKey] : null,
-                rowIdx,
-                makeModKeys(event)
-              );
-              onMouseHoverRow?.(
-                primaryKey ? rowsRef.current[rowIdx][primaryKey] : null,
-                rowIdx,
-                makeModKeys(event)
-              );
+              onMouseEnterRow?.(primaryKey ? p.row[primaryKey] : null, rowIdx, makeModKeys(event));
+              onMouseHoverRow?.(primaryKey ? p.row[primaryKey] : null, rowIdx, makeModKeys(event), p.row);
               if (currentHoveredRow.current !== null) {
                 onMouseLeaveRow?.(
-                  rowsRef.current[currentHoveredRow.current][primaryKey],
+                  getRow(currentHoveredRow.current)?.[primaryKey],
                   currentHoveredRow.current,
                   makeModKeys(event)
                 );
@@ -662,11 +445,11 @@ export const Table = function Table({
               setTimeout(() => {
                 if (currentHoveredRow.current === rowIdx) {
                   onMouseLeaveRow?.(
-                    primaryKey ? rowsRef.current[currentHoveredRow.current][primaryKey] : null,
+                    primaryKey ? getRow(currentHoveredRow.current)?.[primaryKey] : null,
                     currentHoveredRow.current,
                     makeModKeys(event)
                   );
-                  onMouseHoverRow?.(null, null, makeModKeys(event));
+                  onMouseHoverRow?.(null, null, makeModKeys(event), null);
                   currentHoveredRow.current = null;
                 }
               }, 50);
@@ -683,13 +466,13 @@ export const Table = function Table({
       <MetannoRow
         {...p}
         className={
-          primaryKey && highlightedRows?.includes(p.row[primaryKey])
+          (primaryKey && highlightedRows?.includes(p.row[primaryKey])) || isRowHighlighted?.(p.row)
             ? "metanno-row--highlighted"
             : ""
         }
       />
     ),
-    [highlightedRows, primaryKey]
+    [highlightedRows, isRowHighlighted, primaryKey]
   );
 
   const rowKeyGetter = useCallback((row: any) => row[primaryKey], [primaryKey]);
@@ -717,13 +500,9 @@ export const Table = function Table({
       ranges?: { rowIdx: number }[];
       cause?: string;
     }) => {
-      const absoluteRowIdx =
-        rowIdx !== null && rowIdx >= 0 ? getAbsoluteRowIdx(rowIdx) : null;
-      const hasAbsoluteRowIdx =
-        absoluteRowIdx !== null &&
-        absoluteRowIdx !== undefined &&
-        absoluteRowIdx >= 0;
-      const col = idx !== null && idx >= 0 ? columnsOrder[idx] : null;
+      const absoluteRowIdx = rowIdx !== null && rowIdx >= 0 ? getAbsoluteRowIdx(rowIdx) : null;
+      const hasAbsoluteRowIdx = absoluteRowIdx !== null && absoluteRowIdx !== undefined && absoluteRowIdx >= 0;
+      const col = idx !== null && idx >= 0 ? shownColumnsOrder[idx] : null;
       const relativeRangeRows =
         Array.isArray(ranges) && ranges.length > 0
           ? ranges.map((range) => range.rowIdx)
@@ -735,15 +514,10 @@ export const Table = function Table({
           relativeRangeRows
             .filter((relativeRowIdx) => relativeRowIdx >= 0)
             .map((relativeRowIdx) => getAbsoluteRowIdx(relativeRowIdx))
-            .filter(
-              (absoluteIdx) => absoluteIdx !== null && absoluteIdx !== undefined && absoluteIdx >= 0
-            )
+            .filter((absoluteIdx) => absoluteIdx !== null && absoluteIdx !== undefined && absoluteIdx >= 0)
         )
       );
-      const rowId =
-        primaryKey && hasAbsoluteRowIdx
-          ? rowsRef.current[absoluteRowIdx]?.[primaryKey] ?? null
-          : null;
+      const rowId = primaryKey && hasAbsoluteRowIdx ? getRow(absoluteRowIdx)?.[primaryKey] ?? null : null;
       const absoluteRanges = absoluteSelectedRows.map((selectedRowIdx) => ({
         row_idx: selectedRowIdx,
       }));
@@ -753,7 +527,8 @@ export const Table = function Table({
         col,
         mode,
         cause,
-        absoluteRanges
+        absoluteRanges,
+        hasAbsoluteRowIdx ? getRow(absoluteRowIdx) ?? null : null
       );
       if (controlledSelection === undefined) {
         setLocalSelection({
@@ -768,60 +543,50 @@ export const Table = function Table({
 
   const getSelectionIndices = useCachedReconcile(
     (selectionParam: TableData["selection"] | undefined): GridSelection | undefined => {
-    if (!selectionParam) return undefined;
-    const { row_idx, col, mode, ranges } = selectionParam;
-    const hasRowSelection = row_idx !== null && row_idx !== undefined && row_idx >= 0;
-    const relativeRowIdx = hasRowSelection
-      ? effectiveSubset
-        ? effectiveSubset.indexOf(row_idx)
-        : row_idx
-      : -2;
-    const absoluteSelectedRows =
-      Array.isArray(ranges) && ranges.length > 0
-        ? ranges.map((range) => range.row_idx)
-        : hasRowSelection && relativeRowIdx >= 0
-        ? [row_idx]
-        : [];
-    const relativeSelectedRows = Array.from(
-      new Set(
-        absoluteSelectedRows
-          .map((absoluteRowIdx: number) =>
-            effectiveSubset ? effectiveSubset.indexOf(absoluteRowIdx) : absoluteRowIdx
-          )
-          .filter((relativeIdx: number) => relativeIdx >= 0)
-      )
-    );
-    const idx = col ? columnsOrder.findIndex((name) => col === name) : -1;
-    return {
-      rowIdx: relativeRowIdx,
-      idx,
-      mode,
-      ranges: relativeSelectedRows.map((relativeRow) => ({ rowIdx: relativeRow })),
-    };
+      if (!selectionParam) return undefined;
+      const { row_idx, col, mode, ranges } = selectionParam;
+      const hasRowSelection = row_idx !== null && row_idx !== undefined && row_idx >= 0;
+      const relativeRowIdx = hasRowSelection ? (effectiveSubset ? effectiveSubset.indexOf(row_idx) : row_idx) : -2;
+      const absoluteSelectedRows =
+        Array.isArray(ranges) && ranges.length > 0
+          ? ranges.map((range) => range.row_idx)
+          : hasRowSelection && relativeRowIdx >= 0
+          ? [row_idx]
+          : [];
+      const relativeSelectedRows = Array.from(
+        new Set(
+          absoluteSelectedRows
+            .map((absoluteRowIdx: number) =>
+              effectiveSubset ? effectiveSubset.indexOf(absoluteRowIdx) : absoluteRowIdx
+            )
+            .filter((relativeIdx: number) => relativeIdx >= 0)
+        )
+      );
+      const idx = col ? shownColumnsOrder.findIndex((name) => col === name) : -1;
+      return {
+        rowIdx: relativeRowIdx,
+        idx,
+        mode,
+        ranges: relativeSelectedRows.map((relativeRow) => ({
+          rowIdx: relativeRow,
+        })),
+      };
     }
   );
 
   const onBlur = useEventCallback((event: FocusEvent<HTMLDivElement>) => {
     if (event.currentTarget.contains(event.relatedTarget)) return;
-    const effectiveSelection =
-      controlledSelection !== undefined ? controlledSelection : localSelection;
-    if (effectiveSelection?.mode === "EDIT") return;
-    if (effectiveSelection == null) return;
+    if (activeSelection?.mode === "EDIT") return;
+    if (activeSelection == null) return;
     const ranges =
-      Array.isArray(effectiveSelection.ranges) && effectiveSelection.ranges.length > 0
-        ? effectiveSelection.ranges
+      Array.isArray(activeSelection.ranges) && activeSelection.ranges.length > 0
+        ? activeSelection.ranges
             .map((range) => {
               const absoluteRowIdx = range?.row_idx;
-              if (
-                absoluteRowIdx === null ||
-                absoluteRowIdx === undefined ||
-                absoluteRowIdx < 0
-              ) {
+              if (absoluteRowIdx === null || absoluteRowIdx === undefined || absoluteRowIdx < 0) {
                 return null;
               }
-              const relativeRowIdx = effectiveSubset
-                ? effectiveSubset.indexOf(absoluteRowIdx)
-                : absoluteRowIdx;
+              const relativeRowIdx = effectiveSubset ? effectiveSubset.indexOf(absoluteRowIdx) : absoluteRowIdx;
               if (relativeRowIdx < 0) return null;
               return { rowIdx: relativeRowIdx };
             })
@@ -837,67 +602,135 @@ export const Table = function Table({
     });
   });
 
-  const handleScrollBottom = useEventCallback(
-    (event: UIEvent<HTMLDivElement>) => {
-      const currentTarget = event.currentTarget;
-      const isGoingDown = currentTarget.scrollTop > lastScrollTopRef.current;
-      const approachesBottom =
-        currentTarget.scrollTop + 10 >=
-        currentTarget.scrollHeight - currentTarget.clientHeight * 2;
-      lastScrollTopRef.current = currentTarget.scrollTop;
+  const handleScrollBottom = useEventCallback((event: UIEvent<HTMLDivElement>) => {
+    const currentTarget = event.currentTarget;
+    const isGoingDown = currentTarget.scrollTop > lastScrollTopRef.current;
+    const approachesBottom =
+      currentTarget.scrollTop + 10 >= currentTarget.scrollHeight - currentTarget.clientHeight * 2;
+    lastScrollTopRef.current = currentTarget.scrollTop;
 
-      if (isLoading || !approachesBottom || !isGoingDown || !onScrollBottom) {
-        return;
-      }
-      setIsLoading(true);
-      const result = onScrollBottom(event);
-      if (result instanceof Promise) {
-        result.then(() => setIsLoading(false));
-      } else {
-        setIsLoading(false);
-      }
+    if (isLoading || !approachesBottom || !isGoingDown || !onScrollBottom) {
+      return;
     }
-  );
+    setIsLoading(true);
+    const result = onScrollBottom(event);
+    if (result instanceof Promise) {
+      result.then(() => setIsLoading(false));
+    } else {
+      setIsLoading(false);
+    }
+  });
 
   useEffect(() => {
     (inputRef.current?.input || inputRef.current)?.focus();
-  });
+  }, [inputValue]);
 
-  const headerRowHeight = columns.some((col) => col.filterable)
-    ? HEADER_ROW_HEIGHT
-    : ROW_HEIGHT;
-
-  const selectedSelection =
-    getSelectionIndices(
-      controlledSelection !== undefined ? controlledSelection : localSelection
-    ) ?? {
-      rowIdx: -2,
-      idx: -1,
-      mode: "SELECT",
+  // Copy only rows already present in this table, text editors keep their native clipboard behavior
+  const copySelection = (headers = false, wholeRows = false): string => {
+    const selection = activeSelection;
+    if (selection?.row_idx == null || selection.row_idx < 0) return "";
+    const indices =
+      wholeRows || selection.ranges?.length
+        ? [...new Set([...(selection.ranges || []).map((range) => range.row_idx), selection.row_idx])].sort(
+            (a, b) => a - b
+          )
+        : [selection.row_idx];
+    const keys = wholeRows || indices.length > 1 || !selection.col ? shownColumnsOrder : [selection.col];
+    const escape = (value: unknown) => {
+      const text = value == null ? "" : typeof value === "object" ? JSON.stringify(value) : String(value);
+      return /[\t\r\n"]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text;
     };
+    const output = indices
+      .map(getRow)
+      .filter((row) => row !== undefined)
+      .map((row) => keys.map((key) => escape(row[key])).join("\t"));
+    if (headers)
+      output.unshift(keys.map((key) => escape(columns.find((column) => column.key === key)?.name || key)).join("\t"));
+    return output.join("\n");
+  };
+
+  const headerRowHeight = columns.some((col) => col.filterable) ? HEADER_ROW_HEIGHT : ROW_HEIGHT;
+
+  const selectedSelection = getSelectionIndices(activeSelection) ?? {
+    rowIdx: -2,
+    idx: -1,
+    mode: "SELECT",
+  };
 
   return (
-    <SuggestionsContext.Provider value={suggestions}>
+    <TableEditorContext.Provider
+      value={{
+        inputRef,
+        inputValue,
+        suggestions,
+        columns,
+        getRowIndex: getAbsoluteRowIdx,
+        inputChanged: makeInputChangeHandler,
+      }}
+    >
       <TableFiltersContext.Provider value={filtersContextValue}>
-        <div className="metanno-table" style={style} onBlur={onBlur}>
-          <DndProvider backend={HTML5Backend}>
-            <DataGrid
-              ref={gridRef}
-              rowKeyGetter={rowKeyGetter}
-              rowHeight={ROW_HEIGHT}
-              selection={selectedSelection}
-              multiSelectionMode={multiSelectionMode}
-              columns={builtColumns}
-              rows={visibleRows}
-              rowRenderer={renderRow}
-              headerRowHeight={headerRowHeight}
-              onRowsChange={onRowsChange}
-              onSelectionChange={handleSelectionChange}
-              onScroll={handleScrollBottom}
-            />
-          </DndProvider>
+        <div
+          className="metanno-table"
+          style={style}
+          onBlur={onBlur}
+          onCopy={(event) => {
+            if ((event.target as HTMLElement).closest("input, textarea, [contenteditable=true]")) return;
+            const text = copySelection();
+            if (text) {
+              event.preventDefault();
+              event.clipboardData.setData("text/plain", text);
+            }
+          }}
+          onKeyDown={(event) => {
+            if (
+              (event.ctrlKey || event.metaKey) &&
+              event.shiftKey &&
+              event.key.toLowerCase() === "c" &&
+              !(event.target as HTMLElement).closest("input, textarea, [contenteditable=true]")
+            ) {
+              event.preventDefault();
+              void navigator.clipboard.writeText(copySelection(true, true));
+            }
+          }}
+        >
+          <DataGrid
+            ref={gridRef}
+            rowKeyGetter={primaryKey ? rowKeyGetter : undefined}
+            rowHeight={ROW_HEIGHT}
+            selection={selectedSelection}
+            multiSelectionMode={multiSelectionMode}
+            columns={builtColumns}
+            rows={visibleRows}
+            rowSource={rowSource}
+            rowRenderer={renderRow}
+            headerRowHeight={headerRowHeight}
+            sortColumns={effectiveSort.map(({ column, direction }) => ({
+              columnKey: column,
+              direction: direction === "desc" ? "DESC" : "ASC",
+            }))}
+            // A row source is sorted by its owner, which needs onSortChange to query it again
+            onSortColumnsChange={rowSource && !onSortChange ? undefined : handleSortChange}
+            hiddenColumns={hiddenColumns}
+            onHiddenColumnsChange={setHiddenColumns}
+            onColumnsReorder={onHeaderDrop}
+            pinnedColumns={pinnedColumns}
+            onPinnedColumnsChange={setPinnedColumns}
+            onColumnsReset={() => {
+              setColumnsOrder(columns.map((column) => column.key));
+              setHiddenColumns([]);
+              setPinnedColumns([]);
+            }}
+            onRowsChange={onRowsChange}
+            onSelectionChange={handleSelectionChange}
+            onScroll={handleScrollBottom}
+          />
+          {fullRowSource && fullRowSource.rowCount > MAX_ROWS ? (
+            <div className="metanno-table__limit">
+              First {MAX_ROWS} of {fullRowSource.rowCount} rows, filter or sort to see the others
+            </div>
+          ) : null}
         </div>
       </TableFiltersContext.Provider>
-    </SuggestionsContext.Provider>
+    </TableEditorContext.Provider>
   );
 };

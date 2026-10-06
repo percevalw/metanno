@@ -3,10 +3,23 @@
 }
 
 .metanno-table {
+    position: relative;
     height: 100%;
     width: 100%;
     overflow: hidden;
     min-height: 50px;
+}
+
+.metanno-table__limit {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    padding: 2px 6px;
+    font-size: 0.85em;
+    background: var(--background-color);
+    color: var(--color);
+    border: 1px solid var(--border-color);
+    pointer-events: none;
 }
 
 .metanno-table, .metanno-table input {
@@ -35,13 +48,38 @@
 
 .metanno-table-header-filter > div > div:first-child {
     border-block-end: 1px solid var(--border-color);
-    padding-inline: 8px;
+    padding-inline: 8px 34px;
+}
+
+/* Keep the column menu button on the name line above the filter input */
+.metanno-table .rdg-cell.metanno-table-header-filter {
+    padding: 0;
+}
+
+.metanno-table-header-filter .rdg-column-menu-button {
+    inset-block: 3px auto;
 }
 
 .metanno-table > div.rdg {
     --font-size: var(--metanno-font-size); /* more specific than react-data-grid's .rnvodz5700-beta7 selector to override */
+    --color: var(--jp-ui-font-color1, var(--metanno-color, #000));
+    --border-color: var(--jp-border-color2, #ddd);
+    --summary-border-color: var(--jp-border-color1, #aaa);
+    --background-color: var(--jp-layout-color0, #fff);
+    --header-background-color: var(--jp-layout-color1, #f7f7f7);
+    --row-hover-background-color: var(--jp-layout-color2, #f2f2f2);
+    --row-selected-background-color: var(--jp-brand-color3, #dbeafe);
+    --row-selected-hover-background-color: var(--jp-brand-color2, #c7ddf7);
     height: 100%;
     border: none;
+}
+
+body[data-jp-theme-light="true"] .metanno-table > div.rdg {
+    --color-scheme: light;
+}
+
+body[data-jp-theme-light="false"] .metanno-table > div.rdg {
+    --color-scheme: dark;
 }
 
 .metanno-table a {
@@ -103,7 +141,21 @@
     overflow: visible;
 }
 
-.metanno-table .rdg-cell {
+/* Pinned cells stay above their neighbours, their text must not spill over them */
+.metanno-table .rdg-cell-frozen:not(.rdg-editor-container) {
+    overflow: hidden;
+}
+
+/* Column names end with an ellipsis before the column menu button, dragging them moves the column */
+.metanno-table-header-name {
+    cursor: grab;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Pinned cells keep the sticky position set by the grid */
+.metanno-table .rdg-cell:not(.rdg-cell-frozen) {
     position: relative;
 }
 
@@ -157,7 +209,7 @@
     width: 80px;
 }
 
-.rdg-cell > button {
+.rdg-row > .rdg-cell > button {
     width: 100%;
     cursor: pointer;
     outline: none;
@@ -179,8 +231,10 @@
     outline: 0
 }
 
+/* Tint selected cells over their row background, a transparent color would show scrolled cells under pinned ones */
 .metanno-table .rdg-cell.rdg-cell-range-selected {
-    background-color: rgba(0, 120, 215, 0.18) !important;
+    background-color: inherit !important;
+    background-image: linear-gradient(rgba(0, 120, 215, 0.18), rgba(0, 120, 215, 0.18));
 }
 
 .metanno-table > div {
@@ -202,4 +256,30 @@
 
 .rdg-cell:last-child {
     border-right: none;
+}
+.metanno-error {
+  background: color-mix(in srgb, var(--jp-error-color1, #d32f2f) 14%, transparent);
+  border-radius: 3px;
+  color: var(--jp-error-color1, #a52222);
+  margin: 4px 8px;
+  padding: 4px 8px;
+}
+
+.metanno-error:has(> .metanno-error-dismiss) {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.metanno-error > span {
+  flex: 1;
+}
+
+.metanno-error-dismiss {
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
 }
