@@ -1,73 +1,115 @@
 # Installation
 
-## As a user
-
-A simple pip installation should be enough to install Metanno *both* as a standalone web app framework and as a JupyterLab extension:
+Metanno runs in JupyterLab 3 or 4, with Python 3.10 or later. For a first try, install it in the Python environment
+that runs JupyterLab:
 
 ```bash { data-md-color-scheme="slate" }
-pip install metanno==1.0.0
+pip install metanno
+python -m metanno.viewer.explorer_kernel --install
 ```
 
-To use it with Jupyter, if you install the library in a custom environment (conda, venv, or other),
-you will likely need to tell Jupyter where to find the front-end files.
-You can do this by running the following command (only once), and restart your Jupyterlab server:
+The second command registers the `metanno-explorer` kernel, which reads your databases for the Metanno sidebar.
+Refresh JupyterLab: the Metanno icon appears in the left sidebar, and you can start with
+[Annotate a table](tutorials/annotate-a-table.md).
+
+## In a project
+
+To keep Metanno with the other dependencies of your project, add it to your `pyproject.toml` or
+`requirements.txt`, then install them in a new environment:
+
+=== "pyproject.toml"
+
+    ```toml
+    [project]
+    name = "my-annotation-project"
+    version = "0.1.0"
+    requires-python = ">=3.10"
+    dependencies = [
+      "metanno>=2.0.0-beta.1",
+      "edsnlp>=0.21",  # used to pre-annotate the documents
+    ]
+    ```
+
+    ```bash { data-md-color-scheme="slate" }
+    mamba create -n annotation python=3.11 -y
+    mamba activate annotation
+    pip install .
+    ```
+
+=== "requirements.txt"
+
+    ```text
+    metanno>=2.0.0-beta.1
+    edsnlp>=0.21  # used to pre-annotate the documents
+    ```
+
+    ```bash { data-md-color-scheme="slate" }
+    mamba create -n annotation python=3.11 -y
+    mamba activate annotation
+    pip install -r requirements.txt
+    ```
+
+When JupyterLab runs in another environment, register this one as a notebook kernel, then select it in the
+top-right corner of your notebooks:
+
+```bash { data-md-color-scheme="slate" }
+pip install ipykernel
+python -m ipykernel install --user --name annotation
+```
+
+JupyterLab then needs the sidebar and tabs of Metanno, installed in this environment: run this command in it once,
+then refresh JupyterLab in your browser.
 
 ```bash { data-md-color-scheme="slate" }
 pret update-jupyter-config --apply
 ```
 
-## As a contributor
+It links the front-end files of Metanno and Pret into your Jupyter data folder
+(`~/.local/share/jupyter/labextensions`), which JupyterLab reads whatever its own environment.
 
-If you want to contribute to Metanno, you should have a programming environment:
+## Check your installation
 
-- Python 3.7 or later, with pip and [hatch](https://hatch.pypa.io/latest/) installed
-- Node.js 20 or later (you can use [nvm](https://github.com/nvm-sh/nvm) to easily install and manage Node.js versions)
-- JupyterLab 3 (the built extension will be compatible with JupyterLab 4)
-- Various web browsers for testing (e.g., Chrome, Firefox, Safari)
-- A Git client to clone the repository and manage your changes
+Run this cell in a notebook:
 
-```bash { data-md-color-scheme="slate" }
-git clone https://github.com/percevalw/metanno.git
-cd metanno
+```python { .render-with-pret }
+from pret import component
+from pret_joy import Button
+
+
+@component
+def SanityCheckApp():
+    return Button("Metanno is installed ✅", sx={"m": 1})
+
+
+SanityCheckApp()
 ```
 
-Then, create a new branch for your changes:
+A button appears below the cell when JupyterLab and your kernel are ready. Nothing shows up? Check that the kernel
+of the notebook is the environment where you installed Metanno: `import sys; print(sys.executable)` prints its path.
+
+## Databases and the explorer kernel
+
+The `metanno-explorer` kernel reads the databases listed in `metanno.yaml`, as shown in
+[Browse a database](tutorials/browse-a-database.md). Install it, with the Ibis driver of each database, in the
+environment that can reach these databases:
 
 ```bash { data-md-color-scheme="slate" }
-git checkout -b my-feature-branch
+pip install metanno 'ibis-framework[duckdb]'
+python -m metanno.viewer.explorer_kernel --install
 ```
 
-Create (optional) virtual env and install all development deps.
-Install the package in editable mode with development dependencies:
+Install each driver through its Ibis extra, eg `'ibis-framework[pyspark]'` for Spark, even when the driver itself comes
+from another package index: the extra also installs the packages Ibis needs to read its results.
 
-```bash { data-md-color-scheme="slate" }
-yarn install
-pip install -e . --group dev  #(1)!
-yarn playwright install --with-deps # browsers for UI tests
-```
+Registering records the Python executable that ran the command, so this environment can differ from the ones of
+JupyterLab and of your notebooks, which do not need the explorer kernel to open notebook data.
 
-1. or `uv pip install -e . --group dev` with uv
+??? note "The sidebar says the explorer kernel is missing"
 
-### Running the UI tests
+    Run the registration command above in the intended environment, then click <span class="ui-button">Retry</span>
+    in the sidebar. `jupyter kernelspec list`, run in the environment of JupyterLab, lists the kernels JupyterLab
+    can find. When JupyterLab runs as another user or on another machine, its administrator must register the
+    kernel there, with a Python executable available on that machine.
 
-Metanno uses [playwright](https://playwright.dev/) to test the JupyterLab extension (which should cover most of the app features).
-You can run the tests to ensure everything is working correctly.
-
-```bash { data-md-color-scheme="slate" }
-sh tests/jupyter/run.sh #(1)!
-```
-
-1. or `uv run sh tests/jupyter/run.sh` with uv
-
-### Building the documentation
-
-The documentation is built with [MkDocs](https://www.mkdocs.org/) and [MkDocs Material](https://squidfunk.github.io/mkdocs-material/) theme, along with quite a few customizations.
-To build the documentation, you can use the following command:
-
-```bash { data-md-color-scheme="slate" }
-pip install -e . --group docs  #(1)!
-mkdocs serve  #(2)!
-```
-
-1. or `uv pip install -e . --group docs` with uv
-2. or `uv run mkdocs serve` with uv
+    <span class="ui-button">Open configuration</span> still works while the kernel is missing, and notebook views
+    still open in their own kernels.

@@ -189,3 +189,21 @@ a.discrete-link {
 .hidden {
     display: none !important;
 }
+
+/* Button names in tutorials, drawn like the JupyterLab buttons they refer to */
+.md-typeset .ui-button {
+    display: inline-block;
+    padding: 0 0.45em;
+    border: 1px solid var(--md-default-fg-color--lighter);
+    border-radius: 4px;
+    background: var(--md-default-bg-color);
+    font-size: 0.85em;
+    line-height: 1.6;
+    white-space: nowrap;
+}
+
+/* Narrow screenshots placed beside the text, such as the JupyterLab sidebar */
+.md-typeset img.float-right {
+    float: right;
+    margin: 0 0 1em 1.5em;
+}

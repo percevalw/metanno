@@ -2,64 +2,63 @@
 ![Metanno](/assets/images/logo.svg){ width="250px" }
 </h1>
 
-Metanno is a Python library built on top of the [Pret framework](https://github.com/percevalw/pret) for building dynamic, customizable annotation interfaces.
+Metanno brings data exploration and annotation into JupyterLab. Open data prepared in Python,
+inspect it through tables, text and image views, and save an editable dataset. Move between your
+notebook and the viewer as you select data, add predictions and review annotations.
 
-Who is it for? Research groups, clinical NLP and biomedical teams, data labeling squads, and anyone who wants custom and interactive annotation tools without wrestling with JavaScript.
+Metanno supplies the visualization and annotation components. [Pret](https://github.com/percevalw/pret)
+connects them to shared Python data and saves your work. You can also compose these components directly
+in notebook outputs or standalone Pret applications.
 
-Metanno currently focuses on text and images with richly structured entities. Its goals are:
+Who is it for? Research groups, clinical NLP and biomedical teams, data labeling squads, and anyone who wants
+custom and interactive annotation tools without wrestling with JavaScript.
 
-- **Modularity:** show your data from multiple synchronized angles. For example, highlight entities over text or images while editing the same rows in a table.
-- **Python‑first UI:** write the entire app in Python; it renders to a fast React UI under the hood.
-- **Interactivity:** handle annotations as plain Python objects at any time, so you can create, inspect, and transform them programmatically.
+## Choose a starting point
 
-## Features
+- [Install Metanno](installation.md) in the Jupyter server and Python environments you use
+- [Annotate a table](tutorials/annotate-a-table.md) in five minutes, without any configuration
+- [Annotate a corpus](tutorials/index.md#annotate-a-corpus): select notes in a database, pre-annotate them with
+  EDS-NLP and review them
+- [Customize the interface](tutorials/index.md#customize-the-interface) of your annotators, inside or outside
+  JupyterLab
 
-### Annotate anything
+## Open data prepared in Python
 
-In addition to the Pret ecosystem component suite, Metanno provides components for common annotation views:
+```python
+from metanno import view_opener
+from pret import DataFrame, create_store
+
+store = create_store({"notes": DataFrame([{"id": 1, "text": "Example"}])}, sync=True)
+view_opener(store)
+```
+
+Click **Open with Metanno** to open the table in a tab. This is an unsaved preview.
+Follow [Annotate a table](tutorials/annotate-a-table.md) to make an editable copy, read edits back into
+Python and reopen the saved file. It needs no source configuration or custom interface code.
+
+## Components
+
+In addition to the Pret component suite, Metanno provides components for common annotation views:
 
 - **[AnnotatedText][metanno.ui.AnnotatedText]**: display text with highlighted, nestable spans
-- **[AnnotatedImage][metanno.ui.AnnotatedImage]**: draw shapes (boxes, polygons, etc.) over images.
-- **[Table][metanno.ui.Table]**: an editable, filterable spreadsheet‑style grid for inspecting and editing annotations.
+- **[AnnotatedImage][metanno.ui.AnnotatedImage]**: draw shapes (boxes, polygons, etc.) over images
+- **[Table][metanno.ui.Table]**: an editable, filterable spreadsheet-style grid for inspecting and editing annotations
 
-You can compose these views of the same underlying annotations to get a better grasp of the data you are annotating or inspecting.
-
-### Run it your way
-
-Use Metanno in two modes:
-
-- **Standalone app:** run a server and use it in your browser.
-- **JupyterLab widgets:** embed components directly in notebooks, with no extra ports or separate server process.
-
-Develop and test in a notebook. If you prefer, you can also run it as a standalone app.
-
-### Easy setup
-
-```bash { data-md-color-scheme="slate" }
-pip install metanno==1.0.0
-```
-
-To use it with Jupyter, if you install the library in a custom environment (conda, venv, or other),
-you will likely need to tell Jupyter where to find the front-end files.
-You can do this by running the following command (only once), and restart your Jupyterlab server:
-
-```bash { data-md-color-scheme="slate" }
-pret update-jupyter-config --apply
-```
-
-Unlike other alternatives, Metanno requires no additional ports and no separate server process when used in JupyterLab. Write your app in Python and benefit from a fast React front end under the hood.
-
-### Interactive and customizable by design
-
-- Inspect and edit application state directly from Python.
-- Update the UI from Python; execute a notebook cell to see changes immediately.
-- Register event handlers for clicks, hovers, keystrokes, and more.
+Compose them in notebook outputs, standalone Pret apps, or [views](tutorials/review-entities.md) opened in the JupyterLab viewer.
+Several views of the same annotations stay in sync, since they share the same Store.
 
 ## Why another annotation software?
 
-Tool choice shapes both the annotation scheme and the workflow. In many out‑of‑the‑box tools, tasks like annotating implicit or document‑level entities, working across multiple documents at once, or coordinating multiple views can be difficult or unsupported. There are many available solutions (see [Neves et al.](https://pubmed.ncbi.nlm.nih.gov/31838514/)). However,  most of these are either proprietary, poorly adapted to document or multi-document annotation, require a complex installation that is not compatible with existing strict remote computing environments, or are difficult to customize.
+Tool choice shapes both the annotation scheme and the workflow. In many out-of-the-box tools, tasks like annotating
+implicit or document-level entities, working across multiple documents at once, or coordinating multiple views can
+be difficult or unsupported. There are many available solutions (see [Neves et al.](https://pubmed.ncbi.nlm.nih.gov/31838514/)).
+However, most of these are either proprietary, poorly adapted to document or multi-document annotation, require a
+complex installation that is not compatible with existing strict remote computing environments, or are difficult to
+customize.
 
-Metanno takes a different approach: a modular, Python‑first framework that adapts to your schema and to your annotation process, instead of forcing you into fixed layers or rigid UIs.
+Metanno takes a different approach: a modular, Python-first framework that adapts to your schema and to your
+annotation process, instead of forcing you into fixed layers or rigid UIs. In JupyterLab, it needs no additional
+port and no separate server process.
 
 ## Demo
 
@@ -69,11 +68,16 @@ See the [demo apps](/demos), listed below.
 
 ## Tutorials
 
-Check out the [tutorials](/tutorials) to get started with Metanno !
+Start with these two tutorials, then follow the [whole path](tutorials/index.md), from a database to your own
+annotation interface:
 
 --8<-- "docs/tutorials/index.md:tutorials"
 
-## Small example
+## Compose your own components
+
+For a table and text view connected to saved rows, start with [Review entities](tutorials/review-entities.md).
+The example below shows the lower-level components using a small list of dictionaries.
+This path is useful when you want to write the interaction callbacks yourself.
 
 Below is a small example that lets you annotate text spans and view them in a synchronized table. Select spans to add them; hold **Shift** (also labeled **Maj** on some keyboards) while selecting to delete overlapping spans.
 
