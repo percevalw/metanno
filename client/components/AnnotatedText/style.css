@@ -149,6 +149,28 @@
     right: -2px;
 }
 
+/* Spans of the highlighted prop, marked by AnnotatedText.applyHighlighted, look like highlighted spans */
+.metanno-text-view .mention_token.hovered {
+    border-top-width: 4px;
+    border-bottom-width: 4px;
+    z-index: 999 !important;
+}
+
+.metanno-text-view .mention_token.closedleft.hovered {
+    border-left-width: 4px;
+    left: -2px;
+}
+
+.metanno-text-view .mention_token.closedright.hovered {
+    border-right-width: 4px;
+    right: -2px;
+}
+
+.metanno-text-view .label.hovered {
+    outline: 2px solid #e7c600;
+    z-index: 2000 !important;
+}
+
 .metanno-text-view .mouse_selected {
     background: rgba(137, 188, 250, 0.6); /*#b2d7ff88;*/
     border: none;

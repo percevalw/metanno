@@ -10,8 +10,8 @@ function get_text(value: string | Hyperlink): string {
   return typeof value === "string"
     ? value
     : value && value.text
-      ? value.text
-      : "";
+    ? value.text
+    : "";
 }
 
 export const InputTag = ({
@@ -70,7 +70,7 @@ export const InputTag = ({
 };
 
 export class SingleInputSuggest<
-  T extends string | Hyperlink,
+  T extends string | Hyperlink
 > extends React.Component<
   {
     row_id: number;
@@ -79,7 +79,7 @@ export class SingleInputSuggest<
 
     onClose?: () => void;
     onInputChange?: (value: any, cause: string) => void;
-    onRowChange?: (rowUpdate: object, rowIdx, commitChanges: boolean) => void;
+    onRowChange?: (rowUpdate: object, rowIdx: number, commitChanges: boolean) => void;
     onClick?: (key: string) => void;
     registerActions?: (actions: object) => void;
 
@@ -130,14 +130,10 @@ export class SingleInputSuggest<
 
   onInputChange = (
     event,
-    { newValue, method }: { newValue: T; method: string },
+    { newValue, method }: { newValue: T; method: string }
   ) => {
     if (method === "click") {
-      this.props.onRowChange(
-        { [this.props.column]: newValue },
-        this.props.row_id,
-        true,
-      );
+      this.props.onRowChange({ [this.props.column]: newValue }, this.props.row_id, true);
       this.props.onClose();
     } else {
       this.setState((prev) => ({
@@ -153,16 +149,17 @@ export class SingleInputSuggest<
   inputKeyDown = (event) => {
     let stop = false;
     if (event.key === "Tab" || event.key === "Enter") {
+      // Enter is committed here, Tab remains available for grid navigation
+      if (event.key === "Enter") {
+        event.preventDefault();
+        event.stopPropagation();
+      }
       const inputValue =
         this.props.inputValue === undefined
           ? this.state.inputValue
           : this.props.inputValue;
       if (!this.props.hyperlink || typeof inputValue === "object") {
-        this.props.onRowChange(
-          { [this.props.column]: inputValue },
-          this.props.row_id,
-          true,
-        );
+        this.props.onRowChange({ [this.props.column]: inputValue }, this.props.row_id, true);
       }
     } else if (
       ["ArrowUp", "ArrowDown"].includes(event.key) &&
@@ -239,14 +236,14 @@ export class SingleInputSuggest<
     const allSuggestions: T[] =
       this.props.suggestions instanceof Function
         ? (this.props.suggestions as (value: string) => T[])(
-            this.lastTypedValue,
+            this.lastTypedValue
           )
         : this.props.suggestions || [];
     if (!this.lastTypedValue) {
       return allSuggestions;
     }
     const filtered = allSuggestions.filter((s) =>
-      get_text(s).toLowerCase().includes(this.lastTypedValue.toLowerCase()),
+      get_text(s).toLowerCase().includes(this.lastTypedValue.toLowerCase())
     );
     return filtered.length === 0 ? allSuggestions : filtered;
   }
@@ -257,7 +254,7 @@ export class SingleInputSuggest<
       value: get_text(
         this.props.inputValue === undefined
           ? this.state.inputValue
-          : this.props.inputValue,
+          : this.props.inputValue
       ),
       onChange: this.onInputChange,
       onKeyDown: this.inputKeyDown,
@@ -286,7 +283,7 @@ export class SingleInputSuggest<
 }
 
 export class MultiInputSuggest<
-  T extends string | Hyperlink,
+  T extends string | Hyperlink
 > extends React.Component<
   {
     column: string;
@@ -295,11 +292,7 @@ export class MultiInputSuggest<
 
     onClose?: () => void;
     onInputChange?: (value: any, cause: string) => void;
-    onRowChange?: (
-      rowUpdate: object,
-      rowIdx: number,
-      commitChanges: boolean,
-    ) => void;
+    onRowChange?: (rowUpdate: object, rowIdx: number, commitChanges: boolean) => void;
     onClick?: (row_id: number, name: string, key: any) => void;
     registerActions?: (actions: object) => void;
 
@@ -368,7 +361,7 @@ export class MultiInputSuggest<
 
   onInputChange = (
     event,
-    { newValue, method }: { newValue: string; method: string },
+    { newValue, method }: { newValue: string; method: string }
   ) => {
     const newTags = [...(this.getInputValue() || [])];
     newTags[newTags.length - 1] = newValue;
@@ -440,14 +433,10 @@ export class MultiInputSuggest<
         this.props.onRowChange(
           { [this.props.column]: inputValue.slice(0, inputValue.length - 1) },
           this.props.row_id,
-          true,
+          true
         );
       } else {
-        this.props.onRowChange(
-          { [this.props.column]: inputValue },
-          this.props.row_id,
-          true,
-        );
+        this.props.onRowChange({ [this.props.column]: inputValue }, this.props.row_id, true);
       }
     }
   };
@@ -473,7 +462,7 @@ export class MultiInputSuggest<
             this.props.onClick?.(
               this.props.row_id,
               this.props.column,
-              suggestion.key,
+              suggestion.key
             )
           }
         >
@@ -508,7 +497,7 @@ export class MultiInputSuggest<
       return allSuggestions;
     }
     const filtered = allSuggestions.filter((s) =>
-      get_text(s).toLowerCase().includes(this.lastTypedValue.toLowerCase()),
+      get_text(s).toLowerCase().includes(this.lastTypedValue.toLowerCase())
     );
     return filtered.length === 0 ? allSuggestions : filtered;
   }

@@ -1,4 +1,10 @@
-import React, { CSSProperties, useRef } from "react";
+import React, {
+  CSSProperties,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
 import { default as tokenize, PreprocessedStyle } from "./tokenize";
 import Color from "color";
 import {
@@ -10,17 +16,18 @@ import {
 } from "../../utils";
 import {
   TextAnnotationStyle,
-  TextAnnotation,
   TextData,
   TextMethods,
   TokenData,
 } from "../../types";
-
 import "./style.css";
 
 const isMobileDevice = (): boolean => {
-    if (typeof window === "undefined" || typeof navigator === "undefined") return false;
-    return /Mobi|Android|iPhone|iPad|iPod|Windows Phone|IEMobile|Opera Mini/i.test(navigator.userAgent || "");
+  if (typeof window === "undefined" || typeof navigator === "undefined")
+    return false;
+  return /Mobi|Android|iPhone|iPad|iPod|Windows Phone|IEMobile|Opera Mini/i.test(
+    navigator.userAgent || ""
+  );
 };
 
 const processStyle = ({
@@ -207,9 +214,7 @@ const Token = React.memo(
               return (
                 <span
                   className={`label ${
-                    annotation.highlighted
-                      ? "highlighted"
-                      : ""
+                    annotation.highlighted ? "highlighted" : ""
                   }`}
                   ref={(element) => {
                     if (element) {
@@ -239,7 +244,11 @@ const Token = React.memo(
                       zIndex:
                         50 +
                         annotation.zIndex +
-                        (annotation.selected ? 49 : annotation.highlighted ? 50 : 0),
+                        (annotation.selected
+                          ? 49
+                          : annotation.highlighted
+                          ? 50
+                          : 0),
                     } as CSSProperties
                   }
                 >
@@ -324,21 +333,17 @@ const Line = React.memo(
       );
       let changed = false;
       // @ts-ignore
-      hoveredKeys.current.forEach(
-        (x) => {
-          if (newSet.has(x)) return;
-          changed = true;
-          handleMouseLeaveSpan(e, x)
-        }
-      );
+      hoveredKeys.current.forEach((x) => {
+        if (newSet.has(x)) return;
+        changed = true;
+        handleMouseLeaveSpan(e, x);
+      });
       // @ts-ignore
-      newSet.forEach(
-        (x) => {
-          if (hoveredKeys.current.has(x)) return;
-          changed = true;
-          handleMouseEnterSpan(e, x)
-        }
-      );
+      newSet.forEach((x) => {
+        if (hoveredKeys.current.has(x)) return;
+        changed = true;
+        handleMouseEnterSpan(e, x);
+      });
       if (!changed) return;
       hoveredKeys.current = newSet;
       if (handleMouseHoverSpans) {
@@ -390,8 +395,7 @@ const Line = React.memo(
 
       if (hitElements.length > 0) {
         handleClickSpan(e, hitElements[0].getAttribute("span_key"));
-      }
-      else {
+      } else {
         handleClickSpan(e, null);
       }
     };
@@ -455,7 +459,7 @@ const setOnMapping = (
  * A React component for rendering text with annotations and spans.
  *
  * @param {TextData} props.text The text content to display.
- * @param {TextAnnotation[]} props.spans An array of text annotations.
+ * @param {Object[]} props.spans Annotation rows using the configured field names.
  * @param {TextAnnotationStyle} props.annotationStyles Styles for annotations.
  * @param {Function} [props.onMouseSelect] Callback for mouse selection events.
  * @param {Function} [props.onClickSpan] Callback for click events on spans.
@@ -482,7 +486,8 @@ export class AnnotatedText extends React.Component<TextData & TextMethods> {
   };
 
   private readonly tokenize: (
-    spans: {[key: string]: any}[],
+    spans: { [key: string]: any }[],
+    mouseSelection: TextData["mouseSelection"],
     text: string,
     styles: { [key: string]: PreprocessedStyle },
     beginKey: string,
@@ -492,7 +497,7 @@ export class AnnotatedText extends React.Component<TextData & TextMethods> {
     styleKey: string,
     highlightedKey: string,
     selectedKey: string,
-    primaryKey: string,
+    primaryKey: string
   ) => { ids: any[]; lines: TokenData[][] };
   private readonly containerRef: React.RefObject<HTMLDivElement>;
   private readonly spansRef: {
@@ -505,6 +510,8 @@ export class AnnotatedText extends React.Component<TextData & TextMethods> {
   }) => { [style_name: string]: PreprocessedStyle };
   private _ignoreSelectionChange: boolean;
   private _boundSelectionChange: () => void;
+  // Elements marked by applyHighlighted, unmarked when the highlighted spans change
+  private hoveredElements: Element[] = [];
 
   constructor(props: TextData & TextMethods) {
     super(props);
@@ -551,7 +558,28 @@ export class AnnotatedText extends React.Component<TextData & TextMethods> {
       };
     }
     this.previousSelectedSpans = "";
-    this.tokenize = cachedReconcile(tokenize);
+    // Tokens are computed again only when an input changes, the mouse selection is compared by value since
+    // callers often pass a new empty list. Hovered spans are restyled by applyHighlighted instead
+    const reconciledTokenize = cachedReconcile(tokenize);
+    this.tokenize = memoize(
+      (spans, mouseSelection, text, styles, ...keys) =>
+        reconciledTokenize(
+          [
+            // Mouse selections use begin and end, spans use the configured column names
+            ...mouseSelection.map((span) => ({
+              [keys[0]]: span.begin,
+              [keys[1]]: span.end,
+              mouseSelected: true,
+            })),
+            ...spans,
+          ],
+          text,
+          styles,
+          ...(keys as [string, string, string, any, string, string, string, string])
+        ),
+      (spans, mouseSelection, ...rest) => [spans, JSON.stringify(mouseSelection), ...rest],
+      true
+    );
     this.processStyles = memoize((styles) =>
       Object.assign(
         {},
@@ -565,8 +593,13 @@ export class AnnotatedText extends React.Component<TextData & TextMethods> {
   }
 
   componentDidMount() {
+    this.applyHighlighted();
     if (!isMobileDevice()) return;
     document.addEventListener("selectionchange", this._boundSelectionChange);
+  }
+
+  componentDidUpdate() {
+    this.applyHighlighted();
   }
 
   componentWillUnmount() {
@@ -663,7 +696,8 @@ export class AnnotatedText extends React.Component<TextData & TextMethods> {
   };
 
   handleClickSpan = (event, span_id) => {
-    const selection = typeof window !== "undefined" ? window.getSelection?.() : null;
+    const selection =
+      typeof window !== "undefined" ? window.getSelection?.() : null;
     if (selection && !selection.isCollapsed) {
       return;
     }
@@ -691,6 +725,21 @@ export class AnnotatedText extends React.Component<TextData & TextMethods> {
     this.props.onMouseHoverSpans?.(span_ids, makeModKeys(event));
   };
 
+  /**
+   * Mark the elements of the spans listed in the highlighted prop with the hovered class, which styles them
+   * like spans flagged with highlightedKey. Changing classes of a few elements restyles only them, while new
+   * tokens or style sheets would restyle or render the whole text again
+   */
+  applyHighlighted() {
+    const container = this.containerRef.current;
+    if (!container) return;
+    this.hoveredElements.forEach((element) => element.classList.remove("hovered"));
+    this.hoveredElements = (this.props.highlighted || []).flatMap((id) => [
+      ...container.querySelectorAll(`[span_key=${JSON.stringify(String(id))}]`),
+    ]);
+    this.hoveredElements.forEach((element) => element.classList.add("hovered"));
+  }
+
   render() {
     const styles = this.processStyles(this.props.annotationStyles);
     const text = this.props.text || "";
@@ -708,13 +757,8 @@ export class AnnotatedText extends React.Component<TextData & TextMethods> {
       this.previousSelectedSpans = newSelectedSpans;
     }
     const { lines, ids } = this.tokenize(
-      [
-        ...this.props.mouseSelection.map((span) => ({
-          ...span,
-          mouseSelected: true,
-        })),
-        ...this.props.spans,
-      ],
+      this.props.spans,
+      this.props.mouseSelection,
       text,
       styles,
       this.props.beginKey,
@@ -724,7 +768,7 @@ export class AnnotatedText extends React.Component<TextData & TextMethods> {
       this.props.styleKey,
       this.props.highlightedKey,
       this.props.selectedKey,
-      this.props.primaryKey,
+      this.props.primaryKey
     );
 
     // Define the right number of references
