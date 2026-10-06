@@ -47,6 +47,7 @@ nav:
   - Building Blocks:
       - components/index.md
       - Pret: https://percevalw.github.io/pret" target="_blank
+      - components/data-widget-factory.md
       - components/annotated-text.md
       - components/annotated-image.md
       - components/table.md
