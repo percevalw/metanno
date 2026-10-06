@@ -1,6 +1,7 @@
 const path = require('path');
 
 module.exports = {
+    ...(process.env.PRET_COVERAGE ? { devtool: 'inline-source-map' } : {}),
     // mode: 'development',
     module: {
         rules: [
@@ -29,7 +30,8 @@ module.exports = {
         alias: {'@pret-globals': path.resolve('client/dist-globals.ts')}
     },
     optimization: {
-        usedExports: true,
+        usedExports: !process.env.PRET_COVERAGE,
+        minimize: process.env.PRET_COVERAGE ? false : undefined,
     },
     cache: {
         type: 'filesystem',

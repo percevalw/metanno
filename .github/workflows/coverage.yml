@@ -1,0 +1,61 @@
+name: Coverage
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      PRET_COVERAGE: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: metanno
+          submodules: recursive
+      - uses: actions/checkout@v4
+        with:
+          repository: percevalw/pret
+          ref: main
+          path: pret
+          submodules: recursive
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.11"
+          activate-environment: true
+      - name: Install build dependencies
+        run: uv pip install 'jupyterlab>=3.6,<4' hatchling editables hatch-jupyter-builder 'setuptools<82'
+      - name: Install frontend dependencies
+        run: |
+          npm --prefix pret install
+          yarn --cwd metanno install
+          yarn --cwd pret link
+          yarn --cwd metanno link pret
+      - name: Build coverage assets and install packages
+        run: uv pip install --no-build-isolation -e './pret[coverage]' -e './metanno[coverage]'
+      - name: Install test runtime
+        run: uv pip install 'jupyterlab>=4.4,<4.5' 'ibis-framework[sqlite]>=12,<13'
+      - name: Install Chromium
+        working-directory: metanno
+        run: npx playwright install --with-deps chromium
+      - name: Collect coverage
+        working-directory: metanno
+        timeout-minutes: 30
+        run: python -m pret.testing run --coverage
+      - name: Upload reports and collection artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: metanno/coverage/
+          include-hidden-files: true
+          retention-days: 14
