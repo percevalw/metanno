@@ -1,0 +1,404 @@
+.metanno-viewer {
+  box-sizing: border-box;
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  color: var(--jp-ui-font-color1);
+  background: var(--jp-layout-color2);
+  font-size: var(--jp-ui-font-size1);
+}
+
+.metanno-viewer__sidebar {
+  box-sizing: border-box;
+  overflow: auto;
+  padding: 10px;
+  color: var(--jp-ui-font-color1);
+  background: var(--jp-layout-color1);
+  height: 100%;
+}
+
+.metanno-viewer__sidebar-title {
+  padding: 6px 8px 10px;
+  color: var(--jp-ui-font-color1);
+  font-size: inherit;
+  font-weight: 600;
+}
+
+.metanno-viewer__source-group {
+  margin-bottom: 2px;
+}
+
+.metanno-viewer__views {
+  margin-bottom: 10px;
+  padding: 0 0 8px;
+  border-bottom: 1px solid var(--jp-border-color2);
+}
+
+.metanno-viewer__configuration {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.metanno-viewer__view-links {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  margin-top: 4px;
+}
+
+.metanno-viewer__folder-link {
+  padding: 3px 4px;
+  border: 0;
+  color: var(--jp-content-link-color);
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.metanno-viewer__folder-link:hover {
+  text-decoration: underline;
+}
+
+.metanno-viewer__content {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: var(--jp-border-radius);
+  background: var(--jp-layout-color1);
+}
+
+.metanno-viewer__toolbar-button {
+  box-sizing: border-box;
+  height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--jp-border-radius);
+  color: var(--jp-ui-font-color1);
+  background: var(--jp-layout-color1);
+  font: inherit;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.metanno-viewer__toolbar-button:hover:not(:disabled) {
+  background: var(--jp-layout-color3);
+}
+
+.metanno-viewer__toolbar-button:focus-visible {
+  outline: 1px solid var(--jp-brand-color1);
+  outline-offset: -1px;
+}
+
+.metanno-viewer__toolbar-button:disabled {
+  color: var(--jp-ui-font-color3);
+  background: transparent;
+  cursor: default;
+}
+
+.metanno-viewer__toolbar-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--jp-ui-font-color2);
+}
+
+.metanno-viewer__recipe {
+  box-sizing: border-box;
+  height: 30px;
+  min-width: 90px;
+  max-width: 180px;
+  padding: 0 8px;
+  border: 1px solid var(--jp-border-color2);
+  border-radius: var(--jp-border-radius);
+  color: var(--jp-ui-font-color1);
+  background: var(--jp-layout-color1);
+  font: inherit;
+}
+
+.metanno-viewer__recipe:focus-visible {
+  border-color: var(--jp-brand-color1);
+  outline: 0;
+}
+
+.metanno-viewer__pret-host {
+  position: relative;
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--jp-layout-color1);
+}
+
+.metanno-viewer__source,
+.metanno-viewer__table {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  text-align: left;
+  border: 0;
+  border-radius: var(--jp-border-radius);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.metanno-viewer__source {
+  gap: 6px;
+  padding: 7px 6px;
+}
+
+.metanno-viewer__source-name,
+.metanno-viewer__table {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.metanno-viewer__source-name {
+  flex: 1 1 auto;
+}
+
+.metanno-viewer__source small {
+  flex: 0 0 auto;
+  color: var(--jp-ui-font-color3);
+  font-size: inherit;
+}
+
+.metanno-viewer__disclosure {
+  flex: 0 0 12px;
+  color: var(--jp-ui-font-color2);
+  text-align: center;
+}
+
+.metanno-viewer__tables {
+  margin: 2px 0 6px 18px;
+  padding: 4px;
+  border-radius: var(--jp-border-radius);
+  background: var(--jp-layout-color2);
+}
+
+.metanno-viewer__table {
+  display: block;
+  padding: 5px 8px;
+  font-size: inherit;
+}
+
+.metanno-viewer__tables-empty {
+  padding: 5px 8px;
+  color: var(--jp-ui-font-color3);
+  font-size: inherit;
+}
+
+.metanno-viewer__source:hover,
+.metanno-viewer__table:hover {
+  background: color-mix(in srgb, var(--jp-brand-color1) 7%, var(--jp-layout-color1));
+}
+
+.metanno-viewer__source.is-open,
+.metanno-viewer__table.is-selected {
+  background: color-mix(in srgb, var(--jp-brand-color1) 14%, var(--jp-layout-color1));
+}
+
+.metanno-viewer__status {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  min-height: 20px;
+  margin: 0 10px;
+  padding: 4px 0;
+  color: var(--jp-ui-font-color2);
+  line-height: 1.4;
+  gap: 6px;
+}
+
+.metanno-viewer__status > span {
+  min-width: 0;
+  margin-right: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.metanno-viewer__error {
+  margin: 0 10px;
+  padding: 8px 10px;
+  border-radius: var(--jp-border-radius);
+  color: var(--jp-error-color1);
+  background: color-mix(in srgb, var(--jp-error-color1) 10%, var(--jp-layout-color1));
+}
+
+.metanno-viewer__error:has(> .metanno-viewer__dismiss) {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.metanno-viewer__error > span {
+  flex: 1;
+}
+
+.metanno-viewer__dismiss {
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* Toolbar controls wrap to a new line in narrow tabs instead of overflowing under neighboring tabs */
+.metanno-viewer__view > .metanno-viewer__status {
+  flex-wrap: wrap;
+}
+
+.metanno-viewer__status > .metanno-viewer__error {
+  flex-basis: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.metanno-viewer__application,
+.metanno-viewer__view {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.metanno-viewer__application > .metanno-viewer__view,
+.metanno-viewer__view > .metanno-viewer__pret-host {
+  flex: 1;
+  min-height: 0;
+}
+
+.metanno-viewer__view > .metanno-viewer__status > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0 7px;
+}
+
+body.metanno-viewer-fullscreen > #main {
+  visibility: hidden;
+}
+
+.metanno-viewer__fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: var(--jp-layout-color1);
+  display: flex;
+  flex-direction: column;
+}
+
+.metanno-viewer__fullscreen > * {
+  flex: 1;
+  min-height: 0;
+}
+
+.metanno-viewer__view > [hidden],
+.metanno-viewer__fullscreen [hidden] {
+  display: none;
+}
+
+.metanno-viewer__status > .metanno-viewer__fullscreen-button {
+  display: flex;
+  flex-shrink: 0;
+  margin-right: 0;
+  overflow: visible;
+}
+
+.metanno-viewer__table small {
+  display: block;
+  opacity: 0.7;
+}
+
+.metanno-viewer__copy-menu {
+  position: relative;
+}
+
+.metanno-viewer__copy-menu > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  list-style: none;
+}
+
+.metanno-viewer__copy-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.metanno-viewer__copy-menu > summary::after {
+  content: "▾";
+  font-size: 0.8em;
+}
+
+.metanno-viewer__copy-menu[open] > summary::after {
+  transform: rotate(180deg);
+}
+
+.metanno-viewer__copy-menu > div {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+  padding: 4px;
+  background: var(--jp-layout-color0);
+  border: 1px solid var(--jp-border-color1);
+  box-shadow: var(--jp-elevation-z4);
+}
+
+.metanno-viewer__copy-menu > div > button {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  text-align: left;
+}
+
+.metanno-viewer__search {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  border: 1px solid var(--jp-border-color1);
+  border-radius: 6px;
+  background: var(--jp-layout-color1);
+  color: var(--jp-ui-font-color1);
+  font: inherit;
+}
+
+.metanno-viewer__search:focus {
+  outline: 2px solid var(--jp-brand-color1);
+  outline-offset: -1px;
+}
+
+.metanno-viewer-sidebar { min-width: 220px; overflow: auto; }
+.metanno-viewer__entry { display: flex; align-items: center; }
+.metanno-viewer__entry > .metanno-viewer__table { flex: 1; min-width: 0; }
+.metanno-viewer__entry-new {
+  border: 0;
+  background: transparent;
+  color: var(--jp-ui-font-color2);
+  cursor: pointer;
+  padding: 6px;
+}
+.metanno-viewer__entry-new:hover { background: var(--jp-layout-color2); }

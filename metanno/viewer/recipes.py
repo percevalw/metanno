@@ -1,0 +1,134 @@
+"""
+Load Python applications and their parameter schemas for source views and saved Annotations
+"""
+
+from __future__ import annotations
+
+import importlib.util
+import inspect
+import pkgutil
+from pathlib import Path
+
+from confit import Config, validate_arguments
+from pydantic import ValidationError
+
+from .config import ViewConfig
+
+
+def table_view(store):
+    """
+    Show the only DataFrame of a Store in a table, with a form for the selected rows, the default view of a table
+    """
+    from pret import DataFrame
+    from pret.dataframe_sqlite import INTERNAL_ROW_ID
+    from pret_simple_dock import Layout, Panel
+
+    from metanno import DataWidgetFactory
+
+    frames = [key for key in store if isinstance(store[key], DataFrame)]
+    if len(frames) != 1:
+        raise ValueError("The table view requires exactly one DataFrame, choose a recipe for this Store")
+    # Pret row IDs identify the selected rows shared by the table and the form
+    factory = DataWidgetFactory(store)
+    table = factory.create_table_widget(
+        store_key=frames[0],
+        primary_key=INTERNAL_ROW_ID,
+        fields=[],
+        include_unconfigured_columns=True,
+        source_requery=True,
+        style={"height": "100%"},
+    )
+    form = factory.create_form_widget(
+        store_key=frames[0],
+        primary_key=INTERNAL_ROW_ID,
+        fields=[],
+        style={"height": "100%", "overflow": "auto", "padding": "8px", "boxSizing": "border-box"},
+    )
+    return Layout(
+        Panel(table, key="Table"),
+        Panel(form, key="Selected rows"),
+        default_config={
+            "kind": "row",
+            "children": [{"tabs": ["Table"], "size": 70}, {"tabs": ["Selected rows"], "size": 30}],
+        },
+        style={"height": "100%", "minHeight": 0},
+    )
+
+
+table_view.annotation_setup_code = None
+
+
+def load_recipes(path):
+    """
+    Load the recipe entry points of a directory, after the built in table view
+    """
+    root = Path(path)
+    recipes = {"table": table_view}
+    if not root.is_dir():
+        return recipes
+    for file in sorted(root.glob("*.py")):
+        spec = importlib.util.spec_from_file_location(f"metanno.viewer_recipe_{file.stem}", file)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        main = getattr(module, "main", None)
+        if not callable(main):
+            raise ValueError(f"Recipe {file} must define a callable main")
+        if "store" not in inspect.signature(main).parameters:
+            raise ValueError(f"Recipe {file} must define main(store, ...)")
+        recipe = validate_arguments(main)
+        recipe.annotation_setup_code = getattr(module, "annotation_setup_code", None)
+        recipes[file.stem] = recipe
+    return recipes
+
+
+def recipe_choices(store, recipes):
+    """
+    Return the recipes offered by the recipe selectors for a Store, the table view needs exactly one DataFrame
+    """
+    from pret import DataFrame
+
+    single = sum(isinstance(store[key], DataFrame) for key in store) == 1
+    return [name for name in recipes if name != "table" or single]
+
+
+def load_views(path):
+    """
+    Load the saved views of a directory, listed by the sidebar and opened by the explorer kernel and view_opener
+    """
+    root = Path(path)
+    if not root.is_dir():
+        return []
+    views = []
+    for file in sorted([*root.glob("*.cfg"), *root.glob("*.yml"), *root.glob("*.yaml")]):
+        try:
+            views.append(ViewConfig(**{**Config.from_disk(file), "name": file.stem}))
+        except ValidationError as exc:
+            raise ValueError(f"Saved view {file} is invalid, {exc}") from exc
+    return views
+
+
+def render_recipe(store, name, parameters, recipes, read_only=False):
+    """
+    Render a Store with the selected recipe for a source tab or notebook view, with a bar below it showing
+    the rejected edits and undo of the Store
+    """
+    from pret.react import div
+
+    from metanno.recipes.data_widget_factory import VIEW_READ_ONLY
+    from metanno.recipes.data_widget_factory.widget_data import StatusBar
+
+    token = VIEW_READ_ONLY.set(read_only)
+    try:
+        application = pkgutil.resolve_name(name) if ":" in name else recipes[name]
+        parameters = dict(parameters)
+        if "read_only" in inspect.signature(application).parameters:
+            parameters["read_only"] = read_only
+        view = application(store=store, **parameters)
+        return div(
+            div(view, style={"flex": "1 1 auto", "minHeight": 0}),
+            # The tab toolbar shows the kernel state, the bar shows only Store errors
+            StatusBar(store=store, synced=store.doc.sync_id is not None, show_connection=False),
+            style={"display": "flex", "flexDirection": "column", "height": "100%"},
+        )
+    finally:
+        VIEW_READ_ONLY.reset(token)
