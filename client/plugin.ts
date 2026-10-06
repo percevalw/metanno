@@ -1,12 +1,5 @@
-// noinspection ES6UnusedImports
 import '@pret-globals';
+import './style.css';
+import './viewer/style.css';
 
-import "./style.css";
-
-const plugin = {
-  id: "metanno:plugin", // app
-  activate: () => null,
-  autoStart: true,
-};
-
-export default plugin;
+export { default } from './viewer';

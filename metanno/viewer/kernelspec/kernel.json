@@ -1,0 +1,12 @@
+{
+  "argv": [
+    "{resource_dir}/../../../../bin/metanno-explorer-kernel",
+    "-f",
+    "{connection_file}"
+  ],
+  "display_name": "Metanno Data Explorer",
+  "language": "python",
+  "metadata": {
+    "debugger": false
+  }
+}

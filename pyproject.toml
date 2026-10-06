@@ -1,6 +1,6 @@
 [project]
 name = "metanno"
-description = "Modular annotator building framework in Python"
+description = "Data exploration and annotation in JupyterLab and Python"
 authors = [
     { name = "Perceval Wajsburt", email = "perceval.wajsburt@gmail.com" }
 ]
@@ -16,9 +16,6 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.7",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3 :: Only",
     "Topic :: Software Development :: Libraries",
@@ -34,13 +31,25 @@ classifiers = [
     "Framework :: Jupyter :: JupyterLab :: Extensions :: Prebuilt",
     "Framework :: Jupyter :: JupyterLab :: Extensions :: Mime Renderers",
 ]
-requires-python = ">=3.7,<4.0,!=3.8.1"
+requires-python = ">=3.10,<4.0"
 dependencies = [
-    "pret>=0.6.3",
+    "pret>=0.6.4",
     "pret-joy",
     "pret-markdown",
     "pret-simple-dock",
+    "ibis-framework>=12,<13",
+    "ipykernel>=6",
+    "pyarrow>=14",
+    "confit>=0.10,<0.11",
+    "PyYAML>=6",
 ]
+
+[project.optional-dependencies]
+testing = ["pret[testing]", "edsnlp", "ibis-framework[sqlite,duckdb]>=12,<13"]
+coverage = ["metanno[testing]", "pret[coverage]"]
+
+[tool.pret.testing]
+python = ["tests/python"]
 
 # ----- Development configuration -----
 [dependency-groups]
@@ -60,6 +69,7 @@ docs = [
 
 # ----- CLI configuration -----
 [project.scripts]
+metanno-explorer-kernel = "metanno.viewer.explorer_kernel:main"
 pret = "pret.cli:app"
 
 # ----- Linting & Testing -----
@@ -76,7 +86,7 @@ exclude = [
     "build",
     "metanno/ui.py"
 ]
-line-length = 100
+line-length = 120
 lint.select = [
     "E",
     "F",
@@ -106,32 +116,32 @@ order-by-type = true
 path = "metanno/version.py"
 
 [build-system]
-requires = ["hatchling", "jupyterlab<4.0.0", "pip<=24.0", "hatch-jupyter-builder", "virtualenv<21.0.0"]
+requires = ["hatchling", "jupyterlab<4.0.0", "hatch-jupyter-builder"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.hooks.jupyter-builder]
 dependencies = ["hatch-jupyter-builder"]
 build-function = "hatch_jupyter_builder.npm_builder"
 ensured-targets = ["metanno/js-extension/package.json"]
-install-pre-commit-hook = true
+# install-pre-commit-hook = true
 optional-editable-build = false
 build-kwargs = { "build_cmd" = "build", "npm" = ["jlpm"] }
-editable-build-kwargs = { "build_cmd" = "build:dev", "npm" = ["jlpm"] }
+# Editable installs build production bundles too, a development react-konva freezes JupyterLab's production React
+editable-build-kwargs = { "build_cmd" = "build", "npm" = ["jlpm"] }
 
 [tool.hatch.build]
 artifacts = [
-    "metanno",
-    "pret"
+    "metanno"
 ]
 
 [tool.hatch.build.targets.wheel]
 packages = [
     "metanno",
-    "pret",
 ]
 
 [tool.hatch.build.targets.wheel.shared-data]
 "metanno/js-extension" = "share/jupyter/labextensions/metanno"
+"metanno/viewer/kernelspec" = "share/jupyter/kernels/metanno-explorer"
 
 [tool.hatch.metadata]
 allow-direct-references = true
