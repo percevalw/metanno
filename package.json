@@ -1,6 +1,6 @@
 {
   "name": "metanno",
-  "version": "2.0.0",
+  "version": "2.0.0-beta.1",
   "description": "Data exploration and annotation in JupyterLab and Python",
   "main": "client/index.ts",
   "repository": "https://github.com/percevalw/metanno",
@@ -15,7 +15,7 @@
   },
   "license": "Apache-2.0",
   "peerDependencies": {
-    "pret": ">=0.6.4",
+    "pret": ">=0.7.0-beta.1",
     "react": "^17.0.0",
     "react-dom": "^17.0.0"
   },
