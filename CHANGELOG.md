@@ -23,6 +23,7 @@ Metanno 2 requires Pret 0.7.
 
 ### Other changes
 
+- `DataWidgetFactory.create_filters_view` is removed, tables filter from their column headers.
 
 ## v1.0.0 (2025-05-10)
 
