@@ -101,8 +101,6 @@ plugins:
           inventories:
             - https://percevalw.github.io/pret/main/objects.inv
             - https://aphp.github.io/edsnlp/latest/objects.inv
-  - bibtex:
-      bibtex_file: "docs/references.bib"
   - clickable_code:
   - notebooks_to_md:
       download_notebook_link: true
