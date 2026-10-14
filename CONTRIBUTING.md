@@ -44,3 +44,19 @@ each test.
 pip install -e . --group docs
 mkdocs serve
 ```
+
+## Releasing
+
+Changes are listed under `## Unreleased` in `CHANGELOG.md`. To release them, run the **Prepare Release PR** workflow from
+the Actions tab with a `version`, eg `2.0.0` or `2.0.0-beta.2`, or a `bump` (`patch`, `minor` or `major`). It opens a
+`release/v<version>` PR that bumps the version and dates the changelog section, the same as running locally:
+
+```bash
+python scripts/prepare_release.py 2.0.0 --commit --push --pr
+```
+
+The PR description holds the release message between `release-message` markers and can be edited before merging.
+Merging the PR creates the `v<version>` GitHub release with this message, a pre-release for versions like
+`2.0.0-beta.2`, which then publishes the package to PyPI. Both workflows need a `RELEASE_PAT` repository secret, a
+token allowed to push branches, open PRs and create releases: a release created with the default workflow
+token would not start the PyPI workflow.
