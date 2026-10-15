@@ -28,6 +28,22 @@ jobs:
         with:
           python-version: "3.10"
 
+      # Metanno's client imports the pret package, provided by a Pret checkout linked into node_modules
+      - name: 'Checkout Pret'
+        uses: actions/checkout@v4
+        with:
+          repository: percevalw/pret
+          ref: main
+          path: _pret
+          submodules: 'recursive'
+
+      - name: 'Link Pret'
+        run: |
+          npm --prefix _pret install
+          yarn install
+          yarn --cwd _pret link
+          yarn link pret
+
       - name: 'Install build'
         run: pip install build
 
@@ -68,9 +84,21 @@ jobs:
           git config user.email ${{ github.actor }}@users.noreply.github.com
           echo Current branch: $BRANCH_NAME
 
+      # Metanno's client imports the pret package, provided by a Pret checkout linked into node_modules
+      - name: 'Checkout Pret'
+        uses: actions/checkout@v4
+        with:
+          repository: percevalw/pret
+          ref: main
+          path: _pret
+          submodules: 'recursive'
+
       - name: 'Install'
         run: |
+          npm --prefix _pret install
           yarn install
+          yarn --cwd _pret link
+          yarn link pret
           # install setuptools < 81 to fix issue with pkg_resources
           uv pip install -e . --group docs "setuptools<81"
 
