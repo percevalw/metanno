@@ -3,18 +3,20 @@ import { showErrorMessage } from "@jupyterlab/apputils";
 import { LabIcon } from "@jupyterlab/ui-components";
 import { Widget } from "@lumino/widgets";
 import type { SourceSelection } from "./kernel_client";
+import type { AnnotationMetadata } from "./recipe_view";
 
 const PARAM = "metanno-fullscreen";
 
 // A fullscreen URL reopens one of these views after a page reload
 export type FullscreenResource =
-  | { kind: "annotation"; path: string }
+  | { kind: "annotation"; path: string; metadata: AnnotationMetadata }
   | { kind: "preview"; args: any }
   | SourceSelection;
 
 // Encode a view in the fullscreen URL parameter, decodeFullscreenKey reads it back
 export function fullscreenKey(resource: FullscreenResource): string {
-  if (resource.kind === "annotation") return `annotation:${resource.path}`;
+  if (resource.kind === "annotation")
+    return `annotation:${JSON.stringify({ path: resource.path, ...resource.metadata })}`;
   if (resource.kind === "preview") return `preview:${JSON.stringify(resource.args)}`;
   if (resource.kind === "view") return `view:${resource.name}`;
   return `table:${encodeURIComponent(resource.source)}/${encodeURIComponent(resource.table)}`;
@@ -25,7 +27,11 @@ export function decodeFullscreenKey(key: string): FullscreenResource {
   if (key.startsWith("{")) return { kind: "preview", args: JSON.parse(key) };
   const kind = key.slice(0, key.indexOf(":"));
   const value = key.slice(kind.length + 1);
-  if (kind === "annotation") return { kind, path: value };
+  if (kind === "annotation") {
+    // The link holds the Store metadata, so opening it needs no explorer kernel
+    const { path, ...metadata } = JSON.parse(value);
+    return { kind, path, metadata };
+  }
   if (kind === "preview") return { kind, args: JSON.parse(value) };
   if (kind === "view") return { kind, name: value };
   if (kind === "table" && value.includes("/")) {

@@ -51,6 +51,8 @@ function SourceView({ explorer, pretService, initialResource, fullscreenButton }
   const hostNodeRef = useRef<HTMLDivElement | null>(null);
   const hostRef = useRef<IPretHost | null>(null);
   const managerRef = useRef<KernelClient | null>(null);
+  // Set by Refresh, the only tab action that starts a stopped explorer kernel
+  const startRef = useRef(false);
   const activeQueryRef = useRef<string | null>(null);
   const viewRef = useRef<string | null>(null);
   const label =
@@ -58,7 +60,6 @@ function SourceView({ explorer, pretService, initialResource, fullscreenButton }
     (initialResource.kind === "view" ? initialResource.name : `${initialResource.source}.${initialResource.table}`);
   const [status, setStatus] = useState("Connecting to the Metanno data explorer kernel");
   const [error, setError] = useState<string | null>(null);
-  const [refreshGeneration, setRefreshGeneration] = useState(0);
   const [kernelGeneration, setKernelGeneration] = useState(0);
   const [ready, setReady] = useState(false);
   // Recipe chosen in the selector, the selection recipe until then
@@ -99,17 +100,16 @@ function SourceView({ explorer, pretService, initialResource, fullscreenButton }
   useEffect(() => {
     let disposed = false;
     let unsubscribe = () => {};
-    let disconnectKernelChanged = () => {};
+    // The table reopens when a kernel starts, e.g. from the sidebar, a tab never starts one unless Refresh is clicked
+    const handleKernelChanged = () => setKernelGeneration((value) => value + 1);
+    explorer.context.kernelChanged.connect(handleKernelChanged);
     setReady(false);
     void (async () => {
       try {
-        const manager = await explorer.connect();
-        const sessionContext = explorer.context;
+        const manager = await explorer.connect(startRef.current);
+        startRef.current = false;
         if (disposed || !hostNodeRef.current) return;
         managerRef.current = manager;
-        const handleKernelChanged = () => setKernelGeneration((value) => value + 1);
-        sessionContext.kernelChanged.connect(handleKernelChanged);
-        disconnectKernelChanged = () => sessionContext.kernelChanged.disconnect(handleKernelChanged);
         unsubscribe = manager.subscribeEvents((message) => {
           if (message.method !== "query_status") return;
           const data = message.data;
@@ -143,7 +143,7 @@ function SourceView({ explorer, pretService, initialResource, fullscreenButton }
     return () => {
       disposed = true;
       unsubscribe();
-      disconnectKernelChanged();
+      explorer.context.kernelChanged.disconnect(handleKernelChanged);
       hostRef.current?.dispose();
       hostRef.current = null;
       activeQueryRef.current = null;
@@ -201,7 +201,7 @@ function SourceView({ explorer, pretService, initialResource, fullscreenButton }
       if (openedRef) void manager.request("close_view", { view_ref: openedRef });
       if (viewRef.current === id) viewRef.current = null;
     };
-  }, [initialResource, recipe, connection, ready, kernelGeneration, refreshGeneration, renderPretView]);
+  }, [initialResource, recipe, connection, ready, kernelGeneration, renderPretView]);
 
   return (
     <div className="metanno-viewer">
@@ -285,8 +285,8 @@ function SourceView({ explorer, pretService, initialResource, fullscreenButton }
           <button
             className="metanno-viewer__toolbar-button"
             onClick={() => {
-              if (ready) setRefreshGeneration((value) => value + 1);
-              else setKernelGeneration((value) => value + 1);
+              startRef.current = true;
+              setKernelGeneration((value) => value + 1);
             }}
           >
             Refresh
