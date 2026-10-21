@@ -46,16 +46,17 @@ class ConnectionConfig(Section):
 
 class SourceConfig(Section):
     """
-    A catalogue database or a directory of Parquet or Delta tables reached through a named connection
+    A catalogue database, a directory of Parquet or Delta tables, or every database of a connection
 
     connection is the one used by default, connections lists the others that can read the same database, e.g. DuckDB
-    and Spark for a Hive database
+    and Spark for a Hive database. A `databases` source lists the catalogs and databases of its connection, each
+    shown as its own source in the sidebar
     """
 
     name: NonEmpty
     connection: NonEmpty
     connections: List[NonEmpty] = []
-    kind: Literal["catalogue", "files"] = "catalogue"
+    kind: Literal["catalogue", "files", "databases"] = "catalogue"
     catalog: Optional[str] = None
     database: Optional[str] = None
     uri: Optional[str] = None

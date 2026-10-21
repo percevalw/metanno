@@ -17,10 +17,14 @@ import { ErrorBanner } from "./source_view";
 
 interface SourceSummary {
   name: string;
+  // catalogue, files or databases
   kind: string;
   connection: string;
   connections: string[];
 }
+
+// Databases listed for a `databases` source, {} while listing, or the error of the listing
+type ListedDatabases = SourceSummary[] | { error?: string };
 
 interface TableSummary {
   name: string;
@@ -131,6 +135,8 @@ function Catalogue({
   const [source, setSource] = useState<string | null>(null);
   const [closedGroups, setClosedGroups] = useState<string[]>([]);
   const [tables, setTables] = useState<TableSummary[] | null>(null);
+  const [listed, setListed] = useState<Record<string, ListedDatabases>>({});
+  const [openDatabases, setOpenDatabases] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [, updateEntries] = useState(0);
@@ -152,6 +158,8 @@ function Catalogue({
         ]);
         if (disposed) return;
         setSources(catalogue.data.sources);
+        setListed({});
+        setOpenDatabases([]);
         setViews(recipes.data.views);
         setStores(recipes.data.stores);
         // Paths relative to the Jupyter root, opened in the file browser
@@ -165,7 +173,28 @@ function Catalogue({
       outputs.changed.disconnect(update);
     };
   }, [configurationRevision]);
-  const openConnection = sources.find((item) => item.name === source)?.connection;
+  const databasesOf = (name: string) => {
+    const state = listed[name];
+    return Array.isArray(state) ? state : [];
+  };
+  const listedSources = sources.flatMap((item) => databasesOf(item.name));
+  const openConnection = [...sources, ...listedSources].find((item) => item.name === source)?.connection;
+  // A `databases` source lists its databases on the first click only, there can be thousands of them
+  const toggleDatabases = (name: string) => {
+    const open = openDatabases.includes(name);
+    if (listed[name] === undefined) listDatabases(name);
+    setOpenDatabases((current) => (open ? current.filter((other) => other !== name) : [...current, name]));
+  };
+  function listDatabases(name: string) {
+    setListed((current) => ({ ...current, [name]: {} }));
+    void explorer
+      .connect()
+      .then((manager) => manager.request<{ sources: SourceSummary[] }>("list_databases", { source: name }))
+      .then((reply) => setListed((current) => ({ ...current, [name]: reply.data.sources })))
+      .catch((reason) =>
+        setListed((current) => ({ ...current, [name]: { error: String(reason?.message ?? reason) } }))
+      );
+  }
   // Menu of the connections a database can be read with, the chosen one becomes its default in metanno.yaml
   const chooseConnection = (event: React.MouseEvent, item: SourceSummary) => {
     const box = (event.currentTarget as HTMLElement).getBoundingClientRect();
@@ -300,6 +329,49 @@ function Catalogue({
       )}
     </section>
   );
+  // A `databases` source row, with its databases or the error of their listing under it once clicked
+  const databasesGroup = (item: SourceSummary) => {
+    const state = listed[item.name];
+    const open = openDatabases.includes(item.name);
+    return (
+      <section className="metanno-viewer__source-group" key={item.name}>
+        <div className="metanno-viewer__source-row">
+          <button
+            className={`metanno-viewer__source${open ? " is-open" : ""}`}
+            aria-expanded={open}
+            title={`Databases of the ${item.connection} connection`}
+            onClick={() => toggleDatabases(item.name)}
+          >
+            <span className="metanno-viewer__disclosure">{open ? "▾" : "▸"}</span>
+            <span className="metanno-viewer__source-name">{item.name}</span>
+            {Array.isArray(state) && <small>{state.length} databases</small>}
+          </button>
+          <span className="metanno-viewer__connection">{item.connection}</span>
+        </div>
+        {open &&
+          state !== undefined &&
+          !Array.isArray(state) &&
+          (state.error ? (
+            <ErrorBanner
+              text={state.error}
+              onRetry={() => listDatabases(item.name)}
+              onDismiss={() => {
+                setOpenDatabases((current) => current.filter((other) => other !== item.name));
+                setListed(({ [item.name]: _, ...rest }) => rest);
+              }}
+            />
+          ) : (
+            <div className="metanno-viewer__tables-empty">Listing databases…</div>
+          ))}
+        {open && Array.isArray(state) && (
+          <div className="metanno-viewer__listed">
+            {state.length === 0 && <div className="metanno-viewer__tables-empty">No databases with tables</div>}
+            {state.filter((entry) => matches(entry.name) || entry.name === source).map(sourceGroup)}
+          </div>
+        )}
+      </section>
+    );
+  };
 
   return (
     <>
@@ -423,7 +495,17 @@ function Catalogue({
             </div>
           )}
         </div>
-        {sources.filter((item) => matches(item.name) || item.name === source).map(sourceGroup)}
+        {sources
+          .filter((item) => {
+            // A databases source stays while one of its databases matches or is open, so the search also filters
+            // the tables of the open database
+            return (
+              matches(item.name) ||
+              item.name === source ||
+              databasesOf(item.name).some((entry) => matches(entry.name) || entry.name === source)
+            );
+          })
+          .map((item) => (item.kind === "databases" ? databasesGroup(item) : sourceGroup(item)))}
         <div className="metanno-viewer__sidebar-title">Annotations</div>
         <div className="metanno-viewer__views">
           {visibleStores.filter((store) => !store.group).map(storeEntry)}
