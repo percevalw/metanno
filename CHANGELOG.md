@@ -13,6 +13,10 @@
 - The explorer kernel only starts from the sidebar or **Refresh**, also after a shutdown.
 - Each connection runs its queries on its own thread, so a slow database no longer blocks the others.
 
+### Widgets
+
+- Bare text filters ignore case, while `contains`, `starts with` and `ends with` match case.
+
 ## v2.0.0-beta.1 (2026-10-08)
 
 Metanno 2 requires Pret 0.7.
