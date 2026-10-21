@@ -1,5 +1,5 @@
 """
-Run database operations on one backend thread and cancel active source queries
+Run database operations on one backend thread per connection and cancel active source queries
 """
 
 from __future__ import annotations
@@ -12,23 +12,38 @@ from contextlib import contextmanager
 
 class SourceQueryWorker:
     """
-    Execute source queries on a single backend thread in the data explorer kernel.
+    Execute source queries in the data explorer kernel, one at a time per connection.
 
-    Database connections are opened, queried and closed on this thread. View IDs
-    group requests for tab cleanup, request IDs identify individual operations
-    for cancellation even after the source configuration changes.
+    Each connection is opened and queried on its own thread, so a slow database, e.g. a Spark session
+    starting, does not delay the others. Work without a connection runs on the `None` thread. View IDs
+    group requests for tab cleanup, request IDs identify individual operations for cancellation even
+    after the source configuration changes.
     """
 
     def __init__(self, report):
         self.report = report
-        self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="metanno-source")
+        self.executors = {}
         self.pending_requests = {}
         self.requests_by_view = {}
         self.lock = threading.RLock()
-        self.active_query = None
-        self.thread_id = None
+        self.active_queries = {}
 
-    def submit(self, operation_id, function, *args, view_id=None, source=None, table=None):
+    def executor(self, connection):
+        """
+        Return the single thread executor of a connection, created on first use
+        """
+        with self.lock:
+            if connection not in self.executors:
+                self.executors[connection] = ThreadPoolExecutor(1, thread_name_prefix=f"metanno-source-{connection}")
+            return self.executors[connection]
+
+    def on_thread(self, connection):
+        """
+        Tell whether the caller already runs on the thread of this connection
+        """
+        return threading.current_thread().name == f"metanno-source-{connection}_0"
+
+    def submit(self, operation_id, function, *args, view_id=None, source=None, table=None, connection=None):
         """
         Queue catalogue or provider work and publish progress for its requesting view
         """
@@ -49,7 +64,6 @@ class SourceQueryWorker:
                 )
 
         def execute():
-            self.thread_id = threading.get_ident()
             report("running")
             return function(*args)
 
@@ -65,7 +79,7 @@ class SourceQueryWorker:
             if view_id is not None and view_id not in self.requests_by_view:
                 raise ValueError("The view has been closed")
             report("queued")
-            future = self.executor.submit(execute)
+            future = self.executor(connection).submit(execute)
             self.pending_requests[operation_id] = future
             if view_id is not None:
                 self.requests_by_view[view_id].add(operation_id)
@@ -79,14 +93,14 @@ class SourceQueryWorker:
         """
         with query as execution:
             with self.lock:
-                self.active_query = execution
+                self.active_queries[execution.request_id] = execution
             try:
                 yield
                 if execution.cancelled:
                     raise ValueError("Query cancelled")
             finally:
                 with self.lock:
-                    self.active_query = None
+                    self.active_queries.pop(execution.request_id, None)
 
     def cancel(self, operation_id):
         """
@@ -96,9 +110,8 @@ class SourceQueryWorker:
             future = self.pending_requests.get(operation_id)
             if future is not None and future.cancel():
                 return True
-            return bool(
-                self.active_query and self.active_query.request_id == operation_id and self.active_query.cancel()
-            )
+            active = self.active_queries.get(operation_id)
+            return bool(active and active.cancel())
 
     def close_view(self, view_id):
         """
@@ -117,5 +130,6 @@ class SourceQueryWorker:
                 self.cancel(operation_id)
             self.requests_by_view.clear()
         for source in sources:
-            self.executor.submit(source.close)
-        self.executor.shutdown(wait=False)
+            self.executor(None).submit(source.close)
+        for executor in self.executors.values():
+            executor.shutdown(wait=False)

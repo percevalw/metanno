@@ -58,13 +58,13 @@ def test_comm_replies_errors_events_and_liveness(monkeypatch):
     ]
 
     kernel.query_worker = SimpleNamespace(
-        active_query=SimpleNamespace(request_id="active-preview"),
+        active_queries={"active-preview": SimpleNamespace(request_id="active-preview")},
         pending_requests={"active-preview": Future()},
     )
     monkeypatch.setattr("metanno.viewer.explorer_kernel.os.getcwd", lambda: "/project")
     comm = EventComm()
     request(kernel, comm, "is_alive", {})
-    assert comm.messages[0]["data"]["active_request_id"] == "active-preview"
+    assert comm.messages[0]["data"]["active_requests"] == ["active-preview"]
     assert comm.messages[0]["data"]["queued_requests"] == ["active-preview"]
 
 
