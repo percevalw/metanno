@@ -45,7 +45,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-testing = ["pret[testing]", "edsnlp", "ibis-framework[sqlite,duckdb]>=12,<13"]
+# Ibis 12 calls fetch_arrow_table, which DuckDB 2.0 removed, the cap can go once an Ibis release supports DuckDB 2
+testing = ["pret[testing]", "edsnlp", "ibis-framework[sqlite,duckdb]>=12,<13", "duckdb<2"]
 coverage = ["metanno[testing]", "pret[coverage]"]
 
 [tool.pret.testing]
