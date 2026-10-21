@@ -191,3 +191,34 @@ def test_sidebar_root_and_configuration_reload(tmp_path):
         kernel.dispatch("reload_configuration", {})
     assert kernel.sources is current
     assert path.read_text() == "[invalid"
+
+
+def test_view_open_resolves_refreshing_backend_tables_again(tmp_path, monkeypatch):
+    """
+    Opening a view drops the cached tables of backends that list table files at table() time
+    """
+    import metanno.viewer.explorer_kernel as kernel_module
+    from metanno.viewer.sources import SourceCatalog
+
+    (tmp_path / "factories.py").write_text(
+        "import ibis\n\n\n"
+        "def connect():\n"
+        "    backend = ibis.duckdb.connect()\n"
+        "    backend.con.execute('CREATE TABLE notes AS SELECT 1 AS id')\n"
+        "    backend.refresh_tables_on_view_open = True\n"
+        "    return backend\n"
+    )
+    (tmp_path / "metanno.yaml").write_text(
+        "connections:\n  fresh: {factory: 'factories:connect'}\nsources:\n  fresh: {connection: fresh}\n"
+    )
+    kernel = DataExplorerKernel.__new__(DataExplorerKernel)
+    kernel.sources = SourceCatalog(tmp_path)
+    kernel.views = {}
+    kernel.query_worker = SimpleNamespace(requests_by_view={}, close_view=lambda view_ref: None)
+    rendered = SimpleNamespace(_repr_mimebundle_=lambda: {"application/vnd.pret+json": {"view_data": {}}})
+    monkeypatch.setattr(
+        kernel_module, "create_source_view", lambda sources, worker, view_ref, view: (rendered, None, [])
+    )
+    kernel.sources.table("fresh", "notes")
+    request(kernel, EventComm(), "open_table_view", {"source": "fresh", "table": "notes", "view_ref": "fresh"})
+    assert ("fresh", "notes", "fresh") not in kernel.sources.tables

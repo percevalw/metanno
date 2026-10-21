@@ -165,6 +165,14 @@ class DataExplorerKernel(IPythonKernel):
                 if data.get("recipe", definition.recipe) != definition.recipe:
                     definition = definition.model_copy(update={"recipe": data["recipe"], "parameters": {}})
                 view_ref = data["view_ref"]
+                # Factory backends that list table files at table() time ask for a new table at each view open,
+                # e.g. the DuckDB views of Delta tables then see the commits made since the previous open
+                for table in definition.tables.values():
+                    connection = table.connection or self.sources.source(table.source).connection
+                    key = table.source, table.table, connection
+                    cached = self.sources.tables.get(key)
+                    if cached is not None and getattr(cached.get_backend(), "refresh_tables_on_view_open", False):
+                        del self.sources.tables[key]
                 self.query_worker.requests_by_view[view_ref] = set()
                 try:
                     view, store, choices = create_source_view(self.sources, self.query_worker, view_ref, definition)
