@@ -107,28 +107,36 @@ class ViewConfig(BaseModel):
 
 
 class ProjectConfig(Section):
+    """
+    directory is the config folder, e.g. metanno-home, holding the connection modules, views/ and annotations/
+    """
+
     directory: Path
     preview: PreviewConfig = PreviewConfig()
     connections: Dict[NonEmpty, ConnectionConfig] = {}
     sources: Dict[NonEmpty, SourceConfig] = {}
-    views: Path
 
 
 def config_file(path: Path | None = None) -> Path:
     """
-    Resolve an explicit file or directory, otherwise the nearest metanno.yaml above the current directory.
+    Resolve an explicit file or directory, otherwise the nearest metanno-home/metanno.yaml above the current
+    directory.
 
-    The Metanno sidebar keeps this file at the root of the Jupyter file browser, and notebook kernels start in a
-    folder under that root, so they find the same file. Without one, it would be in the current directory
+    The Metanno sidebar keeps this file in the metanno-home folder at the root of the Jupyter file browser, and
+    notebook kernels start in a folder under that root, so they find the same file. Without one, it would be in the
+    metanno-home folder of the current directory
     """
     if path is None:
         directory = Path.cwd()
         for folder in (directory, *directory.parents):
-            if (folder / "metanno.yaml").is_file():
-                return folder / "metanno.yaml"
-        return directory / "metanno.yaml"
+            if (folder / "metanno-home" / "metanno.yaml").is_file():
+                return folder / "metanno-home" / "metanno.yaml"
+        return directory / "metanno-home" / "metanno.yaml"
     path = Path(path).expanduser().resolve()
-    return path / "metanno.yaml" if path.is_dir() else path
+    if not path.is_dir():
+        return path
+    # A folder may hold its metanno-home, e.g. the file browser root saved by Stores
+    return path / "metanno.yaml" if (path / "metanno.yaml").is_file() else path / "metanno-home" / "metanno.yaml"
 
 
 def parse_config(raw: Any, config_path: Path) -> ProjectConfig:
@@ -137,14 +145,12 @@ def parse_config(raw: Any, config_path: Path) -> ProjectConfig:
     """
     if not isinstance(raw, dict):
         raise ConfigError("metanno.yaml must contain a mapping")
-    views = Path(raw.get("views", "views")).expanduser()
     try:
         config = ProjectConfig(
             directory=config_path.parent,
             preview=raw.get("preview", {}),
             connections=raw.get("connections", {}),
             sources={name: {**value, "name": name} for name, value in raw.get("sources", {}).items()},
-            views=views if views.is_absolute() else config_path.parent / views,
         )
     except (ValidationError, TypeError, AttributeError) as exc:
         raise ConfigError(f"Invalid Metanno configuration, {exc}") from exc

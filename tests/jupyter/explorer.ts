@@ -9,7 +9,7 @@ export async function openExplorer(page, { missing = false, delayed = false } = 
   const directory = process.env.PRET_TEST_ROOT;
   const base = process.env.PRET_TEST_URL.replace(/\/$/, "");
   execFileSync(process.env.PYTHON, [path.join(directory, "explorer_app.py")], { cwd: directory });
-  const configurationPath = path.join(directory, "metanno.yaml");
+  const configurationPath = path.join(directory, "metanno-home", "metanno.yaml");
   const sourceConfiguration = fs.readFileSync(configurationPath, "utf8");
   if (missing) fs.unlinkSync(configurationPath);
   if (delayed) fs.writeFileSync(path.join(directory, "delay-replies"), "");

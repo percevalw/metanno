@@ -4,13 +4,14 @@ Generate executable notebook queries and annotation preparation from an open sou
 
 import datetime
 import inspect
+import pkgutil
 from decimal import Decimal
 
 from pret import DataFrame
 from pret.dataframe_external import coerce_ibis_literal
 
 from .source_provider import SourceDataFrameProvider, unwrap_added_columns
-from .sources import file_table_uri, load_factory
+from .sources import file_table_uri
 
 
 def export_view_code(store, view_definition, config_dir, purpose="annotation"):
@@ -126,7 +127,7 @@ def export_view_code(store, view_definition, config_dir, purpose="annotation"):
                 imports.append(statement)
             used_names.add(attribute.split(".")[0])
             call = f"{attribute}({arguments})"
-            factory = inspect.unwrap(load_factory(config.directory, connection.factory))
+            factory = inspect.unwrap(pkgutil.resolve_name(connection.factory))
             if inspect.isgeneratorfunction(factory) or isinstance(factory, type) and hasattr(factory, "__enter__"):
                 if "from contextlib import ExitStack" not in imports:
                     imports.append("from contextlib import ExitStack")
@@ -299,7 +300,7 @@ def export_view_code(store, view_definition, config_dir, purpose="annotation"):
     parameters = dict(view_definition.parameters) if view_definition else {}
     annotation_setup = ""
     if purpose == "annotation":
-        application = load_recipes(config.views / "recipes")[recipe]
+        application = load_recipes(config.directory / "views")[recipe]
         if application.annotation_setup_code is not None:
             annotation_setup = application.annotation_setup_code(parameters).rstrip()
     lines += [
@@ -322,7 +323,7 @@ def export_view_code(store, view_definition, config_dir, purpose="annotation"):
     if purpose == "annotation":
         lines += [
             "# Save editable copies of the query results and added fields, without changing the source database",
-            f"destination = Path({str(config.views)!r}) / 'stores' / 'annotation.pret'",
+            f"destination = Path({str(config.directory)!r}) / 'annotations' / 'annotation.pret'",
             "# Annotation views copy every table into the page so filters and edits apply at once, up to 50 MB.",
             "# The options are saved with the Store and used again when it is reopened",
             "options = {'dataframe_sync': 'full', 'dataframe_max_bytes': 50 * 1024 * 1024}",

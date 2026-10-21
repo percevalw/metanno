@@ -250,7 +250,7 @@ export class ExplorerKernelConnection {
       this.client = (async () => {
         const client = new KernelClient(this.context.session!.kernel!);
         await client.connect();
-        // The kernel reads the metanno.yaml at the root of the file browser, the one Open configuration edits
+        // The kernel reads metanno-home/metanno.yaml at the root of the file browser, the one Open configuration edits
         await client.request("set_root", { root: PageConfig.getOption("serverRoot") });
         return client;
       })();

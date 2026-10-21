@@ -96,16 +96,16 @@ def test_list_views_groups_campaign_stores(tmp_path, monkeypatch):
     from pret.store import write_store
 
     monkeypatch.chdir(tmp_path)
-    stores = tmp_path / "views" / "stores"
-    stores.mkdir(parents=True)
+    stores = tmp_path / "annotations"
+    stores.mkdir()
     write_store(create_store({"done": False}), stores / "current.pret", metadata={"recipe": "todo"})
     (stores / "campaign").mkdir()
     write_store(create_store({"done": False}), stores / "campaign" / "alice.pret", metadata={"recipe": "todo"})
-    recipes = tmp_path / "views" / "recipes"
+    recipes = tmp_path / "views"
     recipes.mkdir()
     (recipes / "todo.py").write_text("def main(store):\n    return store\n")
     kernel = DataExplorerKernel.__new__(DataExplorerKernel)
-    kernel.sources = SimpleNamespace(config=SimpleNamespace(views=tmp_path / "views"))
+    kernel.sources = SimpleNamespace(config=SimpleNamespace(directory=tmp_path))
 
     # JupyterLab writes a Jupyter root under the home directory as ~/...
     monkeypatch.setenv("HOME", str(tmp_path.parent))
@@ -116,16 +116,16 @@ def test_list_views_groups_campaign_stores(tmp_path, monkeypatch):
         {"name": "current", "group": None, "path": str(stores / "current.pret"), "recipe": "todo"},
     ]
     # The sidebar opens these paths, relative to the Jupyter root, in the file browser
-    assert reply["directories"] == {"views": "views", "stores": "views/stores"}
+    assert reply["directories"] == {"views": "views", "stores": "annotations"}
     with pytest.raises(ValueError, match="must be inside the Jupyter root"):
         kernel.dispatch("list_views", {"root": str(tmp_path / "other")})
-    # A views folder linked under the root, eg on a data disk, opens through its link
+    # A metanno-home folder linked under the root, eg on a data disk, opens through its link
     (tmp_path / "home").mkdir()
     (tmp_path / "home" / "disk").symlink_to(tmp_path)
-    kernel.sources = SimpleNamespace(config=SimpleNamespace(views=tmp_path / "home" / "disk" / "views"))
+    kernel.sources = SimpleNamespace(config=SimpleNamespace(directory=tmp_path / "home" / "disk"))
     reply = kernel.dispatch("list_views", {"root": str(tmp_path / "home")})
-    assert reply["directories"] == {"views": "disk/views", "stores": "disk/views/stores"}
-    kernel.sources = SimpleNamespace(config=SimpleNamespace(views=tmp_path / "views"))
+    assert reply["directories"] == {"views": "disk/views", "stores": "disk/annotations"}
+    kernel.sources = SimpleNamespace(config=SimpleNamespace(directory=tmp_path))
     import sqlite3
 
     unsupported = stores / "unsupported.pret"
@@ -157,8 +157,8 @@ def test_list_views_groups_campaign_stores(tmp_path, monkeypatch):
 
 def test_sidebar_root_and_configuration_reload(tmp_path):
     """
-    The explorer reads the metanno.yaml of the Jupyter root sent by the sidebar, created when missing, and reloading
-    it keeps the catalogue of open views
+    The explorer reads the metanno-home/metanno.yaml of the Jupyter root sent by the sidebar, created when missing,
+    and reloading it keeps the catalogue of open views
     """
     from metanno.viewer.config import ConfigError
     from metanno.viewer.sources import SourceCatalog
@@ -170,9 +170,9 @@ def test_sidebar_root_and_configuration_reload(tmp_path):
     root = tmp_path / "root"
     root.mkdir()
     kernel.dispatch("set_root", {"root": str(root)})
-    path = root / "metanno.yaml"
+    path = root / "metanno-home" / "metanno.yaml"
     assert path.read_text() == "connections: {}\nsources: {}\n"
-    assert kernel.sources.config.directory == root
+    assert kernel.sources.config.directory == root / "metanno-home"
     old = kernel.sources
     kernel.views = {"old": SourceView(None, {}, old)}
     path.write_text("connections:\n  local:\n    url: 'duckdb://'\nsources:\n  planner:\n    connection: local\n")

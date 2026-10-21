@@ -14,13 +14,6 @@ from pret.react import div
 from metanno import view_opener
 
 
-def connect():
-    """
-    Open the local SQLite catalogue through the configured SourceCatalog factory
-    """
-    return ibis.sqlite.connect(Path(__file__).parent / "source.sqlite")
-
-
 @component
 def ConnectionView():
     """
@@ -35,7 +28,7 @@ def open_preview(title="Notebook preview"):
     """
     store = create_store({"todos": DataFrame([{"id": 1, "text": "Example todo"}])}, sync=True)
     display(ConnectionView())
-    display(view_opener(store, view="review", config_path=Path.cwd(), title=title))
+    display(view_opener(store, view="review", title=title))
     return store
 
 
@@ -47,7 +40,7 @@ def open_annotation(store):
 
     store["todos"].update(identity={"id": 1}, values={"text": "Updated todo"})
     annotation = save_store(store, Path.cwd() / "review.pret")
-    display(view_opener(annotation, view=main, config_path=Path.cwd(), title="Annotation"))
+    display(view_opener(annotation, view=main, title="Annotation"))
     return annotation
 
 
@@ -72,7 +65,6 @@ def open_related():
             preview,
             view="todo_tags",
             parameters={"tag_key": "__pret_row_id"},
-            config_path=Path.cwd(),
             title="Related preview",
         )
     )
@@ -82,19 +74,21 @@ def open_related():
 if __name__ == "__main__":
     # Prepare the same local recipe and source files that the Explorer opens through its normal APIs
     root = Path(__file__).parent
-    recipes = root / "views" / "recipes"
-    recipes.mkdir(parents=True, exist_ok=True)
-    for target in (root / "review.py", recipes / "review.py", recipes / "alternate.py"):
+    views = root / "metanno-home" / "views"
+    views.mkdir(parents=True, exist_ok=True)
+    for target in (root / "review.py", views / "review.py", views / "alternate.py"):
         shutil.copyfile(root / "explorer_recipe.py", target)
-    shutil.copyfile(root / "related_recipe.py", recipes / "todo_tags.py")
-    (root / "metanno.yaml").write_text(
-        "connections:\n  local:\n    factory: explorer_app:connect\nsources:\n  fixture:\n    connection: local\n"
+    shutil.copyfile(root / "related_recipe.py", views / "todo_tags.py")
+    (root / "metanno-home" / "explorer_connections.py").write_text(
+        f"import ibis\n\n\ndef connect():\n    return ibis.sqlite.connect({str(root / 'source.sqlite')!r})\n"
     )
-    (root / "views" / "todos.yaml").write_text(
-        "recipe: review\ntables:\n  todos:\n    source: fixture\n    table: todos\n"
+    (root / "metanno-home" / "metanno.yaml").write_text(
+        "connections:\n  local:\n    factory: explorer_connections:connect\n"
+        "sources:\n  fixture:\n    connection: local\n"
     )
+    (views / "todos.yaml").write_text("recipe: review\ntables:\n  todos:\n    source: fixture\n    table: todos\n")
     # An annotation campaign folder, one Store per annotator, listed under its name in the sidebar
-    campaign = root / "views" / "stores" / "campaign"
+    campaign = root / "metanno-home" / "annotations" / "campaign"
     campaign.mkdir(parents=True, exist_ok=True)
     save_store(
         create_store({"todos": [{"id": 1, "text": "Campaign todo"}]}),

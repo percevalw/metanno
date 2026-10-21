@@ -16,25 +16,27 @@ from metanno.viewer.sources import QueryError, SourceCatalog
 
 def test_nearest_configuration_and_explicit_overrides(tmp_path, tmp_path_factory, config_path, monkeypatch):
     """
-    Notebooks below the Jupyter root find its metanno.yaml, explicit files and directories override it
+    Notebooks below the Jupyter root find its metanno-home/metanno.yaml, explicit files and directories override it
     """
-    # Without a metanno.yaml above the notebook, the configuration would be beside it
+    # Without a metanno-home above the notebook, the configuration would be in a metanno-home beside it
     empty = tmp_path_factory.mktemp("empty")
     monkeypatch.chdir(empty)
-    assert config_file() == empty / "metanno.yaml"
+    assert config_file() == empty / "metanno-home" / "metanno.yaml"
     assert load_config().sources == {}
-    assert load_config(empty).views == empty / "views"
-    # The fixture writes the metanno.yaml of a root above the notebooks, the nearest file wins
+    # The metanno-home of a root above the notebooks is found, the nearest one wins
+    home = tmp_path / "metanno-home"
+    home.mkdir()
+    config_path = config_path.rename(home / "metanno.yaml")
     nested = tmp_path / "project" / "notebooks"
     nested.mkdir(parents=True)
     monkeypatch.chdir(nested)
     assert config_file() == config_path
     assert load_config().sources["planner"].connection == "local"
-    assert config_file(tmp_path) == config_path
-    project = tmp_path / "project" / "metanno.yaml"
-    project.write_text(config_path.read_text() + "\nviews: " + str(tmp_path / "shared_views") + "\n")
+    assert config_file(home) == config_path
+    project = tmp_path / "project" / "metanno-home" / "metanno.yaml"
+    project.parent.mkdir()
+    project.write_text(config_path.read_text())
     assert config_file() == project
-    assert load_config().views == tmp_path / "shared_views"
     with pytest.raises(ConfigError):
         load_config(tmp_path / "missing.yaml")
 
@@ -282,29 +284,6 @@ def test_explorer_registration_records_the_selected_python(tmp_path):
         "{connection_file}",
     ]
     assert spec["display_name"] == "Metanno Data Explorer"
-
-
-def test_project_factories_are_resolved_from_the_configuration_directory(tmp_path):
-    services = []
-    try:
-        for name in ("first", "second"):
-            root = tmp_path / name
-            root.mkdir()
-            (root / "connections.py").write_text(
-                "from contextlib import contextmanager\nimport ibis\n"
-                "@contextmanager\ndef connect():\n    backend = ibis.duckdb.connect()\n"
-                f'    backend.raw_sql("CREATE TABLE {name}(id INTEGER)")\n'
-                "    try:\n        yield backend\n    finally:\n        backend.disconnect()\n"
-            )
-            (root / "metanno.yaml").write_text(
-                "connections:\n  local:\n    factory: connections:connect\nsources:\n  data:\n    connection: local\n"
-            )
-            service = SourceCatalog(root)
-            services.append(service)
-            assert service.list_tables("data") == [{"name": name, "source": "data"}]
-    finally:
-        for service in services:
-            service.close()
 
 
 def test_sources_switch_connection_and_list_databases(tmp_path):
