@@ -501,8 +501,8 @@ test("connection per database", async ({ page }) => {
   fs.writeFileSync(
     configurationPath,
     "connections:\n" +
-      "  local:\n    factory: explorer_app:connect\n" +
-      "  spare:\n    factory: explorer_app:connect\n" +
+      "  local:\n    factory: explorer_connections:connect\n" +
+      "  spare:\n    factory: explorer_connections:connect\n" +
       "sources:\n" +
       "  fixture:\n    connection: local  # the usual one\n    connections: [local, spare]\n" +
       "  everything:\n    connection: spare\n    kind: databases\n"

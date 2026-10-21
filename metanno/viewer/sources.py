@@ -4,11 +4,9 @@ Read connections and table locations from metanno.yaml for the explorer and Copy
 
 from __future__ import annotations
 
-import importlib.util
 import pkgutil
 import sys
 import threading
-import uuid
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack
 from pathlib import Path
@@ -26,28 +24,6 @@ class QueryError(RuntimeError):
     """
     A source could not be opened or queried
     """
-
-
-def load_factory(directory, spec):
-    """
-    Import the connection factory `module:attribute` of a connection, for SourceCatalog.connection and Copy code
-
-    A module beside metanno.yaml is loaded from that file, isolated by path when several projects share a kernel
-    """
-    module, attribute = spec.split(":", 1)
-    project_module = directory / (module + ".py")
-    if project_module.is_file():
-        module = "metanno_connection_" + uuid.uuid5(uuid.NAMESPACE_URL, str(project_module)).hex
-        if module not in sys.modules:
-            module_spec = importlib.util.spec_from_file_location(module, project_module)
-            loaded = importlib.util.module_from_spec(module_spec)
-            sys.modules[module] = loaded
-            try:
-                module_spec.loader.exec_module(loaded)
-            except Exception:
-                del sys.modules[module]
-                raise
-    return pkgutil.resolve_name(f"{module}:{attribute}")
 
 
 def file_table_uri(config, source, table_name):
@@ -86,6 +62,9 @@ class SourceCatalog:
     def __init__(self, config_path=None):
         self.config_path = config_file(config_path)
         self.config = load_config(config_path)
+        # Connection factories and recipes import the modules of the config folder, e.g. metanno-home/eds_connections.py
+        if str(self.config.directory) not in sys.path:
+            sys.path.insert(0, str(self.config.directory))
         self.connections = {}
         self.resources = {}
         self.connection_lock = threading.Lock()
@@ -117,7 +96,7 @@ class SourceCatalog:
             resources = self.resources[name] = ExitStack()
             try:
                 if config.factory:
-                    backend = load_factory(self.config.directory, config.factory)(**config.kwargs)
+                    backend = pkgutil.resolve_name(config.factory)(**config.kwargs)
                     if hasattr(backend, "__enter__"):
                         backend = resources.enter_context(backend)
                 else:

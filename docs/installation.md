@@ -89,7 +89,7 @@ of the notebook is the environment where you installed Metanno: `import sys; pri
 
 ## Databases and the explorer kernel
 
-The `metanno-explorer` kernel reads the databases listed in `metanno.yaml`, as shown in
+The `metanno-explorer` kernel reads the databases listed in `metanno-home/metanno.yaml`, as shown in
 [Browse a database](tutorials/browse-a-database.md). Install it, with the Ibis driver of each database, in the
 environment that can reach these databases:
 

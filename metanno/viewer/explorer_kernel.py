@@ -59,7 +59,7 @@ class DataExplorerKernel(IPythonKernel):
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
-        # Root of the Jupyter file browser, sent by the sidebar, whose metanno.yaml lists the sources
+        # Root of the Jupyter file browser, sent by the sidebar, whose metanno-home/metanno.yaml lists the sources
         self.root = None
         self.sources = SourceCatalog()
         self.query_worker = SourceQueryWorker(self.send_query_event)
@@ -159,7 +159,8 @@ class DataExplorerKernel(IPythonKernel):
                     )
                     definition = ViewConfig(tables={data["table"]: table}, recipe="table")
                 else:
-                    definition = {view.name: view for view in load_views(self.sources.config.views)}[data["name"]]
+                    saved = load_views(self.sources.config.directory / "views")
+                    definition = {view.name: view for view in saved}[data["name"]]
                 # The recipe selector of the tab renders the same tables with another recipe, without the
                 # parameters the saved view gives its own recipe
                 if data.get("recipe", definition.recipe) != definition.recipe:
@@ -215,17 +216,19 @@ class DataExplorerKernel(IPythonKernel):
         Return explorer command data for the comm response
         """
         if method == "set_root":
-            # The sidebar edits metanno.yaml at the root of the file browser, creating it lets notebook kernels,
-            # which start in a folder below that root, find the same configuration
+            # The sidebar edits metanno-home/metanno.yaml at the root of the file browser, creating it lets notebook
+            # kernels, which start in a folder below that root, find the same configuration
             root = Path(data["root"]).expanduser().resolve()
-            if not (root / "metanno.yaml").exists():
-                (root / "metanno.yaml").write_text("connections: {}\nsources: {}\n")
+            config_path = root / "metanno-home" / "metanno.yaml"
+            if not config_path.exists():
+                config_path.parent.mkdir(exist_ok=True)
+                config_path.write_text("connections: {}\nsources: {}\n")
             if root == self.root:
                 return {}
             self.root = root
         if method in {"set_root", "reload_configuration"}:
             previous = self.sources
-            self.sources = SourceCatalog(self.root)
+            self.sources = SourceCatalog(self.root / "metanno-home")
             if not any(view.sources is previous for view in self.views.values()):
                 previous.close()
             return {}
@@ -236,10 +239,10 @@ class DataExplorerKernel(IPythonKernel):
 
             from .recipes import load_views
 
-            view_path = self.sources.config.views
-            store_path = view_path / "stores"
+            view_path = self.sources.config.directory / "views"
+            store_path = self.sources.config.directory / "annotations"
             # The sidebar links open these directories, so they exist even in a new project
-            for directory in (view_path / "recipes", store_path):
+            for directory in (view_path, store_path):
                 directory.mkdir(parents=True, exist_ok=True)
             stores = []
             for path in sorted([*store_path.glob("*.pret"), *store_path.glob("*/*.pret")]):
@@ -257,7 +260,7 @@ class DataExplorerKernel(IPythonKernel):
             root = Path(os.path.abspath(Path(data["root"]).expanduser()))
             directories = {}
             for name, directory in {"views": view_path, "stores": store_path}.items():
-                # A views folder linked under the root opens through its link, other links compare by real path
+                # A metanno-home folder linked under the root opens through its link, other links compare by real path
                 directory = Path(os.path.abspath(directory))
                 inside = directory.is_relative_to(root)
                 if not inside:
@@ -265,7 +268,7 @@ class DataExplorerKernel(IPythonKernel):
                     inside = directory.is_relative_to(root_path)
                     directory = root / directory.relative_to(root_path) if inside else directory
                 if not inside:
-                    raise ValueError(f"The Metanno views directory {directory} must be inside the Jupyter root {root}")
+                    raise ValueError(f"The Metanno directory {directory} must be inside the Jupyter root {root}")
                 directories[name] = "" if directory == root else directory.relative_to(root).as_posix()
             views = [view.model_dump() for view in load_views(view_path)]
             return {"views": views, "stores": stores, "directories": directories}
@@ -358,7 +361,7 @@ def create_source_view(sources, query_worker, view_id, view):
     store = create_store(frames, sync=True)
     for frame in frames.values():
         frame.provider.dataframes_by_id = store.doc._dataframe_registry
-    recipes = load_recipes(sources.config.views / "recipes")
+    recipes = load_recipes(sources.config.directory / "views")
     rendered = render_recipe(store, view.recipe, view.parameters, recipes, True)
     return rendered, store, recipe_choices(store, recipes)
 

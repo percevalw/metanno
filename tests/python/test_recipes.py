@@ -16,8 +16,8 @@ def test_view_opener_renders_plain_store_with_explicit_recipe(tmp_path):
     from metanno import view_opener
     from metanno.viewer.view_opener import MIMETYPE, rendered_views
 
-    recipes = tmp_path / "views" / "recipes"
-    recipes.mkdir(parents=True)
+    recipes = tmp_path / "views"
+    recipes.mkdir()
     (recipes / "summary.py").write_text(
         "from pret import component\nfrom pret.react import div\n\n"
         "@component\ndef main(store):\n"
@@ -40,11 +40,10 @@ def test_view_opener_renders_plain_store_with_explicit_recipe(tmp_path):
 
 
 def test_confit_recipe_and_saved_view_discovery(tmp_path):
-    recipes_path = tmp_path / "recipes"
+    # Recipes and saved views share the views folder
     views_path = tmp_path / "views"
-    recipes_path.mkdir()
     views_path.mkdir()
-    (recipes_path / "documents.py").write_text(
+    (views_path / "documents.py").write_text(
         "def main(store, title: str = 'Documents'):\n    return store, title\n",
         encoding="utf-8",
     )
@@ -60,7 +59,7 @@ def test_confit_recipe_and_saved_view_discovery(tmp_path):
         encoding="utf-8",
     )
 
-    recipes = load_recipes(recipes_path)
+    recipes = load_recipes(views_path)
     store = object()
 
     assert recipes["documents"](store=store, title="Todos") == (
@@ -77,9 +76,9 @@ def test_confit_recipe_and_saved_view_discovery(tmp_path):
         }
     ]
     # A recipe entrypoint receives the Store
-    (recipes_path / "related.py").write_text("def main(table):\n    return table\n", encoding="utf-8")
+    (views_path / "related.py").write_text("def main(table):\n    return table\n", encoding="utf-8")
     with pytest.raises(ValueError, match="main.store"):
-        load_recipes(recipes_path)
+        load_recipes(views_path)
 
 
 def test_source_relations_follow_derived_parent_views_before_paging(tmp_path):
@@ -90,10 +89,10 @@ def test_source_relations_follow_derived_parent_views_before_paging(tmp_path):
 
     ibis = pytest.importorskip("ibis")
     service = SourceCatalog()
-    service.config = SimpleNamespace(views=tmp_path / "views", preview=SimpleNamespace(max_bytes=100_000, rows=500))
+    service.config = SimpleNamespace(directory=tmp_path, preview=SimpleNamespace(max_bytes=100_000, rows=500))
     service.table = lambda source, name, connection=None: backend.table(name)
-    recipes = tmp_path / "views" / "recipes"
-    recipes.mkdir(parents=True)
+    recipes = tmp_path / "views"
+    recipes.mkdir()
     (recipes / "todos.py").write_text(
         'def main(store):\n    store["todos"] = store["todos"].with_columns(done=False)\n    return store\n'
     )
@@ -222,8 +221,8 @@ def test_export_view_code_and_notebook_display(tmp_path, monkeypatch):
     )
     backend.execute("CREATE TABLE tags(todo_id INTEGER, label TEXT, start INTEGER, end INTEGER, word TEXT)")
     backend.execute("INSERT INTO tags VALUES (1,'a',0,5,'First'),(2,'b',0,6,'Second'),(3,'c',0,5,'Third')")
-    recipes = tmp_path / "views" / "recipes"
-    recipes.mkdir(parents=True)
+    recipes = tmp_path / "views"
+    recipes.mkdir()
     (recipes / "todo_tags.py").write_text((Path(__file__).parents[1] / "jupyter/related_recipe.py").read_text())
     frames = {
         name: DataFrame(provider=SourceDataFrameProvider(None, None, "source", name, "view"))
@@ -350,7 +349,7 @@ def test_export_view_code_and_notebook_display(tmp_path, monkeypatch):
     assert store["tags"].materialize()["tag_id"][0].as_py() == tag_id
     single = export_view_code({"todos": frames["todos"]}, None, tmp_path)
     exec(single.replace("'annotation.pret'", "'single.pret'"), {})
-    assert load_store(tmp_path / "views/stores/single.pret")["todos"].materialize().num_rows == 1
+    assert load_store(tmp_path / "annotations/single.pret")["todos"].materialize().num_rows == 1
     tag_filter = {"kind": "predicate", "column": "label", "operator": "eq", "value": "b"}
     parent_filter = {
         "kind": "predicate",
@@ -383,7 +382,7 @@ def test_export_view_code_and_notebook_display(tmp_path, monkeypatch):
     }
     from_child = export_view_code(frames, view, tmp_path)
     exec(from_child.replace("'annotation.pret'", "'from_tags.pret'"), {})
-    with sqlite3.connect(tmp_path / "views/stores/from_tags.pret") as connection:
+    with sqlite3.connect(tmp_path / "annotations/from_tags.pret") as connection:
         assert connection.execute("SELECT todo_id FROM todos").fetchall() == [(2,)]
         assert connection.execute("SELECT todo_id FROM tags").fetchall() == [(2,)]
     transient = create_store({"todos": DataFrame([{"todo_id": 1}])})

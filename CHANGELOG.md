@@ -4,6 +4,7 @@
 
 ### JupyterLab viewer
 
+- Metanno files move to a `metanno-home` folder: `metanno.yaml`, connection modules, `views/` and `annotations/`. The `views:` key is removed.
 - Sources can list several `connections`, switchable from the sidebar or a table tab.
 - `kind: databases` sources list the databases of their connection, eg Trino schemas.
 - Connection factories can set `refresh_tables_on_view_open` to read their tables again at each view opening.

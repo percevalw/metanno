@@ -71,7 +71,7 @@ test("fullscreen links", async ({ page }) => {
     true
   );
   await page.evaluate(async () => {
-    await window.jupyterapp.commands.execute("filebrowser:go-to-path", { path: "views" });
+    await window.jupyterapp.commands.execute("filebrowser:go-to-path", { path: "metanno-home/views" });
   });
   assert.ok(new URL(page.url()).searchParams.has("metanno-fullscreen"), "File browser navigation preserves fullscreen");
   assert.equal(new URL(page.url()).hash, "#/documents/42");

@@ -2,11 +2,12 @@
 MIME openers for Store applications and requests to render those applications in Metanno tabs
 """
 
+import sys
 import time
 import uuid
 from pathlib import Path
 
-from .config import config_file, load_config
+from .config import config_file
 from .messages import PROTOCOL_VERSION, send_error, send_message
 from .recipes import load_recipes, load_views, recipe_choices, render_recipe
 
@@ -36,9 +37,11 @@ class ViewOpener:
             config_path = store.metadata.get("config_path") or config_file()
         config_path = Path(config_path).expanduser().resolve()
         self.config_dir = config_path if config_path.is_dir() else config_path.parent
-        views = load_config(self.config_dir).views
-        self.recipes = load_recipes(views / "recipes")
-        self.view_definitions = {view.name: view for view in load_views(views)}
+        # Recipes and notebooks can import the modules of the config folder, e.g. metanno-home/eds_connections.py
+        if str(self.config_dir) not in sys.path:
+            sys.path.insert(0, str(self.config_dir))
+        self.recipes = load_recipes(self.config_dir / "views")
+        self.view_definitions = {view.name: view for view in load_views(self.config_dir / "views")}
         if callable(view):
             if view.__module__ == "__main__" or "<locals>" in view.__qualname__:
                 raise ValueError("Put the application in an importable Python module so it can be reopened")
@@ -212,7 +215,7 @@ def view_opener(store, view=None, *, parameters=None, config_path=None, title=No
     parameters
         Keyword arguments supplied to the selected recipe
     config_path
-        Configuration file or directory, defaults to Store metadata then the fixed user configuration
+        Configuration file or directory, defaults to Store metadata then the nearest metanno-home/metanno.yaml
     title
         Entry and tab title, defaults to the saved filename or Metanno view
     read_only
