@@ -47,11 +47,11 @@ function parseFilter(column: { name: string; type: string }, text: string): Filt
   }
   const comparison = input.match(/^(==|!=|<>|<=|>=|=|<|>)\s*(.+)$/);
   if (!comparison) {
-    // Bare text searches text columns and matches other values exactly
+    // Bare text searches text columns ignoring case and matches other values exactly
     return {
       kind: "predicate",
       column: column.name,
-      operator: /string|utf8/i.test(column.type) ? "contains" : "eq",
+      operator: /string|utf8/i.test(column.type) ? "icontains" : "eq",
       value: parseLiteral(input, column.type),
     };
   }

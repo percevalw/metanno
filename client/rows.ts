@@ -80,16 +80,16 @@ function matches(node: FilterNode, row: RowData): boolean {
       return value !== target;
   }
   if (value == null) return false;
-  // Text operators ignore case like SQLite LIKE does for DataFrames
-  const text = String(value).toLowerCase();
-  const needle = String(target).toLowerCase();
+  // Only icontains ignores case, as in PRET's SQL
   switch (node.operator) {
+    case "icontains":
+      return String(value).toLowerCase().includes(String(target).toLowerCase());
     case "contains":
-      return text.includes(needle);
+      return String(value).includes(target);
     case "starts_with":
-      return text.startsWith(needle);
+      return String(value).startsWith(target);
     case "ends_with":
-      return text.endsWith(needle);
+      return String(value).endsWith(target);
     case "lt":
       return value < target;
     case "lte":
