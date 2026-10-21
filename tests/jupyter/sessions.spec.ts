@@ -80,6 +80,10 @@ test("saved sessions", async ({ page, browserName }) => {
   });
   const source = page.locator(".metanno-viewer-widget");
   const sourceId = await source.getAttribute("id");
+  // A table tab does not start the explorer kernel, Refresh does
+  await page.evaluate((id) => window.jupyterapp.shell.activateById(id), sourceId);
+  await source.getByText("Metanno is stopped, click Refresh to start it", { exact: true }).waitFor();
+  await source.getByRole("button", { name: "Refresh", exact: true }).click();
   await source.getByRole("gridcell", { name: "todos source row", exact: true }).waitFor({ timeout: 60000 });
   const layoutSaved = page.waitForResponse(
     (response) => response.request().method() === "PUT" && response.url().includes("/api/workspaces/")

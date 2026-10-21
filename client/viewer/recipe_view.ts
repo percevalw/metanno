@@ -10,7 +10,7 @@ import { createSession, KernelClient, ViewReply } from "./kernel_client";
 import { fullscreenKey } from "./fullscreen";
 
 const TARGET = "metanno.viewer_display";
-interface AnnotationMetadata {
+export interface AnnotationMetadata {
   title?: string;
   view?: string;
   config_path?: string;
@@ -141,7 +141,16 @@ export class RecipeViewWidget extends Widget {
     toolbar.append(tabs.fullscreen.register(this, () =>
       fullscreenKey(
         output.path && !output.read_only
-          ? { kind: "annotation", path: output.path }
+          ? {
+              kind: "annotation",
+              path: output.path,
+              metadata: {
+                title: output.title,
+                view: this.view,
+                config_path: output.config_path,
+                kernelspec: this.context.session?.kernel?.name || this.origin.kernelspec,
+              },
+            }
           : { kind: "preview", args: this.restoreData().args }
       )
     ));
