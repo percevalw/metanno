@@ -33,7 +33,8 @@ PALETTE = [
 DESC = """
 # Quaero Dataset Explorer
 
-Explore and annotate the [Quaero dataset](https://quaerofrenchmed.limsi.fr/).
+Explore and annotate the [Quaero dataset](https://quaerofrenchmed.limsi.fr/), released by LIMSI under the
+GNU Free Documentation License.
 
 This app features a simple interface, built with
 [Metanno](https://github.com/percevalw/metanno),
@@ -54,14 +55,18 @@ learn how to build such an app yourself.
 Happy exploring!
 """
 
-URL = "https://quaerofrenchmed.limsi.fr/QUAERO_FrenchMed_brat.zip"
+# The LIMSI server is often unreachable, a Metanno release keeps a copy of the same archive
+URLS = [
+    "https://github.com/percevalw/metanno/releases/download/quaero-frenchmed/QUAERO_FrenchMed_brat.zip",
+    "https://quaerofrenchmed.limsi.fr/QUAERO_FrenchMed_brat.zip",
+]
 DOWNLOAD_DIR = Path.home() / ".cache"
 
 
 def download_quaero():
     """
     If the Quaero dataset is not already downloaded,
-    download the Quaero dataset from the official URL and extract it
+    download the Quaero dataset from the first URL that answers and extract it
     in the QUAERO_FrenchMed_brat directory.
     """
     import os
@@ -74,9 +79,15 @@ def download_quaero():
         print(f"Quaero dataset already exists in {DOWNLOAD_DIR / 'QUAERO_FrenchMed'}")
         return
     print("Downloading Quaero dataset...")
-    response = requests.get(URL)
-    if response.status_code != 200:
-        raise RuntimeError(f"Failed to download Quaero dataset: {response.status_code}")
+    for url in URLS:
+        try:
+            response = requests.get(url, timeout=60)
+            response.raise_for_status()
+            break
+        except requests.RequestException as exc:
+            print(f"Cannot download {url}: {exc}")
+    else:
+        raise RuntimeError("Failed to download the Quaero dataset")
     with tempfile.NamedTemporaryFile(delete=False) as temp_file:
         temp_file.write(response.content)
         temp_file_path = temp_file.name
