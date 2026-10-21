@@ -248,6 +248,9 @@
 
 .metanno-viewer__error > span {
   flex: 1;
+  min-width: 0;
+  /* A long link, e.g. a login link, wraps instead of widening the panel */
+  overflow-wrap: anywhere;
 }
 
 .metanno-viewer__dismiss {
@@ -421,3 +424,6 @@ button.metanno-viewer__connection:hover {
   color: var(--jp-ui-font-color1);
   background: var(--jp-layout-color2);
 }
+.metanno-viewer__error a { color: inherit; text-decoration: underline; }
+
+.metanno-viewer__listed { margin-left: 12px; }

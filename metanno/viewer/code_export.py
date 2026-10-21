@@ -50,6 +50,7 @@ def export_view_code(store, view_definition, config_dir, purpose="annotation"):
             raise ValueError(f"Wait for {key!r} to finish its source query before copying")
         frames[key] = frame
         additions[key] = defaults
+    # The catalog of the open view also knows the databases listed by a `databases` source
     sources = next(iter(frames.values())).provider.sources
     config = sources.config
     imports = []
@@ -191,7 +192,7 @@ def export_view_code(store, view_definition, config_dir, purpose="annotation"):
         nodes = [filters]
         related = False
         provider = frames[key].provider
-        source = config.sources[provider.source]
+        source = sources.source(provider.source)
         backend = emit_connection(provider.connection or source.connection)
         if source.kind == "files":
             reader = "read_delta" if source.format == "delta" else "read_parquet"

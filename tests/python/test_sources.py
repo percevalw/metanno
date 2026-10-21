@@ -62,7 +62,9 @@ def test_invalid_config(tmp_path, data):
         load_config(path)
 
 
-def test_catalogue_queries_and_file_sources(tmp_path, config_path):
+def test_catalogue_queries_and_file_sources(tmp_path, config_path, monkeypatch):
+    import sys
+
     path = config_path
     service = SourceCatalog(path)
     assert service.list_sources() == [
@@ -81,17 +83,26 @@ def test_catalogue_queries_and_file_sources(tmp_path, config_path):
     root = tmp_path / "exports"
     root.mkdir()
     backend.table("lists").to_parquet(root / "lists.parquet")
+    remote = ibis.duckdb.connect()
+    remote.list_folders = lambda uri: ["lists", "todos"] if uri == "s3a://bucket/todo-app" else []
+    monkeypatch.setitem(sys.modules, "s3_connections", SimpleNamespace(connect=lambda: remote))
     config = yaml.safe_load(path.read_text())
-    config["sources"]["files"] = {
-        "connection": "local",
+    config["connections"]["s3"] = {"factory": "s3_connections:connect"}
+    config["sources"]["files"] = {"connection": "local", "kind": "files", "format": "parquet", "uri": "exports"}
+    config["sources"]["todo_app"] = {
+        "connection": "s3",
         "kind": "files",
-        "format": "parquet",
-        "uri": "exports",
+        "format": "delta",
+        "uri": "s3a://bucket/todo-app",
     }
     path.write_text(yaml.safe_dump(config))
     service.config = load_config(path)
     assert service.list_tables("files") == [{"name": "lists.parquet", "source": "files"}]
     assert service.table("files", "lists.parquet").limit(1).to_pyarrow().num_rows == 1
+    assert service.list_tables("todo_app") == [
+        {"name": "lists", "source": "todo_app"},
+        {"name": "todos", "source": "todo_app"},
+    ]
     service.close()
     assert not service.connections
 
@@ -296,9 +307,10 @@ def test_project_factories_are_resolved_from_the_configuration_directory(tmp_pat
             service.close()
 
 
-def test_sources_switch_connection(tmp_path):
+def test_sources_switch_connection_and_list_databases(tmp_path):
     """
-    Read one database with either of its connections and make one the default in metanno.yaml
+    Read one database with either of its connections, make one the default in metanno.yaml, and list the
+    databases of a connection as sources
     """
     import duckdb
 
@@ -316,6 +328,7 @@ def test_sources_switch_connection(tmp_path):
         "    database: cohort\n"
         "    connection: fast  # the quick one\n"
         "    connections: [fast, slow]\n"
+        "  everything: {connection: slow, kind: databases}\n"
     )
     service = SourceCatalog(path)
     assert service.list_sources()[0] == {
@@ -336,4 +349,11 @@ def test_sources_switch_connection(tmp_path):
     assert path.read_text() == before.replace("connection: fast  # the quick one", "connection: slow  # the quick one")
     assert service.source("notes").connection == "slow"
     assert SourceCatalog(path).source("notes").connection == "slow"
+
+    listed = {source["name"] for source in service.list_databases("everything")}
+    assert "notes.cohort" in listed and "notes.main" not in listed
+    assert service.list_tables("notes.cohort") == [{"name": "patients", "source": "notes.cohort"}]
+    assert service.table("notes.cohort", "patients").count().execute() == 1
+    with pytest.raises(QueryError):
+        service.set_connection("notes.cohort", "fast")
     service.close()

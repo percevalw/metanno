@@ -5,7 +5,7 @@ import type { IPretHost, IPretService } from "pret";
 import { ExplorerKernelConnection, KernelClient, SourceSelection, ViewReply } from "./kernel_client";
 import { fullscreenKey, FullscreenViews } from "./fullscreen";
 
-// Error message of the sidebar and table tabs, with an optional Retry button
+// Error message of the sidebar and table tabs with clickable links, e.g. a login link, and an optional Retry button
 export function ErrorBanner({
   text,
   onRetry,
@@ -17,7 +17,17 @@ export function ErrorBanner({
 }) {
   return (
     <div className="metanno-viewer__error">
-      <span>{text}</span>
+      <span>
+        {text.split(/(https?:\/\/[^\s"')]+)/).map((part, index) =>
+          index % 2 ? (
+            <a key={index} href={part} target="_blank" rel="noreferrer">
+              {part}
+            </a>
+          ) : (
+            part
+          )
+        )}
+      </span>
       {onRetry && (
         <button className="metanno-viewer__toolbar-button" onClick={onRetry}>
           Retry

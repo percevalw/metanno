@@ -271,6 +271,8 @@ class DataExplorerKernel(IPythonKernel):
             return {"views": views, "stores": stores, "directories": directories}
         if method == "list_tables":
             return {"tables": self.sources.list_tables(data["source"])}
+        if method == "list_databases":
+            return {"sources": self.sources.list_databases(data["source"])}
         if method == "set_source_connection":
             self.sources.set_connection(data["source"], data["connection"])
             return {}
