@@ -57,6 +57,10 @@ class ViewOpener:
         self.parameters = dict(store.metadata.get("parameters", {})) if parameters is None else parameters
         self.title = title or (Path(self.path).stem if self.path else "Metanno view")
         self.id = uuid.uuid4().hex
+        # Notebook cell and execution that displayed this opener, and the tabs still showing its views
+        self.execution = None
+        self.views = set()
+        self.replaced = False
 
     def choices(self):
         """
@@ -70,11 +74,23 @@ class ViewOpener:
 
     def _repr_mimebundle_(self, *args, **kwargs):
         """
-        Return the opener MIME payload and keep its Store available for later button clicks
+        Return the opener MIME payload and keep its Store available for later button clicks. Openers
+        displayed by an earlier run of the same notebook cell are released once no tab shows their views
         """
+        from IPython import get_ipython
+
+        parent = getattr(get_ipython(), "parent_header", {})
+        cell = parent.get("metadata", {}).get("cellId")
+        self.execution = (cell, parent["header"]["msg_id"]) if cell else None
+        for opener in list(view_openers.values()):
+            if cell and opener.execution not in (None, self.execution) and opener.execution[0] == cell:
+                opener.replaced = True
+            if opener.replaced and not opener.views:
+                del view_openers[opener.id]
         view_openers[self.id] = self
         return {
-            "text/plain": f"{self.title}, open with the Metanno JupyterLab extension",
+            "text/plain": f'Metanno view "{self.title}". This text shows instead of an "Open with Metanno" button '
+            "because the Metanno extension is not installed in this JupyterLab",
             MIMETYPE: {
                 "id": self.id,
                 "view": self.view,
@@ -83,6 +99,7 @@ class ViewOpener:
                 "path": self.path,
                 "read_only": self.read_only,
                 "config_path": str(self.config_dir),
+                "cell": cell,
             },
         }
 
@@ -117,6 +134,7 @@ class ViewOpener:
         serialize_seconds = time.perf_counter() - start
         reference = uuid.uuid4().hex
         rendered_views[reference] = rendered
+        self.views.add(reference)
         return {
             **payload,
             "view_ref": reference,
@@ -181,6 +199,10 @@ def register_view_comm():
                 }
             elif method == "close":
                 rendered_views.pop(data["view_ref"], None)
+                # A replaced opener is released when the next opener is displayed, not here, because a tab
+                # refreshing its view closes the previous view before opening the next one
+                for opener in view_openers.values():
+                    opener.views.discard(data["view_ref"])
                 result = {}
             else:
                 raise ValueError(f"Unknown display method {method}")

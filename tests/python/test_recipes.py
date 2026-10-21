@@ -39,6 +39,32 @@ def test_view_opener_renders_plain_store_with_explicit_recipe(tmp_path):
     assert opener.choices() == ["table", "summary"]
 
 
+def test_cell_rerun_releases_openers_without_open_tabs(tmp_path, monkeypatch):
+    import IPython
+    from pret import DataFrame, create_store
+
+    from metanno import view_opener
+    from metanno.viewer.view_opener import view_openers
+
+    shell = SimpleNamespace(parent_header={})
+    monkeypatch.setattr(IPython, "get_ipython", lambda: shell)
+    store = create_store({"rows": DataFrame([{"id": 1}])}, sync=True)
+
+    def run_cell(execution):
+        shell.parent_header = {"header": {"msg_id": execution}, "metadata": {"cellId": "cell"}}
+        opener = view_opener(store, config_path=tmp_path)
+        opener._repr_mimebundle_()
+        return opener
+
+    first = run_cell("run-1")
+    view_ref = first.render("table", {}, {})["view_ref"]
+    run_cell("run-2")
+    assert first.id in view_openers
+    first.views.discard(view_ref)
+    run_cell("run-3")
+    assert first.id not in view_openers
+
+
 def test_confit_recipe_and_saved_view_discovery(tmp_path):
     # Recipes and saved views share the views folder
     views_path = tmp_path / "views"

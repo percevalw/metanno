@@ -29,6 +29,8 @@ export type OpenerEntry = {
 export class NotebookOutputs {
   readonly entries = new Map<string, OpenerEntry>();
   readonly changed = new Signal<this, void>(this);
+  // Last panel opened from each notebook cell, replaced when the cell runs again
+  private cellPanels = new Map<string, Widget>();
 
   constructor(app: JupyterFrontEnd, pret: IPretService, notebooks: INotebookTracker, tabs: ViewerTabs) {
     const outputs = this;
@@ -75,9 +77,11 @@ export class NotebookOutputs {
         button.textContent = "Open with Metanno";
         button.className = "metanno-viewer__toolbar-button";
         const status = document.createElement("span");
-        const launch = () =>
+        const launch = (replace?: Widget) =>
           void (async () => {
-            const cell = this.notebook.content.widgets.find((cell) => cell.node.contains(this.node));
+            const cell = this.notebook.content.widgets.find((cell) =>
+              output.cell ? cell.model.id === output.cell : cell.node.contains(this.node)
+            );
             const kernel = this.notebook.sessionContext.session?.kernel;
             if (!kernel || !cell) throw new Error("Open this output from its running notebook");
             const origin = {
@@ -87,7 +91,10 @@ export class NotebookOutputs {
             };
             const view = select.value;
             const key = tabKey(output, view);
-            const open = async (newTab = false) => {
+            // A rerun of the cell replaces its read only entry in the sidebar, which leaves with its last tab
+            const entryKey = output.read_only ? `cell:${origin.notebook}:${origin.cell}` : key;
+            const panels = new Set<Widget>();
+            const open = async (newTab = false, replace?: Widget) => {
               if (!output.read_only && this.notebook.isDisposed) {
                 const reopened = await openAnnotation(
                   app,
@@ -118,8 +125,19 @@ export class NotebookOutputs {
                   newTab,
                   notebook: this.notebook,
                   restore: recipeRestoreData,
+                  replace,
                 }
               );
+              outputs.cellPanels.set(`${origin.notebook}:${origin.cell}`, panel);
+              if (output.read_only && !panels.has(panel)) {
+                panels.add(panel);
+                panel.disposed.connect(() => {
+                  panels.delete(panel);
+                  if (panels.size || outputs.entries.get(entryKey)?.open !== open) return;
+                  outputs.entries.delete(entryKey);
+                  outputs.changed.emit();
+                });
+              }
               // An open Annotation tab switches to the view chosen in this output
               const rendered = created
                 ? (panel as RecipeViewWidget).renderView()
@@ -129,9 +147,9 @@ export class NotebookOutputs {
                 throw error;
               });
             };
-            if (!outputs.entries.has(key)) {
-              outputs.entries.set(key, {
-                id: key,
+            if (output.read_only || !outputs.entries.has(entryKey)) {
+              outputs.entries.set(entryKey, {
+                id: entryKey,
                 title: output.title,
                 view,
                 path: output.path,
@@ -141,13 +159,15 @@ export class NotebookOutputs {
               });
               outputs.changed.emit();
             }
-            await open();
+            await open(false, replace);
           })().catch((error) => {
             status.textContent = String(error);
           });
         button.onclick = () => launch();
         this.node.append(select, button);
         this.node.append(status);
+        const previous = outputs.cellPanels.get(`${this.notebook.context.path}:${output.cell}`);
+        if (output.cell && previous && !previous.isDisposed) launch(previous);
       }
     }
     notebooks.forEach(register);
