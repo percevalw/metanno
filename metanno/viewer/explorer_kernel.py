@@ -41,8 +41,8 @@ class DataExplorerKernel(IPythonKernel):
 
     handle_comm_message answers requests that read kernel state or one Store file, and builds
     views on the kernel thread because PRET bindings need its event loop. dispatch runs requests
-    that open source connections or scan directories on SourceQueryWorker, one at a time, so a
-    slow database cannot block the kernel.
+    that open source connections or scan directories on SourceQueryWorker, one at a time per
+    connection, so a slow database blocks neither the kernel nor the other connections.
     """
 
     implementation = "metanno-viewer"
@@ -101,9 +101,7 @@ class DataExplorerKernel(IPythonKernel):
                         "pid": os.getpid(),
                         "python": sys.executable,
                         "cwd": os.getcwd(),
-                        "active_request_id": self.query_worker.active_query.request_id
-                        if self.query_worker.active_query
-                        else None,
+                        "active_requests": list(self.query_worker.active_queries),
                         "queued_requests": list(self.query_worker.pending_requests),
                     },
                 )
@@ -123,7 +121,7 @@ class DataExplorerKernel(IPythonKernel):
                     and entry.sources is not self.sources
                     and not any(view.sources is entry.sources for view in self.views.values())
                 ):
-                    self.query_worker.executor.submit(entry.sources.close)
+                    self.query_worker.executor(None).submit(entry.sources.close)
                 send_message(comm, "response", method, request_id=request_id, data={})
                 return
             if method in {"open_table_view", "open_saved_view"}:
@@ -194,7 +192,10 @@ class DataExplorerKernel(IPythonKernel):
                 )
                 send_message(comm, "response", method, request_id=request_id, data={"code": code})
                 return
-            future = self.query_worker.submit(request_id, self.dispatch, method, data)
+            # Work on a source runs on the query thread of its connection
+            source = data.get("source")
+            connection = data.get("connection") or (self.sources.source(source).connection if source else None)
+            future = self.query_worker.submit(request_id, self.dispatch, method, data, connection=connection)
             future.add_done_callback(lambda completed: self.send_worker_reply(comm, request_id, method, completed))
         except Exception as exc:
             self.report_error(comm, request_id, envelope.get("method"), exc)

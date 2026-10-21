@@ -117,6 +117,7 @@ def test_source_relations_follow_derived_parent_views_before_paging(tmp_path):
     service = SourceCatalog()
     service.config = SimpleNamespace(directory=tmp_path, preview=SimpleNamespace(max_bytes=100_000, rows=500))
     service.table = lambda source, name, connection=None: backend.table(name)
+    service.source = lambda name: SimpleNamespace(connection="local")
     recipes = tmp_path / "views"
     recipes.mkdir()
     (recipes / "todos.py").write_text(
@@ -124,7 +125,7 @@ def test_source_relations_follow_derived_parent_views_before_paging(tmp_path):
     )
     queries = SourceQueryWorker(lambda event: None)
     queries.requests_by_view["view"] = set()
-    with queries.executor as executor:
+    with queries.executor("local") as executor:
         backend = executor.submit(ibis.sqlite.connect, tmp_path / "source.sqlite").result()
         executor.submit(backend.raw_sql, "CREATE TABLE lists(list_id INTEGER, selected INTEGER)").result()
         executor.submit(backend.raw_sql, "INSERT INTO lists VALUES (1,0),(2,1),(2,1)").result()
@@ -513,8 +514,6 @@ def test_source_provider_queries_and_materializes_on_the_worker(config_path):
     """
     Query pages and complete copies through PRET while preserving source limits and progress
     """
-    import threading
-
     import ibis
     from pret import DataFrame
 
@@ -531,6 +530,7 @@ def test_source_provider_queries_and_materializes_on_the_worker(config_path):
                 "lists",
                 ibis.memtable({"id": [1, 2, 3], "name": ["Home", "Work", "Errands"]}),
             ),
+            connection="local",
         ).result()
         frame = DataFrame(
             provider=SourceDataFrameProvider(
@@ -566,7 +566,7 @@ def test_source_provider_queries_and_materializes_on_the_worker(config_path):
             frame.materialize({"max_rows": 2})
         with pytest.raises(ValueError, match="bytes"):
             frame.materialize({"max_bytes": 1})
-        assert queries.thread_id != threading.get_ident()
+        assert not queries.on_thread("local")
         assert {event["view_ref"] for event in events} == {"lists"}
         queries.close_view("lists")
         with pytest.raises(ValueError, match="closed"):
@@ -598,6 +598,8 @@ def test_closing_view_cancels_queued_and_running_work():
     try:
         running = queries.submit("running", slow_query, view_id="old")
         assert started.wait(5)
+        # Another connection runs on its own thread while this one is busy
+        assert queries.submit("other", lambda: "other result", connection="other").result(timeout=5) == "other result"
         queued = queries.submit("queued", lambda: pytest.fail("Closed view executed"), view_id="old")
         next_view = queries.submit("next", lambda: "new result", view_id="new")
         queries.close_view("old")

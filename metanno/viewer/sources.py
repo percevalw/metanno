@@ -67,7 +67,7 @@ class SourceCatalog:
             sys.path.insert(0, str(self.config.directory))
         self.connections = {}
         self.resources = {}
-        self.connection_lock = threading.Lock()
+        self.connection_locks = {}
         # Tables by (source, table, connection), the same table can be open on DuckDB and on Spark
         self.tables = {}
         # Databases found by list_databases, by the name shown in the sidebar, e.g. s3_parquet_prod.datalake_prod_orbis
@@ -80,7 +80,8 @@ class SourceCatalog:
         A Spark session stopped by the cluster, e.g. when YARN client mode loses its connection after the
         2 hour TCP limit, is closed and opened again with its tables
         """
-        with self.connection_lock:
+        # Each connection opens on its own query thread, a slow one, e.g. Spark, does not block the others
+        with self.connection_locks.setdefault(name, threading.Lock()):
             backend = self.connections.get(name)
             if backend is not None and backend.name == "pyspark":
                 context = backend._session.sparkContext

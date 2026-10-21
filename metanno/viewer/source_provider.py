@@ -5,7 +5,6 @@ PRET DataFrame provider for Ibis tables from SourceCatalog, queried on the share
 from __future__ import annotations
 
 import asyncio
-import threading
 import uuid
 from typing import TYPE_CHECKING, Literal
 
@@ -148,6 +147,7 @@ class SourceDataFrameProvider(DataFrameProvider):
             view_id=self.view_id,
             source=self.source,
             table=self.table,
+            connection=self.connection or self.sources.source(self.source).connection,
         )
 
     async def describe(self) -> DataFrameDescription:
@@ -166,6 +166,6 @@ class SourceDataFrameProvider(DataFrameProvider):
         """
         Collect all source rows as an Arrow table on the backend thread for save_store
         """
-        if threading.get_ident() == self.query_worker.thread_id:
+        if self.query_worker.on_thread(self.connection or self.sources.source(self.source).connection):
             return self.execute_provider_call("materialize", bounds, uuid.uuid4().hex)
         return self.submit("materialize", bounds).result()
