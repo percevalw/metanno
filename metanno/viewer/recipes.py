@@ -119,6 +119,8 @@ def render_recipe(store, name, parameters, recipes, read_only=False):
 
     token = VIEW_READ_ONLY.set(read_only)
     try:
+        if ":" not in name and name not in recipes:
+            raise ValueError(f"No recipe {name!r} in the views folder, found {', '.join(sorted(recipes))}")
         application = pkgutil.resolve_name(name) if ":" in name else recipes[name]
         parameters = dict(parameters)
         if "read_only" in inspect.signature(application).parameters:

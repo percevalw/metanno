@@ -41,7 +41,7 @@ interface SavedViewSummary {
 
 interface StoreSummary {
   name: string;
-  // Folder of views/stores holding the file, eg a campaign with one file per annotator
+  // Folder of annotations holding the file, eg a campaign with one file per annotator
   group: string | null;
   path: string;
   kernelspec?: string;
@@ -395,12 +395,13 @@ function Catalogue({
               setConfigurationBusy(true);
               try {
                 // Use the ordinary file editor without starting a kernel
-                const path = "metanno.yaml";
+                const path = "metanno-home/metanno.yaml";
                 const contents = app.serviceManager.contents;
                 try {
                   await contents.get(path, { content: false });
                 } catch (error) {
                   if (!(error instanceof ServerConnection.ResponseError) || error.response.status !== 404) throw error;
+                  await contents.save("metanno-home", { type: "directory" });
                   await contents.save(path, { type: "file", format: "text", content: "connections: {}\nsources: {}\n" });
                 }
                 await app.commands.execute("docmanager:open", { path, factory: "Editor" });
