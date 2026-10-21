@@ -25,6 +25,8 @@ export type ViewReply = Parameters<IPretHost["render"]>[0] & {
   view_ref: string;
   view: string;
   choices: string[];
+  connection?: string;
+  connections?: string[];
   // Seconds spent by kernel steps, logged when diagnosing slow view openings
   timings?: Record<string, number>;
 };

@@ -42,6 +42,7 @@ dependencies = [
     "pyarrow>=14",
     "confit>=0.10,<0.11",
     "PyYAML>=6",
+    "ruamel.yaml>=0.17",
 ]
 
 [project.optional-dependencies]

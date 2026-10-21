@@ -52,6 +52,7 @@ class SourceDataFrameProvider(DataFrameProvider):
         table: str,
         view_id: str,
         *,
+        connection: str | None = None,
         paging=False,
         max_rows=500,
     ):
@@ -61,6 +62,7 @@ class SourceDataFrameProvider(DataFrameProvider):
         self.query_worker = query_worker
         self.source = source
         self.table = table
+        self.connection = connection
         self.view_id = view_id
         self.paging = paging
         self.max_rows = max_rows
@@ -92,8 +94,10 @@ class SourceDataFrameProvider(DataFrameProvider):
         provider = unwrap_added_columns(self.dataframes_by_id[dataframe_id])[0].provider
         if not isinstance(provider, SourceDataFrameProvider):
             raise ValueError("Source relations require tables from the same Metanno view")
-        parent = provider.sources.table(provider.source, provider.table)
-        if ibis.get_backend(parent) is not ibis.get_backend(self.sources.table(self.source, self.table)):
+        parent = provider.sources.table(provider.source, provider.table, provider.connection)
+        if ibis.get_backend(parent) is not ibis.get_backend(
+            self.sources.table(self.source, self.table, self.connection)
+        ):
             raise ValueError("Related source queries require a shared Ibis connection, materialize the tables first")
         return parent
 
@@ -105,7 +109,7 @@ class SourceDataFrameProvider(DataFrameProvider):
         from pret.arrow import calculate_arrow_size
         from pret.dataframe_external import IbisDataFrameProvider
 
-        source_table = self.sources.table(self.source, self.table)
+        source_table = self.sources.table(self.source, self.table, self.connection)
         provider = IbisDataFrameProvider(
             source_table,
             row_limit=self.max_rows,

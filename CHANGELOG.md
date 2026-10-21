@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### JupyterLab viewer
+
+- Sources can list several `connections`, switchable from the sidebar or a table tab.
+
 ## v2.0.0-beta.1 (2026-10-08)
 
 Metanno 2 requires Pret 0.7.

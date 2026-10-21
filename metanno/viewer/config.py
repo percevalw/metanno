@@ -3,7 +3,7 @@ Project connections and source locations used by the Metanno data explorer
 """
 
 from pathlib import Path
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr, ValidationError, model_validator
@@ -47,10 +47,14 @@ class ConnectionConfig(Section):
 class SourceConfig(Section):
     """
     A catalogue database or a directory of Parquet or Delta tables reached through a named connection
+
+    connection is the one used by default, connections lists the others that can read the same database, e.g. DuckDB
+    and Spark for a Hive database
     """
 
     name: NonEmpty
     connection: NonEmpty
+    connections: List[NonEmpty] = []
     kind: Literal["catalogue", "files"] = "catalogue"
     catalog: Optional[str] = None
     database: Optional[str] = None
@@ -61,16 +65,23 @@ class SourceConfig(Section):
     def check_files(self):
         if self.kind == "files" and (not self.uri or self.format is None):
             raise ValueError(f"file source {self.name} requires uri and parquet or delta format")
+        if self.connections and self.connection not in self.connections:
+            raise ValueError(f"source {self.name} uses {self.connection}, which is not in its connections")
         return self
+
+    @property
+    def allowed_connections(self):
+        return self.connections or [self.connection]
 
 
 class ViewTable(BaseModel):
     """
-    A table of a saved view, read by SourceDataFrameProvider
+    A table of a saved view, read by SourceDataFrameProvider with connection, or the source default when None
     """
 
     source: StrictStr
     table: StrictStr
+    connection: Optional[StrictStr] = None
     paging: StrictBool = False
     max_rows: Optional[Positive] = None
 
@@ -137,8 +148,9 @@ def parse_config(raw: Any, config_path: Path) -> ProjectConfig:
     except (ValidationError, TypeError, AttributeError) as exc:
         raise ConfigError(f"Invalid Metanno configuration, {exc}") from exc
     for source in config.sources.values():
-        if source.connection not in config.connections:
-            raise ConfigError(f"Source {source.name} refers to unknown connection {source.connection}")
+        for connection in source.allowed_connections:
+            if connection not in config.connections:
+                raise ConfigError(f"Source {source.name} refers to unknown connection {connection}")
     return config
 
 

@@ -151,7 +151,12 @@ class DataExplorerKernel(IPythonKernel):
                 report_view_stage("building_view")
                 if method == "open_table_view":
                     # The Store key is the table name, so recipes written for a table, e.g. notes, also render it
-                    table = ViewTable(source=data["source"], table=data["table"])
+                    source = self.sources.source(data["source"])
+                    table = ViewTable(
+                        source=data["source"],
+                        table=data["table"],
+                        connection=data.get("connection") or source.connection,
+                    )
                     definition = ViewConfig(tables={data["table"]: table}, recipe="table")
                 else:
                     definition = {view.name: view for view in load_views(self.sources.config.views)}[data["name"]]
@@ -171,6 +176,9 @@ class DataExplorerKernel(IPythonKernel):
                 self.views[view_ref] = SourceView(store, definition, self.sources)
                 report_view_stage("reply_ready")
                 reply = {**mime["view_data"], "view_ref": view_ref, "view": definition.recipe, "choices": choices}
+                if method == "open_table_view":
+                    reply["connection"] = table.connection
+                    reply["connections"] = source.allowed_connections
                 send_message(comm, "response", method, request_id=request_id, data=reply)
                 return
             if method == "export_view_code":
@@ -255,6 +263,9 @@ class DataExplorerKernel(IPythonKernel):
             return {"views": views, "stores": stores, "directories": directories}
         if method == "list_tables":
             return {"tables": self.sources.list_tables(data["source"])}
+        if method == "set_source_connection":
+            self.sources.set_connection(data["source"], data["connection"])
+            return {}
         raise ValueError(f"Unknown data method {method!r}")
 
     def send_worker_reply(
@@ -327,6 +338,7 @@ def create_source_view(sources, query_worker, view_id, view):
                 table.source,
                 table.table,
                 view_id,
+                connection=table.connection,
                 paging=table.paging,
                 max_rows=table.max_rows or sources.config.preview.rows,
             )

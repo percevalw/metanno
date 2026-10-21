@@ -192,7 +192,7 @@ def export_view_code(store, view_definition, config_dir, purpose="annotation"):
         related = False
         provider = frames[key].provider
         source = config.sources[provider.source]
-        backend = emit_connection(source.connection)
+        backend = emit_connection(provider.connection or source.connection)
         if source.kind == "files":
             reader = "read_delta" if source.format == "delta" else "read_parquet"
             expression = f"{backend}.{reader}({file_table_uri(config, source, provider.table)!r})"

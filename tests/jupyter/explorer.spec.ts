@@ -494,3 +494,42 @@ test("missing kernel recovery", async ({ page }) => {
   await source.getByRole("button", { name: "Refresh", exact: true }).click();
   await source.getByRole("gridcell", { name: "todos source row", exact: true }).waitFor();
 });
+
+test("connection per database", async ({ page }) => {
+  test.setTimeout(180000);
+  const { configurationPath } = await openExplorer(page);
+  fs.writeFileSync(
+    configurationPath,
+    "connections:\n" +
+      "  local:\n    factory: explorer_app:connect\n" +
+      "  spare:\n    factory: explorer_app:connect\n" +
+      "sources:\n" +
+      "  fixture:\n    connection: local  # the usual one\n    connections: [local, spare]\n"
+  );
+  await page.evaluate(async () => {
+    await window.jupyterapp.commands.execute("metanno-viewer:open-resource");
+  });
+  const sidebar = page.locator("#metanno-viewer-sidebar");
+  await sidebar.getByRole("button", { name: "Reload configuration", exact: true }).click();
+  const fixture = sidebar.locator(".metanno-viewer__source-group").filter({
+    has: page.locator(".metanno-viewer__source-name").filter({ hasText: /^fixture$/ }),
+  });
+  const label = fixture.locator(".metanno-viewer__connection");
+  await expect(label).toHaveText("local");
+  await label.click();
+  await page
+    .locator(".lm-Menu .lm-Menu-itemLabel")
+    .filter({ hasText: /^spare$/ })
+    .click();
+  await expect(label).toHaveText("spare");
+  await expect.poll(() => fs.readFileSync(configurationPath, "utf8")).toContain("connection: spare  # the usual one");
+  await fixture.locator(".metanno-viewer__source").click();
+  await fixture.locator(".metanno-viewer__tables").getByRole("button", { name: "todos", exact: true }).click();
+  const view = page.locator(".metanno-viewer-widget:visible");
+  await view.getByRole("gridcell", { name: "todos source row", exact: true }).waitFor({ timeout: 60000 });
+  const connection = view.getByRole("combobox", { name: "Connection" });
+  await expect(connection).toHaveValue("spare");
+  await connection.selectOption("local");
+  await expect(connection).toHaveValue("local");
+  await view.getByRole("gridcell", { name: "todos source row", exact: true }).waitFor({ timeout: 60000 });
+});
