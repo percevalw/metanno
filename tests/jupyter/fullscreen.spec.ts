@@ -35,8 +35,9 @@ test("fullscreen links", async ({ page }) => {
   await panel.getByRole("button", { name: "Enter fullscreen", exact: true }).click();
   await fullscreen.getByRole("gridcell", { name: "Updated todo", exact: true }).waitFor();
   const url = page.url();
-  assert.ok(new URL(url).searchParams.has("metanno-fullscreen"));
-  assert.equal(new URL(url).searchParams.get("metanno-fullscreen"), `annotation:${directory}/review.pret`);
+  // The link names the Store file and keeps its metadata, e.g. its kernel
+  const linked = (link) => JSON.parse(new URL(link).searchParams.get("metanno-fullscreen").replace(/^annotation:/, ""));
+  assert.deepEqual([linked(url).path, linked(url).kernelspec], [`${directory}/review.pret`, "python3"]);
   assert.equal(await fullscreen.getByRole("button", { name: "Exit fullscreen", exact: true }).count(), 1);
   assert.deepEqual(await fullscreen.boundingBox(), { x: 0, y: 0, width: 1600, height: 1000 });
 
@@ -100,7 +101,7 @@ test("fullscreen links", async ({ page }) => {
     assert.equal(await view.locator(".metanno-viewer__status").isVisible(), false);
     assert.equal(await direct.locator("#main").isVisible(), false);
     assert.equal(new URL(direct.url()).hash, "#/documents/42");
-    assert.equal(new URL(direct.url()).searchParams.get("metanno-fullscreen"), `annotation:${directory}/review.pret`);
+    assert.equal(linked(direct.url()).path, `${directory}/review.pret`);
     await view.getByRole("gridcell", { name: "Updated todo", exact: true }).dblclick();
     await view.getByPlaceholder("Type here").waitFor();
     await direct.keyboard.press("Escape");
@@ -133,6 +134,8 @@ test("fullscreen links", async ({ page }) => {
   } finally {
     await fresh.close();
   }
+  // Table tabs use the explorer kernel that the sidebar starts
+  await page.evaluate(() => window.jupyterapp.commands.execute("metanno-viewer:open-resource"));
   for (const resource of [
     { kind: "table", source: "fixture", table: "todos" },
     { kind: "view", name: "todos" },
@@ -175,15 +178,18 @@ test("fullscreen links", async ({ page }) => {
   legacy.searchParams.set("metanno-fullscreen", JSON.stringify(restoration));
   await page.goto(legacy.toString());
   await fullscreen.getByRole("gridcell", { name: "Updated todo", exact: true }).waitFor({ timeout: 120000 });
-  assert.equal(new URL(page.url()).searchParams.get("metanno-fullscreen"), `annotation:${directory}/review.pret`);
+  assert.equal(linked(page.url()).path, `${directory}/review.pret`);
   await page.goto(url);
   await fullscreen.getByRole("gridcell", { name: "Updated todo", exact: true }).waitFor({ timeout: 120000 });
   assert.equal(await fullscreen.locator(".metanno-viewer__status").isVisible(), false);
   const relative = new URL(url);
   relative.pathname = `${basePath}/lab/workspaces/fullscreen-relative`;
-  relative.searchParams.set("metanno-fullscreen", "annotation:review.pret");
+  const relativeLink = JSON.stringify({ path: "review.pret", kernelspec: "python3" });
+  relative.searchParams.set("metanno-fullscreen", `annotation:${relativeLink}`);
   await page.goto(relative.toString());
   await fullscreen.getByRole("gridcell", { name: "Updated todo", exact: true }).waitFor({ timeout: 120000 });
   assert.equal(await fullscreen.locator(".metanno-viewer__status").isVisible(), false);
-  assert.equal(new URL(page.url()).searchParams.get("metanno-fullscreen"), `annotation:${directory}/review.pret`);
+  // A relative path is resolved from the server root, which Jupyter Server writes with ~ for the home folder
+  const { serverRoot } = JSON.parse(await page.locator("#jupyter-config-data").textContent());
+  assert.equal(linked(page.url()).path, `${serverRoot}/review.pret`);
 });

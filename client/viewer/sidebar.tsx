@@ -120,12 +120,15 @@ function Catalogue({
   tabs,
   explorer,
   outputs,
+  shown,
 }: {
   app: JupyterFrontEnd;
   pretService: IPretService;
   tabs: ViewerTabs;
   explorer: ExplorerKernelConnection;
   outputs: NotebookOutputs;
+  // Counts the times the sidebar was shown, sources are listed again each time, on a new kernel if the last one stopped
+  shown: number;
 }) {
   const displayEntries = [...outputs.entries.values()];
   const [sources, setSources] = useState<SourceSummary[]>([]);
@@ -172,7 +175,7 @@ function Catalogue({
       disposed = true;
       outputs.changed.disconnect(update);
     };
-  }, [configurationRevision]);
+  }, [configurationRevision, shown]);
   const databasesOf = (name: string) => {
     const state = listed[name];
     return Array.isArray(state) ? state : [];
@@ -570,6 +573,7 @@ const metannoIcon = new LabIcon({
 
 export class DataSidebar extends ReactWidget {
   private opened = false;
+  private shown = 0;
   constructor(
     private app: JupyterFrontEnd,
     private pretService: IPretService,
@@ -587,6 +591,7 @@ export class DataSidebar extends ReactWidget {
   protected onAfterShow(message: Message): void {
     super.onAfterShow(message);
     this.opened = true;
+    this.shown += 1;
     this.update();
   }
   render(): JSX.Element | null {
@@ -597,6 +602,7 @@ export class DataSidebar extends ReactWidget {
         tabs={this.tabs}
         explorer={this.explorer}
         outputs={this.outputs}
+        shown={this.shown}
       />
     ) : null;
   }

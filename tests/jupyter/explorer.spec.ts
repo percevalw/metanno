@@ -453,6 +453,7 @@ test("notebook and source view lifecycle", async ({ page }) => {
 });
 
 test("missing kernel recovery", async ({ page }) => {
+  test.setTimeout(180000);
   const { base, configurationPath, sourceConfiguration } = await openExplorer(page, { missing: true });
   // Include the notebook kernel in the baseline before checking for unwanted sessions
   await page.evaluate(() => window.jupyterapp.shell.currentWidget.sessionContext.ready);
@@ -500,7 +501,16 @@ test("missing kernel recovery", async ({ page }) => {
   assert.equal(await sidebar.locator(".metanno-viewer__error").count(), 0);
   await page.evaluate((id) => window.jupyterapp.shell.activateById(id), await source.getAttribute("id"));
   await source.getByRole("button", { name: "Refresh", exact: true }).click();
-  await source.getByRole("gridcell", { name: "todos source row", exact: true }).waitFor();
+  const row = source.getByRole("gridcell", { name: "todos source row", exact: true });
+  await row.waitFor();
+  await row.evaluate((cell) => cell.setAttribute("data-stale", ""));
+  sessions = await (await fetch(base + "/api/sessions")).json();
+  const explorer = sessions.find((session) => session.kernel.name === "metanno-explorer");
+  await fetch(`${base}/api/sessions/${explorer.id}`, { method: "DELETE" });
+  // Reloading the sidebar starts a new kernel, the open table reopens on it
+  await sidebar.getByRole("button", { name: "Reload configuration", exact: true }).click();
+  await sidebar.getByText("fixture", { exact: true }).waitFor();
+  await row.and(page.locator(":not([data-stale])")).waitFor({ timeout: 90000 });
 });
 
 test("connection per database", async ({ page }) => {

@@ -108,14 +108,6 @@ class DataExplorerKernel(IPythonKernel):
                     },
                 )
                 return
-            if method == "store_metadata":
-                # Resolve saved annotation links before openAnnotation selects their recipe kernel
-                from pret import load_store_snapshot
-
-                path = Path(data["path"]).expanduser().resolve()
-                metadata = load_store_snapshot(path, metadata=True)
-                send_message(comm, "response", method, request_id=request_id, data={**metadata, "path": str(path)})
-                return
             if method == "cancel":
                 target_id = data.get("request_id")
                 if not isinstance(target_id, str):

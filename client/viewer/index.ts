@@ -51,17 +51,22 @@ const plugin: JupyterFrontEndPlugin<void> = {
         const args = resource.args;
         if (!args.output.path || args.output.read_only)
           return app.commands.execute("metanno-viewer:restore-store", { ...args, startKernel: true });
-        resource = { kind: "annotation", path: args.output.path };
+        resource = {
+          kind: "annotation",
+          path: args.output.path,
+          metadata: {
+            title: args.output.title,
+            view: args.view,
+            config_path: args.output.config_path,
+            kernelspec: args.origin?.kernelspec,
+          },
+        };
       }
       if (resource.kind === "annotation") {
         let path = resource.path;
         if (!path.startsWith("/") && !path.startsWith("~"))
           path = PageConfig.getOption("serverRoot").replace(/\/$/, "") + "/" + path;
-        const manager = await explorer.connect();
-        const { data: metadata } = await manager.request<{
-          path: string; title?: string; view?: string; kernelspec?: string; config_path?: string;
-        }>("store_metadata", { path });
-        const panel = await openAnnotation(app, pretService, tabs, metadata.path, metadata, true);
+        const panel = await openAnnotation(app, pretService, tabs, path, resource.metadata, true);
         if (!panel) throw new Error("Select a kernel to open this annotation");
         return panel;
       }

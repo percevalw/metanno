@@ -213,19 +213,27 @@ export class ExplorerKernelConnection {
   readonly context: SessionContext;
   private ready: Promise<void> | null = null;
   private client: Promise<KernelClient> | null = null;
+  private starting: Promise<unknown> | null = null;
 
   constructor(private services: ServiceManager.IManager) {
     this.context = createSession(services, ".metanno-viewer/data-panel", "Metanno Data Explorer");
-    this.context.kernelChanged.connect(() => {
-      void this.client?.then(
-        (client) => client.dispose(),
-        () => {}
-      );
-      this.client = null;
+    this.context.kernelChanged.connect(() => this.disposeClient());
+    // A kernel restarted by the server, e.g. after its process was killed, lost its comms
+    this.context.statusChanged.connect((_, status) => {
+      if (status === "restarting" || status === "autorestarting") this.disposeClient();
     });
   }
 
-  async connect(): Promise<KernelClient> {
+  private disposeClient(): void {
+    void this.client?.then(
+      (client) => client.dispose(),
+      () => {}
+    );
+    this.client = null;
+  }
+
+  // Only the sidebar and Refresh buttons start a kernel, table tabs wait for one with start set to false
+  async connect(start = true): Promise<KernelClient> {
     if (!this.ready) {
       this.ready = (async () => {
         await this.services.kernelspecs.refreshSpecs();
@@ -237,15 +245,28 @@ export class ExplorerKernelConnection {
               "Open configuration and existing application openers remain available."
           );
         await this.context.initialize();
-        if (!this.context.session?.kernel) await this.context.changeKernel({ name: "metanno-explorer" });
-        if (this.context.session?.kernel?.name !== "metanno-explorer")
-          throw new Error("The Metanno data explorer session is using another kernel");
       })();
       this.ready.catch(() => {
         this.ready = null;
       });
     }
     await this.ready;
+    // A session shut down from the Running panel is noticed at once instead of at the next poll of the server
+    if (start) await this.services.sessions.refreshRunning();
+    // No kernel or a dead one, e.g. after a shutdown from the Running panel
+    const kernel = this.context.session?.kernel;
+    if (!kernel || kernel.isDisposed || kernel.status === "dead") {
+      if (!start) throw new Error("Metanno is stopped, click Refresh to start it");
+      if (!this.starting) {
+        this.disposeClient();
+        this.starting = this.context.changeKernel({ name: "metanno-explorer" }).finally(() => {
+          this.starting = null;
+        });
+      }
+      await this.starting;
+    }
+    if (this.context.session?.kernel?.name !== "metanno-explorer")
+      throw new Error("The Metanno data explorer session is using another kernel");
     if (!this.client) {
       this.client = (async () => {
         const client = new KernelClient(this.context.session!.kernel!);
