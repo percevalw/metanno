@@ -504,13 +504,29 @@ test("connection per database", async ({ page }) => {
       "  local:\n    factory: explorer_app:connect\n" +
       "  spare:\n    factory: explorer_app:connect\n" +
       "sources:\n" +
-      "  fixture:\n    connection: local  # the usual one\n    connections: [local, spare]\n"
+      "  fixture:\n    connection: local  # the usual one\n    connections: [local, spare]\n" +
+      "  everything:\n    connection: spare\n    kind: databases\n"
   );
   await page.evaluate(async () => {
     await window.jupyterapp.commands.execute("metanno-viewer:open-resource");
   });
   const sidebar = page.locator("#metanno-viewer-sidebar");
   await sidebar.getByRole("button", { name: "Reload configuration", exact: true }).click();
+  const everything = sidebar.locator(".metanno-viewer__source").filter({ hasText: "everything" });
+  assert.equal(await sidebar.locator(".metanno-viewer__listed").count(), 0);
+  await everything.click();
+  await sidebar.locator(".metanno-viewer__listed .metanno-viewer__source-name").first().waitFor({ timeout: 60000 });
+  await expect(everything).toContainText("databases");
+  const listed = sidebar.locator(".metanno-viewer__listed .metanno-viewer__source").first();
+  await listed.click();
+  const listedTables = sidebar.locator(".metanno-viewer__listed .metanno-viewer__tables");
+  await listedTables.getByRole("button", { name: "lists", exact: true }).waitFor({ timeout: 60000 });
+  const searchBox = sidebar.getByRole("textbox", { name: "Search sources and tables" });
+  await searchBox.fill("lists");
+  await expect(listedTables.getByRole("button", { name: "lists", exact: true })).toBeVisible();
+  await expect(listedTables.getByRole("button", { name: "todos", exact: true })).toHaveCount(0);
+  await searchBox.fill("");
+  await listed.click();
   const fixture = sidebar.locator(".metanno-viewer__source-group").filter({
     has: page.locator(".metanno-viewer__source-name").filter({ hasText: /^fixture$/ }),
   });

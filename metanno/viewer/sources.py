@@ -9,13 +9,14 @@ import pkgutil
 import sys
 import threading
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from ibis.common.exceptions import TableNotFound
 
-from .config import config_file, load_config
+from .config import SourceConfig, config_file, load_config
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table as IbisTable
@@ -57,6 +58,26 @@ def file_table_uri(config, source, table_name):
     return uri if ":" in uri or Path(uri).is_absolute() else str(config.directory / uri)
 
 
+def catalog_databases(backend, catalog):
+    """
+    List the databases of a catalog that hold at least one table the user can see, for SourceCatalog.list_databases
+
+    One information_schema query per catalog is much faster than a list_tables per database, e.g. 47 s instead of 6
+    min on the EDS Trino. A backend without information_schema, e.g. Spark, lists all the databases of the catalog
+    """
+    for location in ((catalog, "information_schema"), "information_schema"):
+        try:
+            tables = backend.table("tables", database=location)
+            names = tables.filter(tables.table_catalog == catalog).select("table_schema").distinct().to_pyarrow()
+            return [(catalog, name) for name in names["table_schema"].to_pylist() if name != "information_schema"]
+        except Exception:
+            continue
+    try:
+        return [(catalog, database) for database in backend.list_databases(catalog=catalog)]
+    except Exception:
+        return []
+
+
 class SourceCatalog:
     """
     Share lazily opened Ibis connections across the sources listed in metanno.yaml
@@ -70,6 +91,8 @@ class SourceCatalog:
         self.connection_lock = threading.Lock()
         # Tables by (source, table, connection), the same table can be open on DuckDB and on Spark
         self.tables = {}
+        # Databases found by list_databases, by the name shown in the sidebar, e.g. s3_parquet_prod.datalake_prod_orbis
+        self.listed = {}
 
     def connection(self, name):
         """
@@ -121,7 +144,8 @@ class SourceCatalog:
 
     def list_sources(self):
         """
-        Describe each source for the sidebar: its default connection and the ones it can switch to
+        Describe each source for the sidebar: its default connection, the ones it can switch to, and whether it is a
+        `databases` source that the sidebar expands with list_databases
         """
         return [
             {
@@ -134,10 +158,50 @@ class SourceCatalog:
         ]
 
     def source(self, name):
-        try:
-            return self.config.sources[name]
-        except KeyError as exc:
-            raise QueryError(f"Unknown data source {name!r}") from exc
+        """
+        Return the SourceConfig of a source of metanno.yaml or of a database found by list_databases
+        """
+        source = self.config.sources.get(name) or self.listed.get(name)
+        if source is None:
+            raise QueryError(f"Unknown data source {name!r}")
+        return source
+
+    def list_databases(self, source_name):
+        """
+        List the databases of a `databases` source, each becoming a source the sidebar shows under it
+
+        When the backend has catalogs, e.g. Trino, the databases of every catalog are named `catalog.database`, and
+        only those with a table the user can see are kept
+        """
+        source = self.source(source_name)
+        if source.kind != "databases":
+            raise QueryError(f"Source {source_name!r} is not a databases source")
+        backend = self.connection(source.connection)
+        if hasattr(backend, "list_catalogs"):
+            catalogs = backend.list_catalogs()
+            # The EDS Trino refuses more than about 16 queries at once, in-process engines such as DuckDB cannot share
+            # their connection between threads
+            workers = 1 if backend.name in {"duckdb", "sqlite"} else 8
+            with ThreadPoolExecutor(workers) as pool:
+                found = [
+                    pair
+                    for pairs in pool.map(lambda name: catalog_databases(backend, name), catalogs)
+                    for pair in pairs
+                ]
+        else:
+            found = [(None, database) for database in backend.list_databases()]
+        databases = []
+        for catalog, database in sorted(found, key=lambda pair: (pair[0] or "", pair[1])):
+            name = f"{catalog}.{database}" if catalog else database
+            if name in self.config.sources:
+                continue
+            self.listed[name] = SourceConfig(
+                name=name, connection=source.connection, catalog=catalog, database=database
+            )
+            databases.append(
+                {"name": name, "kind": "catalogue", "connection": source.connection, "connections": [source.connection]}
+            )
+        return databases
 
     def set_connection(self, source_name, connection):
         """
@@ -146,6 +210,8 @@ class SourceCatalog:
         from ruamel.yaml import YAML
 
         source = self.source(source_name)
+        if source_name not in self.config.sources:
+            raise QueryError(f"Source {source_name!r} comes from a databases source and has a single connection")
         if connection not in source.allowed_connections:
             raise QueryError(f"Source {source_name!r} cannot use connection {connection!r}")
         yaml = YAML()
@@ -165,6 +231,8 @@ class SourceCatalog:
         List catalogue tables or child datasets at the URI recorded in the source definition
         """
         source = self.source(source_name)
+        if source.kind == "databases":
+            raise QueryError(f"Source {source_name!r} lists databases, not tables, see list_databases")
         backend = self.connection(source.connection)
         if source.kind == "catalogue":
             names = backend.list_tables(database=self.database_name(source))
@@ -177,8 +245,12 @@ class SourceCatalog:
         List local file datasets or use the source connection to access Hadoop filesystems
         """
         if source.uri.startswith(("hdfs:", "s3a:")):
+            if hasattr(backend, "list_folders"):
+                return backend.list_folders(source.uri)
             if backend.name != "pyspark":
-                raise QueryError("HDFS and S3A directory discovery requires a Spark connection")
+                raise QueryError(
+                    "HDFS and S3A directory discovery requires a Spark connection or a list_folders method"
+                )
             spark = backend._session
             path = spark._jvm.org.apache.hadoop.fs.Path(source.uri)
             filesystem = path.getFileSystem(spark._jsc.hadoopConfiguration())
