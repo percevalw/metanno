@@ -10,10 +10,12 @@
   font-size: var(--jp-ui-font-size1);
 }
 
+/* The search row stays put, only the Explore and Annotations lists below it scroll */
 .metanno-viewer__sidebar {
   box-sizing: border-box;
-  overflow: auto;
-  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   color: var(--jp-ui-font-color1);
   background: var(--jp-layout-color1);
   height: 100%;
@@ -34,13 +36,6 @@
   margin-bottom: 10px;
   padding: 0 0 8px;
   border-bottom: 1px solid var(--jp-border-color2);
-}
-
-.metanno-viewer__configuration {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
 }
 
 .metanno-viewer__view-links {
@@ -169,6 +164,8 @@
 
 .metanno-viewer__source-name {
   flex: 1 1 auto;
+  /* Without it a flex item never gets narrower than its text, so a long name would widen the panel */
+  min-width: 0;
 }
 
 .metanno-viewer__source small {
@@ -426,4 +423,21 @@ button.metanno-viewer__connection:hover {
 }
 .metanno-viewer__error a { color: inherit; text-decoration: underline; }
 
+.metanno-viewer__sidebar-top {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 10px 6px;
+}
+.metanno-viewer__sidebar-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0 10px 10px;
+}
+.metanno-viewer__sidebar-top > .metanno-viewer__search { flex: 1; min-width: 0; margin-bottom: 0; }
+.metanno-viewer__icon-button { display: flex; align-items: center; padding: 0 6px; }
+.metanno-viewer__icon-button > span { display: flex; }
 .metanno-viewer__listed { margin-left: 12px; }
