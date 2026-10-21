@@ -53,7 +53,13 @@ function SourceView({ explorer, pretService, initialResource, fullscreenButton }
   const [ready, setReady] = useState(false);
   // Recipe chosen in the selector, the selection recipe until then
   const [recipe, setRecipe] = useState<string | null>(null);
-  const [shown, setShown] = useState<{ view: string; choices: string[] } | null>(null);
+  const [connection, setConnection] = useState<string | null>(null);
+  const [shown, setShown] = useState<{
+    view: string;
+    choices: string[];
+    connection?: string;
+    connections?: string[];
+  } | null>(null);
 
   const renderPretView = useCallback(
     async (reply: { data: ViewReply }, label: string) => {
@@ -145,7 +151,12 @@ function SourceView({ explorer, pretService, initialResource, fullscreenButton }
     const id = crypto.randomUUID();
     viewRef.current = id;
     const method = initialResource.kind === "view" ? "open_saved_view" : "open_table_view";
-    const params = { ...initialResource, view_ref: id, ...(recipe ? { recipe } : {}) };
+    const params = {
+      ...initialResource,
+      view_ref: id,
+      ...(recipe ? { recipe } : {}),
+      ...(connection ? { connection } : {}),
+    };
     void manager
       .request<ViewReply>(method, params, 30000)
       .then(async (reply) => {
@@ -155,7 +166,12 @@ function SourceView({ explorer, pretService, initialResource, fullscreenButton }
           return;
         }
         viewRef.current = openedRef;
-        setShown({ view: reply.data.view, choices: [...new Set([reply.data.view, ...reply.data.choices])] });
+        setShown({
+          view: reply.data.view,
+          choices: [...new Set([reply.data.view, ...reply.data.choices])],
+          connection: reply.data.connection,
+          connections: reply.data.connections,
+        });
         await renderPretView(reply, label);
       })
       .catch((reason) => {
@@ -175,7 +191,7 @@ function SourceView({ explorer, pretService, initialResource, fullscreenButton }
       if (openedRef) void manager.request("close_view", { view_ref: openedRef });
       if (viewRef.current === id) viewRef.current = null;
     };
-  }, [initialResource, recipe, ready, kernelGeneration, refreshGeneration, renderPretView]);
+  }, [initialResource, recipe, connection, ready, kernelGeneration, refreshGeneration, renderPretView]);
 
   return (
     <div className="metanno-viewer">
@@ -203,6 +219,31 @@ function SourceView({ explorer, pretService, initialResource, fullscreenButton }
               ))}
             </select>
           </label>
+          {shown?.connection && (
+            <label className="metanno-viewer__toolbar-label">
+              Connection:
+              {shown.connections.length > 1 ? (
+                <select
+                  className="metanno-viewer__recipe"
+                  aria-label="Connection"
+                  value={shown.connection}
+                  onChange={(event) => {
+                    const chosen = event.target.value;
+                    setConnection(chosen);
+                    setShown((current) => current && { ...current, connection: chosen });
+                  }}
+                >
+                  {shown.connections.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <span>{shown.connection}</span>
+              )}
+            </label>
+          )}
           {viewRef.current && (
             <details className="metanno-viewer__copy-menu">
               <summary className="metanno-viewer__toolbar-button">Copy code</summary>

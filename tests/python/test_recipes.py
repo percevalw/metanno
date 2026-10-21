@@ -91,7 +91,7 @@ def test_source_relations_follow_derived_parent_views_before_paging(tmp_path):
     ibis = pytest.importorskip("ibis")
     service = SourceCatalog()
     service.config = SimpleNamespace(views=tmp_path / "views", preview=SimpleNamespace(max_bytes=100_000, rows=500))
-    service.table = lambda source, name: backend.table(name)
+    service.table = lambda source, name, connection=None: backend.table(name)
     recipes = tmp_path / "views" / "recipes"
     recipes.mkdir(parents=True)
     (recipes / "todos.py").write_text(

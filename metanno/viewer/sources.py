@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 
 from ibis.common.exceptions import TableNotFound
 
-from .config import load_config
+from .config import config_file, load_config
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table as IbisTable
@@ -63,10 +63,12 @@ class SourceCatalog:
     """
 
     def __init__(self, config_path=None):
+        self.config_path = config_file(config_path)
         self.config = load_config(config_path)
         self.connections = {}
         self.resources = {}
         self.connection_lock = threading.Lock()
+        # Tables by (source, table, connection), the same table can be open on DuckDB and on Spark
         self.tables = {}
 
     def connection(self, name):
@@ -83,9 +85,7 @@ class SourceCatalog:
                 if context._jsc is None or context._jsc.sc().isStopped():
                     self.resources.pop(name).close()
                     del self.connections[name]
-                    self.tables = {
-                        key: table for key, table in self.tables.items() if self.source(key[0]).connection != name
-                    }
+                    self.tables = {key: table for key, table in self.tables.items() if key[2] != name}
             if name in self.connections:
                 return self.connections[name]
             import ibis
@@ -120,13 +120,42 @@ class SourceCatalog:
         self.tables.clear()
 
     def list_sources(self):
-        return [{"name": source.name, "kind": source.kind} for source in self.config.sources.values()]
+        """
+        Describe each source for the sidebar: its default connection and the ones it can switch to
+        """
+        return [
+            {
+                "name": source.name,
+                "kind": source.kind,
+                "connection": source.connection,
+                "connections": source.allowed_connections,
+            }
+            for source in self.config.sources.values()
+        ]
 
     def source(self, name):
         try:
             return self.config.sources[name]
         except KeyError as exc:
             raise QueryError(f"Unknown data source {name!r}") from exc
+
+    def set_connection(self, source_name, connection):
+        """
+        Make connection the default of a source, in memory and in metanno.yaml, keeping the comments of the file
+        """
+        from ruamel.yaml import YAML
+
+        source = self.source(source_name)
+        if connection not in source.allowed_connections:
+            raise QueryError(f"Source {source_name!r} cannot use connection {connection!r}")
+        yaml = YAML()
+        yaml.preserve_quotes = True
+        yaml.width = 4096
+        document = yaml.load(self.config_path.read_text())
+        document["sources"][source_name]["connection"] = connection
+        with self.config_path.open("w") as file:
+            yaml.dump(document, file)
+        self.config.sources[source_name] = source.model_copy(update={"connection": connection})
 
     def database_name(self, source):
         return (source.catalog, source.database) if source.catalog else source.database
@@ -164,23 +193,27 @@ class SourceCatalog:
             root = self.config.directory / root
         return [path.name for path in root.iterdir() if path.is_dir() or path.suffix == ".parquet"]
 
-    def table(self, source_name: str, table_name: str) -> IbisTable:
+    def table(self, source_name: str, table_name: str, connection: str | None = None) -> IbisTable:
         """
         Return an Ibis Table from the source definition, reusing file registrations between queries
+
+        connection is one of the source connections, its default one when None
         """
-        key = source_name, table_name
         source = self.source(source_name)
+        connection = connection or source.connection
+        if connection not in source.allowed_connections:
+            raise QueryError(f"Source {source_name!r} cannot use connection {connection!r}")
+        key = source_name, table_name, connection
         # Checks the connection before reusing a table, see connection
-        backend = self.connection(source.connection)
+        backend = self.connection(connection)
         if key not in self.tables:
             if source.kind == "catalogue":
                 try:
                     table = backend.table(table_name, database=self.database_name(source))
                 except TableNotFound as exc:
                     raise QueryError(
-                        f"Table {table_name!r} is not available in source {source_name!r} "
-                        f"on connection {source.connection!r}, "
-                        "check the table name and configured catalogue or database"
+                        f"Table {table_name!r} of source {source_name!r} cannot be read on connection "
+                        f"{connection!r}, it may not exist anymore or you may not be allowed to read its columns"
                     ) from exc
             else:
                 if table_name not in self.list_storage_children(source, backend):

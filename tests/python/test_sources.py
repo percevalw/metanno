@@ -49,6 +49,10 @@ def test_nearest_configuration_and_explicit_overrides(tmp_path, tmp_path_factory
             "connections": {"local": {"url": "duckdb://"}},
             "sources": {"source": {"connection": "local", "kind": "files", "format": "csv", "uri": "/data"}},
         },
+        {
+            "connections": {"local": {"url": "duckdb://"}, "other": {"url": "duckdb://"}},
+            "sources": {"source": {"connection": "local", "connections": ["other"]}},
+        },
     ],
 )
 def test_invalid_config(tmp_path, data):
@@ -61,10 +65,12 @@ def test_invalid_config(tmp_path, data):
 def test_catalogue_queries_and_file_sources(tmp_path, config_path):
     path = config_path
     service = SourceCatalog(path)
-    assert service.list_sources() == [{"name": "planner", "kind": "catalogue"}]
+    assert service.list_sources() == [
+        {"name": "planner", "kind": "catalogue", "connection": "local", "connections": ["local"]}
+    ]
     assert service.connections == {}
     backend = service.connection("local")
-    with pytest.raises(QueryError, match="Table 'missing' is not available in source 'planner'"):
+    with pytest.raises(QueryError, match="Table 'missing' of source 'planner' cannot be read"):
         service.table("planner", "missing")
     backend.create_table(
         "lists",
@@ -288,3 +294,46 @@ def test_project_factories_are_resolved_from_the_configuration_directory(tmp_pat
     finally:
         for service in services:
             service.close()
+
+
+def test_sources_switch_connection(tmp_path):
+    """
+    Read one database with either of its connections and make one the default in metanno.yaml
+    """
+    import duckdb
+
+    with duckdb.connect(str(tmp_path / "notes.duckdb")) as connection:
+        connection.execute("CREATE SCHEMA cohort")
+        connection.execute("CREATE TABLE cohort.patients AS SELECT 1 AS patient_id")
+    path = tmp_path / "metanno.yaml"
+    path.write_text(
+        "# Shared notes, read with DuckDB or a second DuckDB connection\n"
+        "connections:\n"
+        f"  fast: {{url: 'duckdb://{tmp_path / 'notes.duckdb'}'}}\n"
+        f"  slow: {{url: 'duckdb://{tmp_path / 'notes.duckdb'}'}}\n"
+        "sources:\n"
+        "  notes:\n"
+        "    database: cohort\n"
+        "    connection: fast  # the quick one\n"
+        "    connections: [fast, slow]\n"
+    )
+    service = SourceCatalog(path)
+    assert service.list_sources()[0] == {
+        "name": "notes",
+        "kind": "catalogue",
+        "connection": "fast",
+        "connections": ["fast", "slow"],
+    }
+    fast = service.table("notes", "patients")
+    slow = service.table("notes", "patients", "slow")
+    assert set(service.tables) == {("notes", "patients", "fast"), ("notes", "patients", "slow")}
+    assert ibis.get_backend(fast) is not ibis.get_backend(slow)
+    with pytest.raises(QueryError):
+        service.table("notes", "patients", "missing")
+
+    before = path.read_text()
+    service.set_connection("notes", "slow")
+    assert path.read_text() == before.replace("connection: fast  # the quick one", "connection: slow  # the quick one")
+    assert service.source("notes").connection == "slow"
+    assert SourceCatalog(path).source("notes").connection == "slow"
+    service.close()

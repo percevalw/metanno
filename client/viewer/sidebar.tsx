@@ -18,6 +18,8 @@ import { ErrorBanner } from "./source_view";
 interface SourceSummary {
   name: string;
   kind: string;
+  connection: string;
+  connections: string[];
 }
 
 interface TableSummary {
@@ -48,6 +50,20 @@ interface ViewDirectories {
   stores: string;
 }
 
+// Open a Jupyter context menu at x, y with one entry per item, the menu is disposed once closed
+function openMenu(items: { label: string; execute: () => void; isToggled?: () => boolean }[], x: number, y: number) {
+  const commands = new CommandRegistry();
+  const menu = new Menu({ commands });
+  for (const item of items) {
+    commands.addCommand(item.label, item);
+    menu.addItem({ command: item.label });
+  }
+  menu.aboutToClose.connect(() => {
+    window.setTimeout(() => menu.dispose(), 0);
+  });
+  menu.open(x, y);
+}
+
 // Keep entry actions available through both a button and the Jupyter context menu
 function Entry({
   open,
@@ -66,16 +82,14 @@ function Entry({
       onContextMenu={(event) => {
         event.preventDefault();
         event.stopPropagation();
-        const commands = new CommandRegistry();
-        commands.addCommand("open", { label: "Open", execute: () => open(false) });
-        commands.addCommand("new", { label: "Open in new tab", execute: () => open(true) });
-        const menu = new Menu({ commands });
-        menu.addItem({ command: "open" });
-        if (newTabs) menu.addItem({ command: "new" });
-        menu.aboutToClose.connect(() => {
-          window.setTimeout(() => menu.dispose(), 0);
-        });
-        menu.open(event.clientX, event.clientY);
+        openMenu(
+          [
+            { label: "Open", execute: () => open(false) },
+            ...(newTabs ? [{ label: "Open in new tab", execute: () => open(true) }] : []),
+          ],
+          event.clientX,
+          event.clientY
+        );
       }}
     >
       <button className="metanno-viewer__table" title={title} onClick={() => open(false)}>
@@ -151,6 +165,29 @@ function Catalogue({
       outputs.changed.disconnect(update);
     };
   }, [configurationRevision]);
+  const openConnection = sources.find((item) => item.name === source)?.connection;
+  // Menu of the connections a database can be read with, the chosen one becomes its default in metanno.yaml
+  const chooseConnection = (event: React.MouseEvent, item: SourceSummary) => {
+    const box = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    openMenu(
+      item.connections.map((name) => ({
+        label: name,
+        isToggled: () => name === item.connection,
+        execute: () =>
+          void explorer
+            .connect()
+            .then((manager) => manager.request("set_source_connection", { source: item.name, connection: name }))
+            .then(() =>
+              setSources((current) =>
+                current.map((other) => (other.name === item.name ? { ...other, connection: name } : other))
+              )
+            )
+            .catch((reason) => setError(String(reason?.message ?? reason))),
+      })),
+      box.left,
+      box.bottom
+    );
+  };
   useEffect(() => {
     let disposed = false;
     setTables(null);
@@ -170,7 +207,7 @@ function Catalogue({
     return () => {
       disposed = true;
     };
-  }, [source, configurationRevision]);
+  }, [source, openConnection, configurationRevision]);
   const openResource = (resource: SourceSelection, newTab = false) => {
     void app.commands
       .execute("metanno-viewer:open-resource", { resource: resource as unknown as ReadonlyPartialJSONObject, newTab })
@@ -215,6 +252,53 @@ function Catalogue({
       {store.name}
       {store.error ? <small>{store.error}</small> : null}
     </Entry>
+  );
+
+  // A database with its connection, and its tables once opened
+  const sourceGroup = (item: SourceSummary) => (
+    <section className="metanno-viewer__source-group" key={item.name}>
+      <div className="metanno-viewer__source-row">
+        <button
+          className={`metanno-viewer__source${source === item.name ? " is-open" : ""}`}
+          aria-expanded={source === item.name}
+          onClick={() => {
+            setSource(source === item.name ? null : item.name);
+          }}
+        >
+          <span className="metanno-viewer__disclosure">{source === item.name ? "▾" : "▸"}</span>
+          <span className="metanno-viewer__source-name">{item.name}</span>
+        </button>
+        {item.connections.length > 1 ? (
+          <button
+            className="metanno-viewer__connection"
+            title="Connection used to read this database, click to change it"
+            onClick={(event) => chooseConnection(event, item)}
+          >
+            {item.connection}
+          </button>
+        ) : (
+          <span className="metanno-viewer__connection">{item.connection}</span>
+        )}
+      </div>
+      {source === item.name && (
+        <div className="metanno-viewer__tables">
+          {tables === null && <div className="metanno-viewer__tables-empty">Loading tables…</div>}
+          {tables?.length === 0 && <div className="metanno-viewer__tables-empty">No tables</div>}
+          {(tables ?? [])
+            .filter((itemTable) => matches(itemTable.name) || matches(item.name))
+            .map((itemTable) => (
+              <Entry
+                key={itemTable.name}
+                open={(newTab) => {
+                  openResource({ kind: "table", source: item.name, table: itemTable.name }, newTab);
+                }}
+              >
+                {itemTable.name}
+              </Entry>
+            ))}
+        </div>
+      )}
+    </section>
   );
 
   return (
@@ -339,47 +423,7 @@ function Catalogue({
             </div>
           )}
         </div>
-        {sources
-          .filter((item) => matches(item.name) || item.name === source)
-          .map((item) => (
-            <section className="metanno-viewer__source-group" key={item.name}>
-              <button
-                className={`metanno-viewer__source${source === item.name ? " is-open" : ""}`}
-                aria-expanded={source === item.name}
-                onClick={() => {
-                  setSource(source === item.name ? null : item.name);
-                }}
-              >
-                <span className="metanno-viewer__disclosure">{source === item.name ? "▾" : "▸"}</span>
-                <span>{item.name}</span>
-              </button>
-              {source === item.name && (
-                <div className="metanno-viewer__tables">
-                  {tables === null && <div className="metanno-viewer__tables-empty">Loading tables…</div>}
-                  {tables?.length === 0 && <div className="metanno-viewer__tables-empty">No tables</div>}
-                  {(tables ?? [])
-                    .filter((itemTable) => matches(itemTable.name) || matches(item.name))
-                    .map((itemTable) => (
-                      <Entry
-                        key={itemTable.name}
-                        open={(newTab) => {
-                          openResource(
-                            {
-                              kind: "table",
-                              source: item.name,
-                              table: itemTable.name,
-                            },
-                            newTab
-                          );
-                        }}
-                      >
-                        {itemTable.name}
-                      </Entry>
-                    ))}
-                </div>
-              )}
-            </section>
-          ))}
+        {sources.filter((item) => matches(item.name) || item.name === source).map(sourceGroup)}
         <div className="metanno-viewer__sidebar-title">Annotations</div>
         <div className="metanno-viewer__views">
           {visibleStores.filter((store) => !store.group).map(storeEntry)}

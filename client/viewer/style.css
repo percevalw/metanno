@@ -402,3 +402,22 @@ body.metanno-viewer-fullscreen > #main {
   padding: 6px;
 }
 .metanno-viewer__entry-new:hover { background: var(--jp-layout-color2); }
+
+/* Connection of a database, plain light text that only looks like a button on hover when it can be changed */
+.metanno-viewer__source-row { display: flex; align-items: center; }
+.metanno-viewer__source-row > .metanno-viewer__source { flex: 1; min-width: 0; }
+.metanno-viewer__connection {
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: var(--jp-border-radius);
+  background: transparent;
+  color: var(--jp-ui-font-color3);
+  font: inherit;
+  font-size: var(--jp-ui-font-size0);
+}
+button.metanno-viewer__connection { cursor: pointer; }
+button.metanno-viewer__connection:hover {
+  color: var(--jp-ui-font-color1);
+  background: var(--jp-layout-color2);
+}

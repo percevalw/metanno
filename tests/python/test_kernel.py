@@ -180,7 +180,9 @@ def test_sidebar_root_and_configuration_reload(tmp_path):
     kernel.dispatch("set_root", {"root": str(root)})
     assert kernel.sources is old
     kernel.dispatch("reload_configuration", {})
-    assert kernel.sources.list_sources() == [{"name": "planner", "kind": "catalogue"}]
+    assert kernel.sources.list_sources() == [
+        {"name": "planner", "kind": "catalogue", "connection": "local", "connections": ["local"]}
+    ]
     assert old.list_sources() == []
     assert kernel.views["old"].sources is old
     current = kernel.sources
