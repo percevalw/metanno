@@ -272,6 +272,7 @@ def test_export_view_code_and_notebook_display(tmp_path, monkeypatch):
     frames["tags"].provider.last_query["filter"]["source_relation"]["resource_id"] = with_defaults["todos"].resource_id
     view = ViewConfig(recipe="todo_tags", tables={name: {"source": "source", "table": name} for name in frames})
     code = export_view_code(with_defaults, view, tmp_path)
+    assert "ANNOTATION_NAME = \n" in code and ".limit(1)" in code
     query_code = export_view_code(
         with_defaults,
         view.model_copy(update={"parameters": {"tag_key": "__pret_row_id"}}),
@@ -279,11 +280,12 @@ def test_export_view_code_and_notebook_display(tmp_path, monkeypatch):
         "query",
     )
     assert "save_store" not in query_code
+    assert ".limit(" not in query_code and "sys.path" not in query_code
     # Copied queries only need Ibis and Metanno, typed literals follow the recorded source schema
     assert "apply_ibis_filter" not in query_code and ".filter(_['selected'] == 1)" in query_code
     query_namespace = {}
     exec(query_code, query_namespace)
-    assert query_namespace["tags"].execute()["todo_id"].tolist() == [2]
+    assert query_namespace["tags"].execute()["todo_id"].tolist() == [2, 3]
     assert set(query_namespace["store"]) == {"todos", "tags"}
     assert query_namespace["parameters"] == {"tag_key": "__pret_row_id"}
     assert "read_only=True" in query_code
@@ -309,8 +311,8 @@ def test_export_view_code_and_notebook_display(tmp_path, monkeypatch):
             },
         )
         assert parent["total_count"] is None
-        assert child["table"]["todo_id"].to_pylist() == [2]
-        assert child["table"]["__pret_row_id"].to_pylist() == [0]
+        assert child["table"]["todo_id"].to_pylist() == [2, 3]
+        assert child["table"]["__pret_row_id"].to_pylist() == [0, 1]
 
     with patch.object(ibis.expr.types.Table, "count", side_effect=AssertionError("Preview counted rows")):
         asyncio.run(query_notebook_group())
@@ -326,7 +328,7 @@ def test_export_view_code_and_notebook_display(tmp_path, monkeypatch):
     namespace = {}
     with monkeypatch.context() as patch:
         patch.setattr(DataFrame, "materialize", collect_then_change_source)
-        exec(code, namespace)
+        exec(code.replace("ANNOTATION_NAME = \n", "ANNOTATION_NAME = 'annotation'\n"), namespace)
     backend.execute("UPDATE todos SET selected=1 WHERE todo_id=2")
     path = namespace["destination"]
     # Annotation copies open in full mode and record it for reopening
@@ -348,7 +350,7 @@ def test_export_view_code_and_notebook_display(tmp_path, monkeypatch):
     assert load_store(path).metadata["kernelspec"] == "py311"
     assert store["tags"].materialize()["tag_id"][0].as_py() == tag_id
     single = export_view_code({"todos": frames["todos"]}, None, tmp_path)
-    exec(single.replace("'annotation.pret'", "'single.pret'"), {})
+    exec(single.replace("ANNOTATION_NAME = \n", "ANNOTATION_NAME = 'single'\n"), {})
     assert load_store(tmp_path / "annotations/single.pret")["todos"].materialize().num_rows == 1
     tag_filter = {"kind": "predicate", "column": "label", "operator": "eq", "value": "b"}
     parent_filter = {
@@ -381,7 +383,7 @@ def test_export_view_code_and_notebook_display(tmp_path, monkeypatch):
         ],
     }
     from_child = export_view_code(frames, view, tmp_path)
-    exec(from_child.replace("'annotation.pret'", "'from_tags.pret'"), {})
+    exec(from_child.replace("ANNOTATION_NAME = \n", "ANNOTATION_NAME = 'from_tags'\n"), {})
     with sqlite3.connect(tmp_path / "annotations/from_tags.pret") as connection:
         assert connection.execute("SELECT todo_id FROM todos").fetchall() == [(2,)]
         assert connection.execute("SELECT todo_id FROM tags").fetchall() == [(2,)]
@@ -458,6 +460,8 @@ def test_export_view_code_writes_typed_ibis_filters(tmp_path, monkeypatch):
                     "children": [
                         {"kind": "predicate", "column": "score", "operator": "gt", "value": "1"},
                         {"kind": "not", "child": title_filter},
+                        # Bare text in a filter cell ignores case, it matches Two
+                        {"kind": "predicate", "column": "title", "operator": "icontains", "value": "tw"},
                     ],
                 },
             ],
@@ -468,13 +472,15 @@ def test_export_view_code_writes_typed_ibis_filters(tmp_path, monkeypatch):
     query = code[: code.index("# Tables maps")]
     assert "_['due_date'] >= datetime.date(2026, 1, 3)" in query and "_['score'] > Decimal('1')" in query
     assert "warehouse = connections.enter_context(connect(path=" in query
+    assert f"sys.path.insert(0, {str(tmp_path)!r})\nfrom typed_filter_connections import connect\n" in query
     imports = [line for line in imports.splitlines() if "pret" not in line and "metanno" not in line]
     namespace = {}
-    monkeypatch.setattr(sys, "path", list(sys.path))
+    # The copied code imports the connection module without the import path and modules of the explorer kernel
+    monkeypatch.setattr(sys, "path", [path for path in sys.path if path != str(tmp_path)])
+    monkeypatch.delitem(sys.modules, "typed_filter_connections")
     exec("\n".join(imports) + "\n" + query, namespace)
     assert sorted(namespace["todos"].execute()["todo_id"]) == [2, 3]
     namespace["connections"].close()
-    del sys.modules["typed_filter_connections"]
 
 
 def test_source_provider_queries_and_materializes_on_the_worker(config_path):

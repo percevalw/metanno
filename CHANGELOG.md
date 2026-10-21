@@ -8,6 +8,7 @@
 - Sources can list several `connections`, switchable from the sidebar or a table tab.
 - `kind: databases` sources list the databases of their connection, eg Trino schemas.
 - Connection factories can set `refresh_tables_on_view_open` to read their tables again at each view opening.
+- **Copy code** imports connection modules without Metanno, and query code has no row limit.
 
 ## v2.0.0-beta.1 (2026-10-08)
 

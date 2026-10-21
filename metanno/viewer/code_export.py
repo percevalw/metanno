@@ -82,6 +82,7 @@ def export_view_code(store, view_definition, config_dir, purpose="annotation"):
         "F",
         "ordering",
         "uuid",
+        "ANNOTATION_NAME",
     }
 
     def unique_name(name):
@@ -153,6 +154,8 @@ def export_view_code(store, view_definition, config_dir, purpose="annotation"):
         value = node.get("value")
         if schema is not None and node["operator"] not in {"is_null", "is_not_null"}:
             value = coerce_ibis_literal(schema[node["column"]], value, node["operator"])
+        if node["operator"] == "icontains":
+            column, value = f"{column}.lower()", value.lower()
         for item in value if isinstance(value, list) else [value]:
             if isinstance(item, (datetime.date, datetime.datetime)):
                 imports.append("import datetime")
@@ -165,6 +168,7 @@ def export_view_code(store, view_definition, config_dir, purpose="annotation"):
             "lte": "{} <= {!r}",
             "gt": "{} > {!r}",
             "gte": "{} >= {!r}",
+            "icontains": "{}.contains({!r})",
             "contains": "{}.contains({!r})",
             "starts_with": "{}.startswith({!r})",
             "ends_with": "{}.endswith({!r})",
@@ -262,9 +266,10 @@ def export_view_code(store, view_definition, config_dir, purpose="annotation"):
             statements.append(f"{query} = {query}.order_by(*ordering)")
         if options.get("columns"):
             statements.append(f"{query} = {query}.select({options['columns']!r})")
-        limit = options.get("limit", frames[key].provider.last_query.get("limit", 500))
-        offset = options.get("offset", 0)
-        statements.append(f"{query} = {query}.limit({limit!r}" + (f", offset={offset}" if offset else "") + ")")
+        if purpose == "annotation":
+            limit = options.get("limit", frames[key].provider.last_query.get("limit", 500))
+            offset = options.get("offset", 0)
+            statements.append(f"{query} = {query}.limit({limit!r}" + (f", offset={offset}" if offset else "") + ")")
         # Consecutive operations on one expression become a single readable call chain
         chained = []
         for statement in statements:
@@ -322,8 +327,10 @@ def export_view_code(store, view_definition, config_dir, purpose="annotation"):
     ]
     if purpose == "annotation":
         lines += [
-            "# Save editable copies of the query results and added fields, without changing the source database",
-            f"destination = Path({str(config.directory)!r}) / 'annotations' / 'annotation.pret'",
+            "# Save editable copies of the query results and added fields, without changing the source database.",
+            "# Name the annotation campaign, each name gets its own Store file",
+            "ANNOTATION_NAME = ",
+            f"destination = Path({str(config.directory)!r}) / 'annotations' / f'{{ANNOTATION_NAME}}.pret'",
             "# Annotation views copy every table into the page so filters and edits apply at once, up to 50 MB.",
             "# The options are saved with the Store and used again when it is reopened",
             "options = {'dataframe_sync': 'full', 'dataframe_max_bytes': 50 * 1024 * 1024}",
