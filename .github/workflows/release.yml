@@ -8,6 +8,8 @@ on:
 jobs:
   publish:
     name: Build and Publish Package
+    # Releases that only hold data files, e.g. the quaero-frenchmed corpus copy, publish nothing
+    if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'v')
     runs-on: ubuntu-latest
     permissions:
       # Trusted Publishing to PyPI
@@ -56,6 +58,7 @@ jobs:
 
   docs:
     name: Documentation
+    if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'v')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
