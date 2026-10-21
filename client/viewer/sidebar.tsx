@@ -12,7 +12,7 @@ import { ExplorerKernelConnection, SourceSelection } from "./kernel_client";
 import { ViewerTabs } from "./tabs";
 import { ServerConnection } from "@jupyterlab/services";
 import { PageConfig } from "@jupyterlab/coreutils";
-import { LabIcon } from "@jupyterlab/ui-components";
+import { LabIcon, settingsIcon } from "@jupyterlab/ui-components";
 import { ErrorBanner } from "./source_view";
 
 interface SourceSummary {
@@ -386,9 +386,18 @@ function Catalogue({
         />
       )}
       <aside className="metanno-viewer__sidebar">
-        <div className="metanno-viewer__configuration">
+        <div className="metanno-viewer__sidebar-top">
+          <input
+            className="metanno-viewer__search"
+            aria-label="Search sources and tables"
+            placeholder="Search sources and tables"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
           <button
-            className="metanno-viewer__folder-link"
+            className="metanno-viewer__toolbar-button metanno-viewer__icon-button"
+            aria-label="Open configuration"
+            title="Open configuration (metanno-home/metanno.yaml)"
             type="button"
             disabled={configurationBusy}
             onClick={async () => {
@@ -412,10 +421,10 @@ function Catalogue({
               }
             }}
           >
-            Open configuration
+            <settingsIcon.react tag="span" height="16px" width="16px" />
           </button>
           <button
-            className="metanno-viewer__toolbar-button"
+            className="metanno-viewer__toolbar-button metanno-viewer__icon-button"
             aria-label="Reload configuration"
             title="Reload configuration"
             type="button"
@@ -436,8 +445,8 @@ function Catalogue({
             }}
           >
             <svg
-              width="18"
-              height="18"
+              width="16"
+              height="16"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -448,108 +457,103 @@ function Catalogue({
             </svg>
           </button>
         </div>
-        <div className="metanno-viewer__sidebar-title">Explore</div>
-        <input
-          className="metanno-viewer__search"
-          aria-label="Search sources and tables"
-          placeholder="Search sources and tables"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-        />
-        {notebookEntries(true)}
-        <div className="metanno-viewer__views">
-          {views
-            .filter((view) => matches(view.name))
-            .map((view) => (
-              <Entry
-                key={view.name}
-                title={Object.values(view.tables)
-                  .map((table) => `${table.source}.${table.table}`)
-                  .join(", ")}
-                open={(newTab) => {
-                  openResource(
-                    {
-                      kind: "view",
-                      name: view.name,
-                    },
-                    newTab
-                  );
-                }}
-              >
-                {view.name}
-              </Entry>
-            ))}
-          {views.length === 0 && <div className="metanno-viewer__tables-empty">No saved views</div>}
-          {viewDirectories && (
-            <div className="metanno-viewer__view-links">
+        <div className="metanno-viewer__sidebar-content">
+          <div className="metanno-viewer__sidebar-title">Explore</div>
+          {notebookEntries(true)}
+          <div className="metanno-viewer__views">
+            {views
+              .filter((view) => matches(view.name))
+              .map((view) => (
+                <Entry
+                  key={view.name}
+                  title={Object.values(view.tables)
+                    .map((table) => `${table.source}.${table.table}`)
+                    .join(", ")}
+                  open={(newTab) => {
+                    openResource(
+                      {
+                        kind: "view",
+                        name: view.name,
+                      },
+                      newTab
+                    );
+                  }}
+                >
+                  {view.name}
+                </Entry>
+              ))}
+            {views.length === 0 && <div className="metanno-viewer__tables-empty">No saved views</div>}
+            {viewDirectories && (
+              <div className="metanno-viewer__view-links">
+                <button
+                  className="metanno-viewer__folder-link"
+                  title={viewDirectories.views}
+                  onClick={() =>
+                    void app.commands.execute("filebrowser:open-path", {
+                      path: viewDirectories.views,
+                    })
+                  }
+                >
+                  Open views folder
+                </button>
+              </div>
+            )}
+          </div>
+          {sources
+            .filter((item) => {
+              // A databases source stays while one of its databases matches or is open, so the search also filters
+              // the tables of the open database
+              return (
+                matches(item.name) ||
+                item.name === source ||
+                databasesOf(item.name).some((entry) => matches(entry.name) || entry.name === source)
+              );
+            })
+            .map((item) => (item.kind === "databases" ? databasesGroup(item) : sourceGroup(item)))}
+          <div className="metanno-viewer__sidebar-title">Annotations</div>
+          <div className="metanno-viewer__views">
+            {visibleStores.filter((store) => !store.group).map(storeEntry)}
+            {[...new Set(visibleStores.map((store) => store.group).filter(Boolean))].map((group: string) => {
+              const open = !closedGroups.includes(group);
+              return (
+                <section className="metanno-viewer__source-group" key={group}>
+                  <button
+                    className={`metanno-viewer__source${open ? " is-open" : ""}`}
+                    aria-expanded={open}
+                    onClick={() =>
+                      setClosedGroups(open ? [...closedGroups, group] : closedGroups.filter((name) => name !== group))
+                    }
+                  >
+                    <span className="metanno-viewer__disclosure">{open ? "▾" : "▸"}</span>
+                    <span className="metanno-viewer__source-name">{group}</span>
+                  </button>
+                  {open && (
+                    <div className="metanno-viewer__tables">
+                      {visibleStores.filter((store) => store.group === group).map(storeEntry)}
+                    </div>
+                  )}
+                </section>
+              );
+            })}
+            {stores.length === 0 && !displayEntries.some((entry) => !entry.read_only) && (
+              <div className="metanno-viewer__tables-empty">No Annotations</div>
+            )}
+            {viewDirectories && (
               <button
                 className="metanno-viewer__folder-link"
-                title={viewDirectories.views}
+                title={viewDirectories.stores}
                 onClick={() =>
                   void app.commands.execute("filebrowser:open-path", {
-                    path: viewDirectories.views,
+                    path: viewDirectories.stores,
                   })
                 }
               >
-                Open views folder
+                Open annotations folder
               </button>
-            </div>
-          )}
+            )}
+          </div>
+          {notebookEntries(false)}
         </div>
-        {sources
-          .filter((item) => {
-            // A databases source stays while one of its databases matches or is open, so the search also filters
-            // the tables of the open database
-            return (
-              matches(item.name) ||
-              item.name === source ||
-              databasesOf(item.name).some((entry) => matches(entry.name) || entry.name === source)
-            );
-          })
-          .map((item) => (item.kind === "databases" ? databasesGroup(item) : sourceGroup(item)))}
-        <div className="metanno-viewer__sidebar-title">Annotations</div>
-        <div className="metanno-viewer__views">
-          {visibleStores.filter((store) => !store.group).map(storeEntry)}
-          {[...new Set(visibleStores.map((store) => store.group).filter(Boolean))].map((group: string) => {
-            const open = !closedGroups.includes(group);
-            return (
-              <section className="metanno-viewer__source-group" key={group}>
-                <button
-                  className={`metanno-viewer__source${open ? " is-open" : ""}`}
-                  aria-expanded={open}
-                  onClick={() =>
-                    setClosedGroups(open ? [...closedGroups, group] : closedGroups.filter((name) => name !== group))
-                  }
-                >
-                  <span className="metanno-viewer__disclosure">{open ? "▾" : "▸"}</span>
-                  <span>{group}</span>
-                </button>
-                {open && (
-                  <div className="metanno-viewer__tables">
-                    {visibleStores.filter((store) => store.group === group).map(storeEntry)}
-                  </div>
-                )}
-              </section>
-            );
-          })}
-          {stores.length === 0 && !displayEntries.some((entry) => !entry.read_only) && (
-            <div className="metanno-viewer__tables-empty">No Annotations</div>
-          )}
-          {viewDirectories && (
-            <button
-              className="metanno-viewer__folder-link"
-              title={viewDirectories.stores}
-              onClick={() =>
-                void app.commands.execute("filebrowser:open-path", {
-                  path: viewDirectories.stores,
-                })
-              }
-            >
-              Open annotations folder
-            </button>
-          )}
-        </div>
-        {notebookEntries(false)}
       </aside>
     </>
   );
