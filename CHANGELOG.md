@@ -9,6 +9,7 @@
 - `kind: databases` sources list the databases of their connection, eg Trino schemas.
 - Connection factories can set `refresh_tables_on_view_open` to read their tables again at each view opening.
 - **Copy code** imports connection modules without Metanno, and query code has no row limit.
+- Rerunning an **Open with Metanno** cell refreshes its open panel instead of adding a sidebar entry.
 
 ## v2.0.0-beta.1 (2026-10-08)
 

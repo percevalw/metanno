@@ -61,14 +61,16 @@ export class ViewerTabs {
       notebook?: Widget;
       widgetId?: string;
       restore?: (widget: Widget) => ReadonlyJSONObject;
+      replace?: Widget;
     } = {}
   ): Widget {
-    if (!options.explore) {
+    if (!options.explore && !options.replace) {
       const existing = this.focus(key);
       if (existing) return existing;
     }
     const destination =
-      options.explore && !options.newTab
+      options.replace ??
+      (options.explore && !options.newTab
         ? toArray<Widget>(this.app.shell.widgets("main"))
             .filter(
               (widget) =>
@@ -79,8 +81,8 @@ export class ViewerTabs {
                   widget.node.querySelector(".jp-Launcher"))
             )
             .sort((a, b) => (this.focused.get(b) || 0) - (this.focused.get(a) || 0))[0]
-        : undefined;
-    if (this.entries.some((entry) => entry.widget === destination && entry.key === key)) {
+        : undefined);
+    if (!options.replace && this.entries.some((entry) => entry.widget === destination && entry.key === key)) {
       this.app.shell.activateById(destination.id);
       return destination;
     }
@@ -103,10 +105,13 @@ export class ViewerTabs {
     this.app.shell.add(
       entry.widget,
       "main",
-      reference ? { ref: reference.id, mode: destination ? "tab-after" : "split-right" } : undefined
+      reference
+        ? { ref: reference.id, mode: destination ? "tab-after" : "split-right", activate: !options.replace }
+        : undefined
     );
     destination?.dispose();
-    this.app.shell.activateById(entry.widget.id);
+    // A replaced panel keeps the focus where it is, e.g. in the notebook that reran its cell
+    if (!options.replace) this.app.shell.activateById(entry.widget.id);
     return entry.widget;
   }
 }

@@ -26,6 +26,7 @@ export type ViewOpenerData = {
   path: string | null;
   read_only: boolean;
   config_path: string;
+  cell: string | null;
 };
 // Key of the tab showing `view` of `output`, Annotations have one tab per file, other data one tab per view
 export function tabKey(output: ViewOpenerData, view: string): string {
@@ -474,6 +475,7 @@ export async function openAnnotation(
     view: metadata.view || "table",
     choices: [],
     config_path: metadata.config_path || "",
+    cell: null,
   };
   let created = false;
   const panel = tabs.open(

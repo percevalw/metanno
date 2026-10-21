@@ -212,10 +212,18 @@ test("notebook and source view lifecycle", async ({ page }) => {
   await page.waitForFunction(() => document.querySelector(".jp-CodeCell .jp-InputPrompt").textContent.includes("3"));
   await open.click();
   assert.equal(await page.locator(".jp-Dialog").count(), 0);
-  await page
-    .locator(".metanno-viewer__application")
-    .getByText("Example todo", { exact: true })
-    .waitFor({ timeout: 60000 });
+  await panel.getByText("Example todo", { exact: true }).waitFor({ timeout: 60000 });
+  assert.equal(await panel.count(), 1);
+  // Rerunning the cell shows its new output in the open panel without clicking the button
+  await panel.evaluate((node) => node.setAttribute("data-stale", ""));
+  await page.locator(".jp-Notebook .jp-CodeCell").first().click();
+  await page.evaluate(() => window.jupyterapp.commands.execute("notebook:run-cell"));
+  await panel.and(page.locator(":not([data-stale])")).getByText("Example todo", { exact: true }).waitFor();
+  assert.equal(await panel.count(), 1);
+  await page.evaluate(() => window.jupyterapp.shell.activateById("metanno-viewer-sidebar"));
+  await expect(
+    page.locator("#metanno-viewer-sidebar .metanno-viewer__entry").filter({ hasText: "Notebook preview" })
+  ).toHaveCount(1);
   await page
     .locator(".lm-TabBar-tab")
     .filter({ hasText: /^planner.ipynb$/ })
