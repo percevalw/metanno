@@ -177,6 +177,8 @@ jobs:
           git config user.name ${{ github.actor }}
           git config user.email ${{ github.actor }}@users.noreply.github.com
           echo Current branch: $BRANCH_NAME
+          # mike versions and Vercel projects cannot contain slashes, e.g. release/v2.0.0 becomes release-v2.0.0
+          echo "BRANCH_NAME=${BRANCH_NAME//\//-}" >> "$GITHUB_ENV"
 
       - *checkout-pret
       - *link-pret
