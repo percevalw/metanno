@@ -115,8 +115,8 @@ def test_list_views_groups_campaign_stores(tmp_path, monkeypatch):
         {"name": "alice", "group": "campaign", "path": str(stores / "campaign" / "alice.pret"), "recipe": "todo"},
         {"name": "current", "group": None, "path": str(stores / "current.pret"), "recipe": "todo"},
     ]
-    # The sidebar opens these paths, relative to the Jupyter root, in the file browser
-    assert reply["directories"] == {"views": "views", "stores": "annotations"}
+    # The sidebar opens the metanno.yaml folder, relative to the Jupyter root, in the file browser
+    assert reply["home"] == ""
     with pytest.raises(ValueError, match="must be inside the Jupyter root"):
         kernel.dispatch("list_views", {"root": str(tmp_path / "other")})
     # A metanno-home folder linked under the root, eg on a data disk, opens through its link
@@ -124,7 +124,7 @@ def test_list_views_groups_campaign_stores(tmp_path, monkeypatch):
     (tmp_path / "home" / "disk").symlink_to(tmp_path)
     kernel.sources = SimpleNamespace(config=SimpleNamespace(directory=tmp_path / "home" / "disk"))
     reply = kernel.dispatch("list_views", {"root": str(tmp_path / "home")})
-    assert reply["directories"] == {"views": "disk/views", "stores": "disk/annotations"}
+    assert reply["home"] == "disk"
     kernel.sources = SimpleNamespace(config=SimpleNamespace(directory=tmp_path))
     import sqlite3
 

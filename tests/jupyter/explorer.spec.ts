@@ -7,6 +7,11 @@ const { test, expect } = require(process.env.PRET_TESTING_HELPER);
 
 test.use({ viewport: { width: 1600, height: 1000 } });
 
+// Bring the Metanno sidebar back after its settings button showed the file browser in its place
+async function showSidebar(page) {
+  await page.evaluate(() => window.jupyterapp.shell.activateById("metanno-viewer-sidebar"));
+}
+
 test("notebook and source view lifecycle", async ({ page }) => {
   test.setTimeout(180000);
   const { directory, base } = await openExplorer(page, { delayed: true });
@@ -223,7 +228,7 @@ test("notebook and source view lifecycle", async ({ page }) => {
   assert.equal(await panel.count(), 1);
   await page.evaluate(() => window.jupyterapp.shell.activateById("metanno-viewer-sidebar"));
   await expect(
-    page.locator("#metanno-viewer-sidebar .metanno-viewer__entry").filter({ hasText: "Notebook preview" })
+    page.locator("#metanno-viewer-sidebar .metanno-viewer__row").filter({ hasText: "Notebook preview" })
   ).toHaveCount(1);
   await page
     .locator(".lm-TabBar-tab")
@@ -305,15 +310,19 @@ test("notebook and source view lifecycle", async ({ page }) => {
   const sidebar = page.locator("#metanno-viewer-sidebar");
   await sidebar.getByRole("button", { name: "Open configuration", exact: true }).click();
   await page.getByRole("tab", { name: /metanno.yaml/ }).waitFor();
+  await showSidebar(page);
   await sidebar.getByRole("button", { name: "Reload configuration", exact: true }).click();
   // Annotation files of a campaign folder are listed under its name
-  const campaign = sidebar.locator(".metanno-viewer__source-group").filter({ hasText: "campaign" });
+  const campaign = sidebar
+    .getByRole("region", { name: "Annotations" })
+    .locator(".metanno-viewer__group")
+    .filter({ has: page.getByRole("button", { name: "campaign", exact: true }) });
   await campaign.getByRole("button", { name: /alice/ }).waitFor();
-  await campaign.locator(".metanno-viewer__source").click();
+  await campaign.getByRole("button", { name: "campaign", exact: true }).click();
   assert.equal(await campaign.getByRole("button", { name: /alice/ }).count(), 0);
-  await campaign.locator(".metanno-viewer__source").click();
+  await campaign.getByRole("button", { name: "campaign", exact: true }).click();
   const annotationEntry = sidebar
-    .locator(".metanno-viewer__entry")
+    .locator(".metanno-viewer__row")
     .filter({ hasText: "Annotation" })
     .getByRole("button", { name: /^Annotation/ });
   await annotationEntry.click();
@@ -371,10 +380,10 @@ test("notebook and source view lifecycle", async ({ page }) => {
     .click();
   await sidebar.getByRole("button", { name: "fixture", exact: false }).click({ timeout: 60000 });
   const todosEntry = sidebar
-    .locator(".metanno-viewer__entry")
+    .locator(".metanno-viewer__row")
     .filter({ has: page.getByTitle("fixture.todos", { exact: true }) });
   const listsEntry = sidebar
-    .locator(".metanno-viewer__entry")
+    .locator(".metanno-viewer__row")
     .filter({ has: page.getByRole("button", { name: "lists", exact: true }) });
   await todosEntry.getByRole("button", { name: "todos", exact: true }).click();
   let sourceView = page.locator(".metanno-viewer-widget:visible");
@@ -482,6 +491,7 @@ test("missing kernel recovery", async ({ page }) => {
     context.model.fromString("[invalid");
     await context.save();
   });
+  await showSidebar(page);
   await sidebar.getByRole("button", { name: "Open configuration", exact: true }).click();
   assert.equal(fs.readFileSync(configurationPath, "utf8"), "[invalid");
   await page.evaluate(async () => {
@@ -497,6 +507,7 @@ test("missing kernel recovery", async ({ page }) => {
   );
   fs.writeFileSync(configurationPath, sourceConfiguration);
   await page.unroute("**/api/kernelspecs*");
+  await showSidebar(page);
   await sidebar.getByRole("button", { name: "Retry", exact: true }).click();
   await sidebar.getByRole("button", { name: "fixture", exact: false }).waitFor({ timeout: 60000 });
   assert.equal(await sidebar.locator(".metanno-viewer__error").count(), 0);
@@ -531,24 +542,28 @@ test("connection per database", async ({ page }) => {
   });
   const sidebar = page.locator("#metanno-viewer-sidebar");
   await sidebar.getByRole("button", { name: "Reload configuration", exact: true }).click();
-  const everything = sidebar.locator(".metanno-viewer__source").filter({ hasText: "everything" });
-  assert.equal(await sidebar.locator(".metanno-viewer__listed").count(), 0);
-  await everything.click();
-  await sidebar.locator(".metanno-viewer__listed .metanno-viewer__source-name").first().waitFor({ timeout: 60000 });
-  await expect(everything).toContainText("databases");
-  const listed = sidebar.locator(".metanno-viewer__listed .metanno-viewer__source").first();
-  await listed.click();
-  const listedTables = sidebar.locator(".metanno-viewer__listed .metanno-viewer__tables");
-  await listedTables.getByRole("button", { name: "lists", exact: true }).waitFor({ timeout: 60000 });
+  // Rows of a source group with the rows listed under it once opened
+  const group = (name) =>
+    sidebar
+      .locator(".metanno-viewer__group")
+      .filter({ has: page.getByRole("button", { name, exact: true }) })
+      .first();
+  const everything = group("everything");
+  assert.equal(await everything.locator(".metanno-viewer__group").count(), 0);
+  await everything.getByRole("button", { name: "everything", exact: true }).click();
+  const listed = everything.locator(".metanno-viewer__group").first();
+  await listed.waitFor({ timeout: 60000 });
+  await expect(everything.locator(".metanno-viewer__count")).toContainText("databases");
+  const listedRow = listed.locator(".metanno-viewer__row-button").first();
+  await listedRow.click();
+  await listed.getByRole("button", { name: "lists", exact: true }).waitFor({ timeout: 60000 });
   const searchBox = sidebar.getByRole("textbox", { name: "Search sources and tables" });
   await searchBox.fill("lists");
-  await expect(listedTables.getByRole("button", { name: "lists", exact: true })).toBeVisible();
-  await expect(listedTables.getByRole("button", { name: "todos", exact: true })).toHaveCount(0);
+  await expect(listed.getByRole("button", { name: "lists", exact: true })).toBeVisible();
+  await expect(listed.getByRole("button", { name: "todos", exact: true })).toHaveCount(0);
   await searchBox.fill("");
-  await listed.click();
-  const fixture = sidebar.locator(".metanno-viewer__source-group").filter({
-    has: page.locator(".metanno-viewer__source-name").filter({ hasText: /^fixture$/ }),
-  });
+  await listedRow.click();
+  const fixture = group("fixture");
   const label = fixture.locator(".metanno-viewer__connection");
   await expect(label).toHaveText("local");
   await label.click();
@@ -558,8 +573,8 @@ test("connection per database", async ({ page }) => {
     .click();
   await expect(label).toHaveText("spare");
   await expect.poll(() => fs.readFileSync(configurationPath, "utf8")).toContain("connection: spare  # the usual one");
-  await fixture.locator(".metanno-viewer__source").click();
-  await fixture.locator(".metanno-viewer__tables").getByRole("button", { name: "todos", exact: true }).click();
+  await fixture.getByRole("button", { name: "fixture", exact: true }).click();
+  await fixture.getByRole("button", { name: "todos", exact: true }).click();
   const view = page.locator(".metanno-viewer-widget:visible");
   await view.getByRole("gridcell", { name: "todos source row", exact: true }).waitFor({ timeout: 60000 });
   const connection = view.getByRole("combobox", { name: "Connection" });
@@ -594,8 +609,10 @@ test("folder tree of a file source", async ({ page }) => {
   });
   const sidebar = page.locator("#metanno-viewer-sidebar");
   await sidebar.getByRole("button", { name: "Reload configuration", exact: true }).click();
-  await sidebar.locator(".metanno-viewer__source").filter({ hasText: "tree" }).click();
-  const tables = sidebar.locator(".metanno-viewer__tables");
+  await sidebar.getByRole("button", { name: "tree", exact: true }).click();
+  const tables = sidebar
+    .locator(".metanno-viewer__group")
+    .filter({ has: page.getByRole("button", { name: "tree", exact: true }) });
   await tables.getByRole("button", { name: "notes", exact: true }).waitFor({ timeout: 60000 });
   // Folders open in place, listing their own datasets and subfolders
   await tables.locator('button[title="runs"]').click();
