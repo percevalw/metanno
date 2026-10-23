@@ -400,3 +400,43 @@ def test_file_sources_browse_folders_at_any_depth(tmp_path):
     with pytest.raises(QueryError):
         service.table("exports", "missing")
     service.close()
+
+
+def test_resolve_path_finds_the_source_of_a_dataset(tmp_path):
+    """
+    A dataset opened by its location, eg from an HDFS file browser extension, is a table of the deepest file source
+    containing it, otherwise of its folder read with default_connection
+    """
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    from metanno.viewer.sources import place
+
+    for folder in ("exports/runs/2024/acts", "other/visits"):
+        (tmp_path / folder).mkdir(parents=True)
+    pq.write_table(pa.table({"act_id": [1, 2]}), tmp_path / "exports/runs/2024/acts/part-00000.parquet")
+    pq.write_table(pa.table({"visit_id": [1]}), tmp_path / "other/visits/part-00000.parquet")
+    path = tmp_path / "metanno.yaml"
+    config = {
+        "connections": {"local": {"url": "duckdb://"}},
+        "sources": {
+            "exports": {"connection": "local", "kind": "files", "uri": str(tmp_path / "exports")},
+            "runs": {"connection": "local", "kind": "files", "uri": str(tmp_path / "exports/runs")},
+        },
+    }
+    path.write_text(yaml.safe_dump(config))
+    service = SourceCatalog(path)
+    assert service.resolve_path(str(tmp_path / "exports/runs/2024/acts")) == ("runs", "2024/acts", "local")
+    with pytest.raises(QueryError, match="is a folder"):
+        service.resolve_path(str(tmp_path / "exports/runs/2024"))
+    with pytest.raises(QueryError, match="default_connection"):
+        service.resolve_path(str(tmp_path / "other/visits"))
+    service.close()
+
+    path.write_text(yaml.safe_dump({**config, "default_connection": "local"}))
+    service = SourceCatalog(path)
+    source, table, connection = service.resolve_path(str(tmp_path / "other/visits") + "/")
+    assert (source, table, connection) == (str(tmp_path / "other"), "visits", "local")
+    assert service.table(source, table).count().execute() == 1
+    service.close()
+    assert place("hdfs://namenode/user/me/") == place("hdfs:///user/me") == "hdfs:///user/me"

@@ -12,14 +12,15 @@ import { IMainMenu } from "@jupyterlab/mainmenu";
 import { IPretService } from "pret";
 import { Widget } from "@lumino/widgets";
 import { SourceViewWidget } from "./source_view";
-import { ExplorerKernelConnection, SourceSelection } from "./kernel_client";
+import { ExplorerKernelConnection, PathSelection, SourceSelection } from "./kernel_client";
 
 const OPEN_COMMAND = "metanno-viewer:open-resource";
-function isDataResource(value: unknown): value is SourceSelection {
+function isDataResource(value: unknown): value is SourceSelection | PathSelection {
   if (!value || typeof value !== "object") {
     return false;
   }
-  const resource = value as Partial<SourceSelection>;
+  const resource = value as Partial<SourceSelection | PathSelection>;
+  if (resource.kind === "path") return typeof resource.uri === "string";
   return resource.kind === "table"
     ? typeof resource.source === "string" && typeof resource.table === "string"
     : resource.kind === "view" && typeof resource.name === "string";
@@ -102,7 +103,7 @@ const plugin: JupyterFrontEndPlugin<void> = {
     registerRecipeViews(app, pretService, notebooks, tabs);
     app.commands.addCommand(OPEN_COMMAND, {
       label: (args) => (args.resource ? "Open Metanno resource" : "Open Metanno"),
-      execute: (args) => {
+      execute: async (args) => {
         const resource = args.resource;
         if (resource !== undefined && !isDataResource(resource)) {
           throw new Error("Invalid Metanno data resource");
@@ -111,11 +112,25 @@ const plugin: JupyterFrontEndPlugin<void> = {
           app.shell.activateById(sidebar.id);
           return sidebar;
         }
-        const data = resource as unknown as SourceSelection;
+        let data = resource as unknown as SourceSelection | PathSelection;
+        // A dataset path opens the tab of its table in the source containing it, the tab keeps the path so a reload
+        // finds the table again
+        if (data.kind === "path") {
+          const manager = await explorer.connect();
+          const reply = await manager.request<{ source: string; table: string; connection: string }>(
+            "resolve_path",
+            { uri: data.uri, ...(data.connection ? { connection: data.connection } : {}) },
+            60000
+          );
+          data = { kind: "table", ...reply.data, ...(data.title ? { title: data.title } : {}) };
+        }
+        const selection = data;
         const key = JSON.stringify(
-          data.kind === "table" ? [data.kind, data.source, data.table] : [data.kind, data.name]
+          selection.kind === "table"
+            ? [selection.kind, selection.source, selection.table]
+            : [selection.kind, selection.name]
         );
-        return tabs.open(key, () => new SourceViewWidget(explorer, pretService, data, fullscreen), {
+        return tabs.open(key, () => new SourceViewWidget(explorer, pretService, selection, fullscreen), {
           explore: true,
           newTab: Boolean(args.newTab),
           widgetId: args.widgetId as string,

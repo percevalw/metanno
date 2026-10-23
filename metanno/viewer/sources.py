@@ -85,8 +85,28 @@ def is_dataset(entries):
     return any(not folder and visible(name) for name, folder in entries)
 
 
+def opens_as_table(backend, uri):
+    """
+    Say whether a location is a dataset or a .parquet file of its own, for SourceCatalog.resolve_path
+    """
+    parent, name = uri.rsplit("/", 1)
+    if name.endswith(".parquet") and (name, False) in storage_entries(backend, parent):
+        return True
+    return is_dataset(storage_entries(backend, uri))
+
+
 def visible(name):
     return not name.startswith(("_", "."))
+
+
+def place(uri):
+    """
+    Key to compare locations, an HDFS uri without its host, eg hdfs://namenode/user/me is hdfs:///user/me
+    """
+    from urllib.parse import urlparse
+
+    parsed = urlparse(uri)
+    return f"hdfs://{parsed.path.rstrip('/')}" if parsed.scheme == "hdfs" else uri.rstrip("/")
 
 
 def checked_path(path):
@@ -206,9 +226,58 @@ class SourceCatalog:
         Return the SourceConfig of a source of metanno.yaml or of a database found by list_databases
         """
         source = self.config.sources.get(name) or self.listed.get(name)
+        # A folder made a source by resolve_path, eg in a fullscreen link, is made again after a kernel restart
+        if source is None and "://" in name and self.config.default_connection:
+            source = SourceConfig(name=name, connection=self.config.default_connection, kind="files", uri=name)
+            self.listed[name] = source
         if source is None:
             raise QueryError(f"Unknown data source {name!r}")
         return source
+
+    def resolve_path(self, uri, connection=None):
+        """
+        Find the source and table of a dataset given by its location, eg opened from an HDFS file browser extension
+
+        The dataset is a table of the deepest file source of metanno.yaml that contains it and can use the connection.
+        Otherwise the folder of the dataset becomes a source, read with the connection or default_connection
+
+        Returns
+        -------
+        tuple[str, str, str]
+            Source name, table name and connection, eg ("hdfs:///user/me", "runs/notes", "duckdb")
+        """
+        uri = resolve_uri(self.config, uri)
+        key = place(uri)
+        found = None
+        for source in self.config.sources.values():
+            root = resolve_uri(self.config, source.uri) if source.kind == "files" else None
+            if root is None or (connection and connection not in source.allowed_connections):
+                continue
+            if (key == place(root) or key.startswith(place(root) + "/")) and (
+                found is None or len(place(root)) > len(place(found[1]))
+            ):
+                found = source, root
+        if found:
+            source, root = found
+            backend = self.connection(connection or source.connection)
+            if key == place(root):
+                if not is_dataset(storage_entries(backend, root)):
+                    raise QueryError(f"{uri} is a folder, open one of its datasets")
+                return source.name, root.rsplit("/", 1)[-1], connection or source.connection
+            table = key[len(place(root)) + 1 :]
+            if not opens_as_table(backend, f"{root}/{table}"):
+                raise QueryError(f"{uri} is a folder, open one of its datasets")
+            return source.name, table, connection or source.connection
+        connection = connection or self.config.default_connection
+        if connection is None:
+            raise QueryError(f"No source contains {uri}, pass a connection or set default_connection in metanno.yaml")
+        if connection not in self.config.connections:
+            raise QueryError(f"Unknown connection {connection!r}")
+        if not opens_as_table(self.connection(connection), uri):
+            raise QueryError(f"{uri} is a folder, open one of its datasets")
+        parent, table = uri.rsplit("/", 1)
+        self.listed[parent] = SourceConfig(name=parent, connection=connection, kind="files", uri=parent)
+        return parent, table, connection
 
     def list_databases(self, source_name):
         """

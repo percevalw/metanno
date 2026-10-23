@@ -16,9 +16,14 @@ export interface CommMessage<T = unknown> {
   data: T;
 }
 
+// A table of a source, read with connection or the source default, or a saved view
 export type SourceSelection =
-  | { kind: "table"; source: string; table: string; title?: string }
+  | { kind: "table"; source: string; table: string; connection?: string; title?: string }
   | { kind: "view"; name: string; title?: string };
+
+// A dataset given by its location, eg by an HDFS file browser extension, opened as the table of the source containing
+// it, see SourceCatalog.resolve_path
+export type PathSelection = { kind: "path"; uri: string; connection?: string; title?: string };
 
 // Rendered view sent by a kernel, with its recipe and the recipes the recipe selector of the tab offers
 export type ViewReply = Parameters<IPretHost["render"]>[0] & {
