@@ -11,7 +11,6 @@ from pret import DataFrame
 from pret.dataframe_external import coerce_ibis_literal
 
 from .source_provider import SourceDataFrameProvider, unwrap_added_columns
-from .sources import file_table_uri
 
 
 def export_view_code(store, view_definition, config_dir, purpose="annotation"):
@@ -200,8 +199,8 @@ def export_view_code(store, view_definition, config_dir, purpose="annotation"):
         source = sources.source(provider.source)
         backend = emit_connection(provider.connection or source.connection)
         if source.kind == "files":
-            reader = "read_delta" if source.format == "delta" else "read_parquet"
-            expression = f"{backend}.{reader}({file_table_uri(config, source, provider.table)!r})"
+            uri, format = sources.file_table(provider.source, provider.table, provider.connection)
+            expression = f"{backend}.{'read_delta' if format == 'delta' else 'read_parquet'}({uri!r})"
         else:
             database = sources.database_name(source)
             expression = f"{backend}.table({provider.table!r}" + (f", database={database!r}" if database else "") + ")"
