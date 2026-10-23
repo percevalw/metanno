@@ -109,13 +109,15 @@ class ViewConfig(BaseModel):
 
 class ProjectConfig(Section):
     """
-    directory is the config folder, e.g. metanno-home, holding the connection modules, views/ and annotations/
+    directory is the config folder, e.g. metanno-home, holding the connection modules, views/ and annotations/.
+    default_connection reads a dataset opened by its path outside the sources, see SourceCatalog.resolve_path
     """
 
     directory: Path
     preview: PreviewConfig = PreviewConfig()
     connections: Dict[NonEmpty, ConnectionConfig] = {}
     sources: Dict[NonEmpty, SourceConfig] = {}
+    default_connection: Optional[NonEmpty] = None
 
 
 def config_file(path: Path | None = None) -> Path:
@@ -152,6 +154,7 @@ def parse_config(raw: Any, config_path: Path) -> ProjectConfig:
             preview=raw.get("preview", {}),
             connections=raw.get("connections", {}),
             sources={name: {**value, "name": name} for name, value in raw.get("sources", {}).items()},
+            default_connection=raw.get("default_connection"),
         )
     except (ValidationError, TypeError, AttributeError) as exc:
         raise ConfigError(f"Invalid Metanno configuration, {exc}") from exc
@@ -159,6 +162,8 @@ def parse_config(raw: Any, config_path: Path) -> ProjectConfig:
         for connection in source.allowed_connections:
             if connection not in config.connections:
                 raise ConfigError(f"Source {source.name} refers to unknown connection {connection}")
+    if config.default_connection and config.default_connection not in config.connections:
+        raise ConfigError(f"default_connection refers to unknown connection {config.default_connection}")
     return config
 
 

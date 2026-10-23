@@ -264,6 +264,9 @@ class DataExplorerKernel(IPythonKernel):
             home = "" if directory == root else directory.relative_to(root).as_posix()
             views = [view.model_dump() for view in load_views(view_path)]
             return {"views": views, "stores": stores, "home": home}
+        if method == "resolve_path":
+            source, table, connection = self.sources.resolve_path(data["uri"], data.get("connection"))
+            return {"source": source, "table": table, "connection": connection}
         if method == "list_tables":
             return {"tables": self.sources.list_tables(data["source"], data.get("folder", ""))}
         if method == "list_databases":
