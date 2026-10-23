@@ -21,44 +21,6 @@
   height: 100%;
 }
 
-.metanno-viewer__sidebar-title {
-  padding: 6px 8px 10px;
-  color: var(--jp-ui-font-color1);
-  font-size: inherit;
-  font-weight: 600;
-}
-
-.metanno-viewer__source-group {
-  margin-bottom: 2px;
-}
-
-.metanno-viewer__views {
-  margin-bottom: 10px;
-  padding: 0 0 8px;
-  border-bottom: 1px solid var(--jp-border-color2);
-}
-
-.metanno-viewer__view-links {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  margin-top: 4px;
-}
-
-.metanno-viewer__folder-link {
-  padding: 3px 4px;
-  border: 0;
-  color: var(--jp-content-link-color);
-  background: transparent;
-  font: inherit;
-  cursor: pointer;
-}
-
-.metanno-viewer__folder-link:hover {
-  text-decoration: underline;
-}
-
 .metanno-viewer__content {
   display: flex;
   flex: 1 1 auto;
@@ -132,81 +94,6 @@
   min-width: 0;
   overflow: hidden;
   background: var(--jp-layout-color1);
-}
-
-.metanno-viewer__source,
-.metanno-viewer__table {
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  width: 100%;
-  min-width: 0;
-  text-align: left;
-  border: 0;
-  border-radius: var(--jp-border-radius);
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-}
-
-.metanno-viewer__source {
-  gap: 6px;
-  padding: 7px 6px;
-}
-
-.metanno-viewer__source-name,
-.metanno-viewer__table {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.metanno-viewer__source-name {
-  flex: 1 1 auto;
-  /* Without it a flex item never gets narrower than its text, so a long name would widen the panel */
-  min-width: 0;
-}
-
-.metanno-viewer__source small {
-  flex: 0 0 auto;
-  color: var(--jp-ui-font-color3);
-  font-size: inherit;
-}
-
-.metanno-viewer__disclosure {
-  flex: 0 0 12px;
-  color: var(--jp-ui-font-color2);
-  text-align: center;
-}
-
-.metanno-viewer__tables {
-  margin: 2px 0 6px 18px;
-  padding: 4px;
-  border-radius: var(--jp-border-radius);
-  background: var(--jp-layout-color2);
-}
-
-.metanno-viewer__table {
-  display: block;
-  padding: 5px 8px;
-  font-size: inherit;
-}
-
-.metanno-viewer__tables-empty {
-  padding: 5px 8px;
-  color: var(--jp-ui-font-color3);
-  font-size: inherit;
-}
-
-.metanno-viewer__source:hover,
-.metanno-viewer__table:hover {
-  background: color-mix(in srgb, var(--jp-brand-color1) 7%, var(--jp-layout-color1));
-}
-
-.metanno-viewer__source.is-open,
-.metanno-viewer__table.is-selected {
-  background: color-mix(in srgb, var(--jp-brand-color1) 14%, var(--jp-layout-color1));
 }
 
 .metanno-viewer__status {
@@ -322,11 +209,6 @@ body.metanno-viewer-fullscreen > #main {
   overflow: visible;
 }
 
-.metanno-viewer__table small {
-  display: block;
-  opacity: 0.7;
-}
-
 .metanno-viewer__copy-menu {
   position: relative;
 }
@@ -377,7 +259,7 @@ body.metanno-viewer-fullscreen > #main {
 .metanno-viewer__search {
   box-sizing: border-box;
   width: 100%;
-  padding: 8px 12px;
+  padding: 4px 8px;
   margin-bottom: 8px;
   border: 1px solid var(--jp-border-color1);
   border-radius: 6px;
@@ -392,35 +274,115 @@ body.metanno-viewer-fullscreen > #main {
 }
 
 .metanno-viewer-sidebar { min-width: 220px; overflow: auto; }
-.metanno-viewer__entry { display: flex; align-items: center; }
-.metanno-viewer__entry > .metanno-viewer__table { flex: 1; min-width: 0; }
-.metanno-viewer__entry-new {
+
+/* Sidebar sections, Explore then Annotations, with a line above Annotations only */
+.metanno-viewer__section + .metanno-viewer__section {
+  margin-top: 6px;
+  border-top: 1px solid var(--jp-border-color2);
+}
+
+.metanno-viewer__section-title {
+  padding: 8px 4px 4px;
+  color: var(--jp-ui-font-color2);
+  font-size: var(--jp-ui-font-size0);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* Every item of the sidebar is a row of the same height: the indentation of its depth, a 16px arrow slot, the label,
+   then its controls */
+.metanno-viewer__row {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  height: 24px;
+  padding-left: calc(var(--depth, 0) * 16px);
+  border-radius: var(--jp-border-radius);
+}
+
+.metanno-viewer__row:hover {
+  background: var(--jp-layout-color2);
+}
+
+.metanno-viewer__row-button {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  min-width: 0;
+  height: 100%;
+  padding: 0 4px 0 0;
   border: 0;
   background: transparent;
-  color: var(--jp-ui-font-color2);
+  color: inherit;
+  font: inherit;
+  text-align: left;
   cursor: pointer;
-  padding: 6px;
 }
-.metanno-viewer__entry-new:hover { background: var(--jp-layout-color2); }
 
-/* Connection of a database, plain light text that only looks like a button on hover when it can be changed */
-.metanno-viewer__source-row { display: flex; align-items: center; }
-.metanno-viewer__source-row > .metanno-viewer__source { flex: 1; min-width: 0; }
+.metanno-viewer__disclosure {
+  flex: 0 0 16px;
+  color: var(--jp-ui-font-color2);
+  font-size: var(--jp-ui-font-size0);
+  text-align: center;
+}
+
+.metanno-viewer__label {
+  flex: 1 1 auto;
+  /* Without it a flex item never gets narrower than its text, so a long name would widen the panel */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* End of row texts: number of databases and connection, the connection looks like a button on hover when it can be
+   changed */
+.metanno-viewer__count,
 .metanno-viewer__connection {
   flex: 0 0 auto;
-  padding: 2px 6px;
+  padding: 0 6px;
   border: 0;
   border-radius: var(--jp-border-radius);
   background: transparent;
   color: var(--jp-ui-font-color3);
   font: inherit;
   font-size: var(--jp-ui-font-size0);
+  line-height: 18px;
 }
 button.metanno-viewer__connection { cursor: pointer; }
 button.metanno-viewer__connection:hover {
   color: var(--jp-ui-font-color1);
-  background: var(--jp-layout-color2);
+  background: var(--jp-layout-color3);
 }
+
+/* Open in a new tab, shown on the hovered row */
+.metanno-viewer__row-new {
+  flex: 0 0 24px;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--jp-ui-font-color2);
+  cursor: pointer;
+  opacity: 0;
+}
+.metanno-viewer__row:hover .metanno-viewer__row-new,
+.metanno-viewer__row-new:focus-visible { opacity: 1; }
+.metanno-viewer__row-new:hover { color: var(--jp-ui-font-color0); }
+
+/* Loading, empty and error lines in place of entries, aligned with the labels of their depth */
+.metanno-viewer__message {
+  height: 24px;
+  padding-left: calc(var(--depth, 0) * 16px + 16px);
+  overflow: hidden;
+  color: var(--jp-ui-font-color3);
+  line-height: 24px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.metanno-viewer__message-error { padding-left: calc(var(--depth, 0) * 16px + 16px); }
 .metanno-viewer__error a { color: inherit; text-decoration: underline; }
 
 .metanno-viewer__sidebar-top {
@@ -428,17 +390,15 @@ button.metanno-viewer__connection:hover {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 10px 10px 6px;
+  padding: 8px 8px 4px;
 }
 .metanno-viewer__sidebar-content {
   flex: 1 1 auto;
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  padding: 0 10px 10px;
+  padding: 0 8px 8px;
 }
 .metanno-viewer__sidebar-top > .metanno-viewer__search { flex: 1; min-width: 0; margin-bottom: 0; }
 .metanno-viewer__icon-button { display: flex; align-items: center; padding: 0 6px; }
 .metanno-viewer__icon-button > span { display: flex; }
-.metanno-viewer__listed { margin-left: 12px; }
-.metanno-viewer__folder-entries { margin-left: 12px; }

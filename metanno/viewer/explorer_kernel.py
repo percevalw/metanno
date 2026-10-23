@@ -234,7 +234,7 @@ class DataExplorerKernel(IPythonKernel):
 
             view_path = self.sources.config.directory / "views"
             store_path = self.sources.config.directory / "annotations"
-            # The sidebar links open these directories, so they exist even in a new project
+            # Created here so the file browser shows them even in a new project
             for directory in (view_path, store_path):
                 directory.mkdir(parents=True, exist_ok=True)
             stores = []
@@ -248,23 +248,22 @@ class DataExplorerKernel(IPythonKernel):
                 # Files of a subfolder, e.g. one per annotator of a campaign, are grouped under the folder name
                 group = path.parent.name if path.parent != store_path else None
                 stores.append({"name": path.stem, "group": group, "path": str(path.resolve()), **metadata})
-            # The sidebar opens these directories in the file browser, whose paths start from the Jupyter root.
-            # JupyterLab writes a root under the home directory as ~/..., expanded here where the home is known
+            # The sidebar settings button opens the metanno.yaml folder in the file browser, whose paths start from the
+            # Jupyter root. JupyterLab writes a root under the home directory as ~/..., expanded here where the home is
+            # known
             root = Path(os.path.abspath(Path(data["root"]).expanduser()))
-            directories = {}
-            for name, directory in {"views": view_path, "stores": store_path}.items():
-                # A metanno-home folder linked under the root opens through its link, other links compare by real path
-                directory = Path(os.path.abspath(directory))
-                inside = directory.is_relative_to(root)
-                if not inside:
-                    directory, root_path = directory.resolve(), root.resolve()
-                    inside = directory.is_relative_to(root_path)
-                    directory = root / directory.relative_to(root_path) if inside else directory
-                if not inside:
-                    raise ValueError(f"The Metanno directory {directory} must be inside the Jupyter root {root}")
-                directories[name] = "" if directory == root else directory.relative_to(root).as_posix()
+            # A metanno-home folder linked under the root opens through its link, other links compare by real path
+            directory = Path(os.path.abspath(self.sources.config.directory))
+            inside = directory.is_relative_to(root)
+            if not inside:
+                directory, root_path = directory.resolve(), root.resolve()
+                inside = directory.is_relative_to(root_path)
+                directory = root / directory.relative_to(root_path) if inside else directory
+            if not inside:
+                raise ValueError(f"The Metanno directory {directory} must be inside the Jupyter root {root}")
+            home = "" if directory == root else directory.relative_to(root).as_posix()
             views = [view.model_dump() for view in load_views(view_path)]
-            return {"views": views, "stores": stores, "directories": directories}
+            return {"views": views, "stores": stores, "home": home}
         if method == "list_tables":
             return {"tables": self.sources.list_tables(data["source"], data.get("folder", ""))}
         if method == "list_databases":
