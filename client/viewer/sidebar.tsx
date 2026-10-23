@@ -13,7 +13,7 @@ import { ViewerTabs } from "./tabs";
 import { ServerConnection } from "@jupyterlab/services";
 import { PageConfig } from "@jupyterlab/coreutils";
 import { LabIcon, settingsIcon } from "@jupyterlab/ui-components";
-import { ErrorBanner } from "./source_view";
+import { errorText } from "./source_view";
 
 interface SourceSummary {
   name: string;
@@ -165,11 +165,23 @@ function Note({ depth, children }: { depth: number; children: React.ReactNode })
   );
 }
 
-// An error in place of entries, indented like them
-function ListingError({ depth, ...props }: { depth: number } & React.ComponentProps<typeof ErrorBanner>) {
+// An error across the sidebar width, under the row it concerns or at the top of the lists. The text wraps by words
+// and keeps the line breaks of a trace, a long one is folded to a few lines until expanded
+function SidebarError({ text, onRetry, onDismiss }: { text: string; onRetry?: () => void; onDismiss: () => void }) {
+  const [expanded, setExpanded] = useState(false);
+  const long = text.length > 400 || text.split("\n").length > 6;
   return (
-    <div className="metanno-viewer__message-error" style={depthStyle(depth)}>
-      <ErrorBanner {...props} />
+    <div className="metanno-viewer__sidebar-error" role="alert">
+      <div className={`metanno-viewer__sidebar-error-text${long && !expanded ? " is-folded" : ""}`}>
+        {errorText(text)}
+      </div>
+      <div className="metanno-viewer__sidebar-error-actions">
+        {long && <button onClick={() => setExpanded(!expanded)}>{expanded ? "Show less" : "Show more"}</button>}
+        {onRetry && <button onClick={onRetry}>Retry</button>}
+        <button aria-label="Dismiss error" onClick={onDismiss}>
+          Dismiss
+        </button>
+      </div>
     </div>
   );
 }
@@ -200,6 +212,9 @@ function Catalogue({
   const [source, setSource] = useState<string | null>(null);
   const [closedGroups, setClosedGroups] = useState<string[]>([]);
   const [tables, setTables] = useState<TableSummary[] | null>(null);
+  // Error of the table listing of the open source, shown under its row, and a counter that Retry increments
+  const [tablesError, setTablesError] = useState<string | null>(null);
+  const [tablesRevision, setTablesRevision] = useState(0);
   const [listed, setListed] = useState<Record<string, ListedDatabases>>({});
   const [openDatabases, setOpenDatabases] = useState<string[]>([]);
   const [folders, setFolders] = useState<Record<string, ListedFolder>>({});
@@ -285,6 +300,7 @@ function Catalogue({
   useEffect(() => {
     let disposed = false;
     setTables(null);
+    setTablesError(null);
     setFolders({});
     setOpenFolders([]);
     if (!source) return;
@@ -296,14 +312,14 @@ function Catalogue({
       })
       .catch((error) => {
         if (!disposed) {
-          setError(String(error));
+          setTablesError(String(error?.message ?? error));
           setTables([]);
         }
       });
     return () => {
       disposed = true;
     };
-  }, [source, openConnection, configurationRevision]);
+  }, [source, openConnection, configurationRevision, tablesRevision]);
   // A folder of a file source lists its datasets and subfolders on the first click only
   const toggleFolder = (sourceName: string, folder: string) => {
     const key = folderKey(sourceName, folder);
@@ -402,8 +418,7 @@ function Catalogue({
               onClick={() => toggleFolder(item.name, entry.name)}
             />
             {open && state !== undefined && !Array.isArray(state) && state.error && (
-              <ListingError
-                depth={depth + 1}
+              <SidebarError
                 text={state.error}
                 onRetry={() => listFolder(item.name, entry.name)}
                 onDismiss={() => {
@@ -445,7 +460,14 @@ function Catalogue({
         {connectionLabel(item)}
       </Row>
       {source === item.name && tables === null && <Note depth={depth + 1}>Loading tables…</Note>}
-      {source === item.name && tables?.length === 0 && <Note depth={depth + 1}>No tables</Note>}
+      {source === item.name && tablesError && (
+        <SidebarError
+          text={tablesError}
+          onRetry={() => setTablesRevision((value) => value + 1)}
+          onDismiss={() => setSource(null)}
+        />
+      )}
+      {source === item.name && !tablesError && tables?.length === 0 && <Note depth={depth + 1}>No tables</Note>}
       {source === item.name && sourceEntries(item, tables ?? [], depth + 1)}
     </div>
   );
@@ -466,8 +488,7 @@ function Catalogue({
           {connectionLabel(item)}
         </Row>
         {open && state !== undefined && !Array.isArray(state) && state.error && (
-          <ListingError
-            depth={1}
+          <SidebarError
             text={state.error}
             onRetry={() => listDatabases(item.name)}
             onDismiss={() => {
@@ -506,16 +527,6 @@ function Catalogue({
 
   return (
     <>
-      {error && (
-        <ErrorBanner
-          text={error}
-          onRetry={() => {
-            setError(null);
-            setConfigurationRevision((value) => value + 1);
-          }}
-          onDismiss={() => setError(null)}
-        />
-      )}
       <aside className="metanno-viewer__sidebar">
         <div className="metanno-viewer__sidebar-top">
           <input
@@ -591,6 +602,16 @@ function Catalogue({
           </button>
         </div>
         <div className="metanno-viewer__sidebar-content">
+          {error && (
+            <SidebarError
+              text={error}
+              onRetry={() => {
+                setError(null);
+                setConfigurationRevision((value) => value + 1);
+              }}
+              onDismiss={() => setError(null)}
+            />
+          )}
           <section className="metanno-viewer__section" aria-label="Explore">
             <div className="metanno-viewer__section-title">Explore</div>
             {notebookEntries(true)}

@@ -602,7 +602,8 @@ test("folder tree of a file source", async ({ page }) => {
   ]);
   fs.writeFileSync(
     configurationPath,
-    `connections:\n  local:\n    url: "duckdb://"\nsources:\n  tree:\n    connection: local\n    kind: files\n    uri: ${root}\n`
+    `connections:\n  local:\n    url: "duckdb://"\nsources:\n  tree:\n    connection: local\n    kind: files\n    uri: ${root}\n` +
+      `  broken:\n    connection: local\n    kind: files\n    uri: ${root}-missing\n`
   );
   await page.evaluate(async () => {
     await window.jupyterapp.commands.execute("metanno-viewer:open-resource");
@@ -629,4 +630,12 @@ test("folder tree of a file source", async ({ page }) => {
   await acts.click();
   const view = page.locator(".metanno-viewer-widget:visible");
   await view.getByRole("gridcell", { name: "tree act", exact: true }).waitFor({ timeout: 60000 });
+  // A source whose folder cannot be listed shows the error under its row
+  await sidebar.getByRole("button", { name: "broken", exact: true }).click();
+  const broken = sidebar
+    .locator(".metanno-viewer__group")
+    .filter({ has: page.getByRole("button", { name: "broken", exact: true }) });
+  await broken.getByRole("alert").waitFor({ timeout: 60000 });
+  await broken.getByRole("button", { name: "Dismiss error", exact: true }).click();
+  await expect(broken.getByRole("alert")).toHaveCount(0);
 });

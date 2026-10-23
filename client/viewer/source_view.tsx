@@ -6,6 +6,19 @@ import { ExplorerKernelConnection, KernelClient, SourceSelection, ViewReply } fr
 import { fullscreenKey, FullscreenViews } from "./fullscreen";
 
 // Error message of the sidebar and table tabs with clickable links, e.g. a login link, and an optional Retry button
+// The text of an error with its links clickable, eg the login link of a Trino error, for ErrorBanner and the sidebar
+export function errorText(text: string) {
+  return text.split(/(https?:\/\/[^\s"')]+)/).map((part, index) =>
+    index % 2 ? (
+      <a key={index} href={part} target="_blank" rel="noreferrer">
+        {part}
+      </a>
+    ) : (
+      part
+    )
+  );
+}
+
 export function ErrorBanner({
   text,
   onRetry,
@@ -17,17 +30,7 @@ export function ErrorBanner({
 }) {
   return (
     <div className="metanno-viewer__error">
-      <span>
-        {text.split(/(https?:\/\/[^\s"')]+)/).map((part, index) =>
-          index % 2 ? (
-            <a key={index} href={part} target="_blank" rel="noreferrer">
-              {part}
-            </a>
-          ) : (
-            part
-          )
-        )}
-      </span>
+      <span>{errorText(text)}</span>
       {onRetry && (
         <button className="metanno-viewer__toolbar-button" onClick={onRetry}>
           Retry
