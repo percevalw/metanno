@@ -6,6 +6,7 @@
 
 - File sources show the folder tree under their `uri` at any depth, local, mounted or remote, datasets are tables named by their path, eg `runs/notes`. A folder holding data files and no subfolder is one dataset, also when it is the `uri` itself, and without `format` a table is Delta when its folder has a `_delta_log`.
 - Connections list HDFS and S3 folders without Spark with a `list_storage(uri)` method returning `(name, is_folder)` pairs.
+- The sidebar settings button shows the `metanno-home` folder in the file browser and opens `metanno.yaml`, in place of the views and annotations folder links. Every sidebar item, source, database, folder, table, view or annotation, is a row of the same height indented by its level, and open in a new tab shows on hover.
 
 ## v2.0.0-beta.2 (2026-10-22)
 

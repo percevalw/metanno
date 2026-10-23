@@ -58,11 +58,6 @@ interface StoreSummary {
   error?: string;
 }
 
-interface ViewDirectories {
-  views: string;
-  stores: string;
-}
-
 // Open a Jupyter context menu at x, y with one entry per item, the menu is disposed once closed
 function openMenu(items: { label: string; execute: () => void; isToggled?: () => boolean }[], x: number, y: number) {
   const commands = new CommandRegistry();
@@ -77,21 +72,63 @@ function openMenu(items: { label: string; execute: () => void; isToggled?: () =>
   menu.open(x, y);
 }
 
-// Keep entry actions available through both a button and the Jupyter context menu
-function Entry({
-  open,
+// Indentation of a row or message at a nesting depth, read by the sidebar CSS
+const depthStyle = (depth: number) => ({ "--depth": depth } as React.CSSProperties);
+
+// One line of the sidebar tree, used by every item so they share height, indentation and hover: an arrow for the rows
+// that expand, an empty arrow slot otherwise, the label, then the controls at the end of the row (connection, open in
+// a new tab). The accessible name of the button is the label alone
+function Row({
+  depth,
+  expanded,
+  label,
+  title,
+  onClick,
+  onContextMenu,
   children,
+}: {
+  depth: number;
+  expanded?: boolean;
+  label: string;
+  title?: string;
+  onClick(): void;
+  onContextMenu?(event: React.MouseEvent): void;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="metanno-viewer__row" style={depthStyle(depth)} onContextMenu={onContextMenu}>
+      <button className="metanno-viewer__row-button" aria-expanded={expanded} title={title} onClick={onClick}>
+        <span className="metanno-viewer__disclosure" aria-hidden="true">
+          {expanded === undefined ? "" : expanded ? "▾" : "▸"}
+        </span>
+        <span className="metanno-viewer__label">{label}</span>
+      </button>
+      {children}
+    </div>
+  );
+}
+
+// A row that opens something, from its button, from the open in a new tab button shown on hover, or from the Jupyter
+// context menu
+function Entry({
+  depth,
+  label,
+  open,
   title,
   newTabs = true,
 }: {
+  depth: number;
+  label: string;
   open(newTab: boolean): void;
-  children: React.ReactNode;
   title?: string;
   newTabs?: boolean;
 }) {
   return (
-    <div
-      className="metanno-viewer__entry"
+    <Row
+      depth={depth}
+      label={label}
+      title={title}
+      onClick={() => open(false)}
       onContextMenu={(event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -105,12 +142,9 @@ function Entry({
         );
       }}
     >
-      <button className="metanno-viewer__table" title={title} onClick={() => open(false)}>
-        {children}
-      </button>
       {newTabs && (
         <button
-          className="metanno-viewer__entry-new"
+          className="metanno-viewer__row-new"
           title="Open in new tab"
           aria-label="Open in new tab"
           onClick={() => open(true)}
@@ -118,6 +152,24 @@ function Entry({
           ↗
         </button>
       )}
+    </Row>
+  );
+}
+
+// A muted line in place of entries, eg while listing or when there are none, aligned with the labels of its depth
+function Note({ depth, children }: { depth: number; children: React.ReactNode }) {
+  return (
+    <div className="metanno-viewer__message" style={depthStyle(depth)}>
+      {children}
+    </div>
+  );
+}
+
+// An error in place of entries, indented like them
+function ListingError({ depth, ...props }: { depth: number } & React.ComponentProps<typeof ErrorBanner>) {
+  return (
+    <div className="metanno-viewer__message-error" style={depthStyle(depth)}>
+      <ErrorBanner {...props} />
     </div>
   );
 }
@@ -143,7 +195,8 @@ function Catalogue({
   const [sources, setSources] = useState<SourceSummary[]>([]);
   const [views, setViews] = useState<SavedViewSummary[]>([]);
   const [stores, setStores] = useState<StoreSummary[]>([]);
-  const [viewDirectories, setViewDirectories] = useState<ViewDirectories | null>(null);
+  // Folder of metanno.yaml relative to the Jupyter root, metanno-home until the kernel says otherwise
+  const [home, setHome] = useState("metanno-home");
   const [source, setSource] = useState<string | null>(null);
   const [closedGroups, setClosedGroups] = useState<string[]>([]);
   const [tables, setTables] = useState<TableSummary[] | null>(null);
@@ -165,10 +218,9 @@ function Catalogue({
       .then(async (manager) => {
         const [catalogue, recipes] = await Promise.all([
           manager.request<{ sources: SourceSummary[] }>("list_sources", {}),
-          manager.request<{ views: SavedViewSummary[]; stores: StoreSummary[]; directories: ViewDirectories }>(
-            "list_views",
-            { root: PageConfig.getOption("serverRoot") }
-          ),
+          manager.request<{ views: SavedViewSummary[]; stores: StoreSummary[]; home: string }>("list_views", {
+            root: PageConfig.getOption("serverRoot"),
+          }),
         ]);
         if (disposed) return;
         setSources(catalogue.data.sources);
@@ -176,8 +228,7 @@ function Catalogue({
         setOpenDatabases([]);
         setViews(recipes.data.views);
         setStores(recipes.data.stores);
-        // Paths relative to the Jupyter root, opened in the file browser
-        setViewDirectories(recipes.data.directories);
+        setHome(recipes.data.home);
       })
       .catch((error) => {
         if (!disposed) setError(String(error));
@@ -277,19 +328,19 @@ function Catalogue({
       .catch((error) => setError(String(error)));
   };
   const matches = (name: string) => name.toLowerCase().includes(search.toLowerCase());
+  // Views shown by notebook outputs, read only previews under Explore and editable annotations under Annotations
   const notebookEntries = (readOnly: boolean) =>
     displayEntries
       .filter((entry) => entry.read_only === readOnly && matches(entry.title))
       .map((entry) => (
         <Entry
           key={entry.id}
+          depth={0}
+          label={entry.title}
           newTabs={readOnly}
           title={entry.path || entry.origin.notebook}
           open={(newTab) => void entry.open(newTab).catch((error) => setError(String(error)))}
-        >
-          {entry.title}
-          <small>{entry.path || entry.origin.notebook}</small>
-        </Entry>
+        />
       ));
   // Annotation files matching the search, those of a folder show under its name
   const visibleStores = stores.filter(
@@ -297,9 +348,11 @@ function Catalogue({
       (matches(store.name) || (store.group !== null && matches(store.group))) &&
       !displayEntries.some((entry) => entry.path === store.path)
   );
-  const storeEntry = (store: StoreSummary) => (
+  const storeEntry = (store: StoreSummary, depth: number) => (
     <Entry
       key={store.path}
+      depth={depth}
+      label={store.name}
       newTabs={false}
       title={store.error || store.path}
       open={(newTab) => {
@@ -311,10 +364,7 @@ function Catalogue({
           setError(String(reason))
         );
       }}
-    >
-      {store.name}
-      {store.error ? <small>{store.error}</small> : null}
-    </Entry>
+    />
   );
 
   // A folder stays while the search matches it or one of the entries listed under it
@@ -323,8 +373,8 @@ function Catalogue({
     const state = folders[folderKey(item.name, entry.name)];
     return entry.kind === "folder" && Array.isArray(state) && state.some((child) => shownEntry(item, child));
   };
-  // Tables and folders of a source, a folder shows its own entries under it once opened
-  const sourceEntries = (item: SourceSummary, entries: TableSummary[]): React.ReactNode[] =>
+  // Tables and folders of a source at a depth, a folder shows its own entries under it once opened
+  const sourceEntries = (item: SourceSummary, entries: TableSummary[], depth: number): React.ReactNode[] =>
     entries
       .filter((entry) => shownEntry(item, entry))
       .map((entry) => {
@@ -333,128 +383,126 @@ function Catalogue({
           return (
             <Entry
               key={entry.name}
+              depth={depth}
+              label={label}
               title={entry.name}
               open={(newTab) => openResource({ kind: "table", source: item.name, table: entry.name }, newTab)}
-            >
-              {label}
-            </Entry>
+            />
           );
         const key = folderKey(item.name, entry.name);
         const state = folders[key];
         const open = openFolders.includes(key);
         return (
-          <div className="metanno-viewer__folder" key={entry.name}>
-            <button
-              className="metanno-viewer__table"
-              aria-expanded={open}
+          <div className="metanno-viewer__group" key={entry.name}>
+            <Row
+              depth={depth}
+              expanded={open}
+              label={label}
               title={entry.name}
               onClick={() => toggleFolder(item.name, entry.name)}
-            >
-              <span className="metanno-viewer__disclosure">{open ? "▾" : "▸"}</span> {label}
-            </button>
-            {open && (
-              <div className="metanno-viewer__folder-entries">
-                {state !== undefined &&
-                  !Array.isArray(state) &&
-                  (state.error ? (
-                    <ErrorBanner
-                      text={state.error}
-                      onRetry={() => listFolder(item.name, entry.name)}
-                      onDismiss={() => {
-                        setOpenFolders((current) => current.filter((other) => other !== key));
-                        setFolders(({ [key]: _, ...rest }) => rest);
-                      }}
-                    />
-                  ) : (
-                    <div className="metanno-viewer__tables-empty">Listing…</div>
-                  ))}
-                {Array.isArray(state) && state.length === 0 && (
-                  <div className="metanno-viewer__tables-empty">No datasets</div>
-                )}
-                {Array.isArray(state) && sourceEntries(item, state)}
-              </div>
+            />
+            {open && state !== undefined && !Array.isArray(state) && state.error && (
+              <ListingError
+                depth={depth + 1}
+                text={state.error}
+                onRetry={() => listFolder(item.name, entry.name)}
+                onDismiss={() => {
+                  setOpenFolders((current) => current.filter((other) => other !== key));
+                  setFolders(({ [key]: _, ...rest }) => rest);
+                }}
+              />
             )}
+            {open && state !== undefined && !Array.isArray(state) && !state.error && (
+              <Note depth={depth + 1}>Listing…</Note>
+            )}
+            {open && Array.isArray(state) && state.length === 0 && <Note depth={depth + 1}>No datasets</Note>}
+            {open && Array.isArray(state) && sourceEntries(item, state, depth + 1)}
           </div>
         );
       });
+  // The connection of a source at the end of its row, a menu to change it when the source has several
+  const connectionLabel = (item: SourceSummary) =>
+    item.connections.length > 1 ? (
+      <button
+        className="metanno-viewer__connection"
+        title="Connection used to read this database, click to change it"
+        onClick={(event) => chooseConnection(event, item)}
+      >
+        {item.connection}
+      </button>
+    ) : (
+      <span className="metanno-viewer__connection">{item.connection}</span>
+    );
   // A database with its connection, and its tables once opened
-  const sourceGroup = (item: SourceSummary) => (
-    <section className="metanno-viewer__source-group" key={item.name}>
-      <div className="metanno-viewer__source-row">
-        <button
-          className={`metanno-viewer__source${source === item.name ? " is-open" : ""}`}
-          aria-expanded={source === item.name}
-          onClick={() => {
-            setSource(source === item.name ? null : item.name);
-          }}
-        >
-          <span className="metanno-viewer__disclosure">{source === item.name ? "▾" : "▸"}</span>
-          <span className="metanno-viewer__source-name">{item.name}</span>
-        </button>
-        {item.connections.length > 1 ? (
-          <button
-            className="metanno-viewer__connection"
-            title="Connection used to read this database, click to change it"
-            onClick={(event) => chooseConnection(event, item)}
-          >
-            {item.connection}
-          </button>
-        ) : (
-          <span className="metanno-viewer__connection">{item.connection}</span>
-        )}
-      </div>
-      {source === item.name && (
-        <div className="metanno-viewer__tables">
-          {tables === null && <div className="metanno-viewer__tables-empty">Loading tables…</div>}
-          {tables?.length === 0 && <div className="metanno-viewer__tables-empty">No tables</div>}
-          {sourceEntries(item, tables ?? [])}
-        </div>
-      )}
-    </section>
+  const sourceGroup = (item: SourceSummary, depth: number) => (
+    <div className="metanno-viewer__group" key={item.name}>
+      <Row
+        depth={depth}
+        expanded={source === item.name}
+        label={item.name}
+        onClick={() => setSource(source === item.name ? null : item.name)}
+      >
+        {connectionLabel(item)}
+      </Row>
+      {source === item.name && tables === null && <Note depth={depth + 1}>Loading tables…</Note>}
+      {source === item.name && tables?.length === 0 && <Note depth={depth + 1}>No tables</Note>}
+      {source === item.name && sourceEntries(item, tables ?? [], depth + 1)}
+    </div>
   );
   // A `databases` source row, with its databases or the error of their listing under it once clicked
   const databasesGroup = (item: SourceSummary) => {
     const state = listed[item.name];
     const open = openDatabases.includes(item.name);
     return (
-      <section className="metanno-viewer__source-group" key={item.name}>
-        <div className="metanno-viewer__source-row">
-          <button
-            className={`metanno-viewer__source${open ? " is-open" : ""}`}
-            aria-expanded={open}
-            title={`Databases of the ${item.connection} connection`}
-            onClick={() => toggleDatabases(item.name)}
-          >
-            <span className="metanno-viewer__disclosure">{open ? "▾" : "▸"}</span>
-            <span className="metanno-viewer__source-name">{item.name}</span>
-            {Array.isArray(state) && <small>{state.length} databases</small>}
-          </button>
-          <span className="metanno-viewer__connection">{item.connection}</span>
-        </div>
-        {open &&
-          state !== undefined &&
-          !Array.isArray(state) &&
-          (state.error ? (
-            <ErrorBanner
-              text={state.error}
-              onRetry={() => listDatabases(item.name)}
-              onDismiss={() => {
-                setOpenDatabases((current) => current.filter((other) => other !== item.name));
-                setListed(({ [item.name]: _, ...rest }) => rest);
-              }}
-            />
-          ) : (
-            <div className="metanno-viewer__tables-empty">Listing databases…</div>
-          ))}
-        {open && Array.isArray(state) && (
-          <div className="metanno-viewer__listed">
-            {state.length === 0 && <div className="metanno-viewer__tables-empty">No databases with tables</div>}
-            {state.filter((entry) => matches(entry.name) || entry.name === source).map(sourceGroup)}
-          </div>
+      <div className="metanno-viewer__group" key={item.name}>
+        <Row
+          depth={0}
+          expanded={open}
+          label={item.name}
+          title={`Databases of the ${item.connection} connection`}
+          onClick={() => toggleDatabases(item.name)}
+        >
+          {Array.isArray(state) && <span className="metanno-viewer__count">{state.length} databases</span>}
+          {connectionLabel(item)}
+        </Row>
+        {open && state !== undefined && !Array.isArray(state) && state.error && (
+          <ListingError
+            depth={1}
+            text={state.error}
+            onRetry={() => listDatabases(item.name)}
+            onDismiss={() => {
+              setOpenDatabases((current) => current.filter((other) => other !== item.name));
+              setListed(({ [item.name]: _, ...rest }) => rest);
+            }}
+          />
         )}
-      </section>
+        {open && state !== undefined && !Array.isArray(state) && !state.error && (
+          <Note depth={1}>Listing databases…</Note>
+        )}
+        {open && Array.isArray(state) && state.length === 0 && <Note depth={1}>No databases with tables</Note>}
+        {open &&
+          Array.isArray(state) &&
+          state.filter((entry) => matches(entry.name) || entry.name === source).map((entry) => sourceGroup(entry, 1))}
+      </div>
     );
   };
+  // Annotation files of a folder, eg a campaign with one file per annotator, show under the folder name
+  const storeGroups = [...new Set(visibleStores.map((store) => store.group).filter(Boolean))].map((group: string) => {
+    const open = !closedGroups.includes(group);
+    return (
+      <div className="metanno-viewer__group" key={group}>
+        <Row
+          depth={0}
+          expanded={open}
+          label={group}
+          onClick={() =>
+            setClosedGroups(open ? [...closedGroups, group] : closedGroups.filter((name) => name !== group))
+          }
+        />
+        {open && visibleStores.filter((store) => store.group === group).map((store) => storeEntry(store, 1))}
+      </div>
+    );
+  });
 
   return (
     <>
@@ -480,7 +528,7 @@ function Catalogue({
           <button
             className="metanno-viewer__toolbar-button metanno-viewer__icon-button"
             aria-label="Open configuration"
-            title="Open configuration (metanno-home/metanno.yaml)"
+            title="Open metanno-home, with metanno.yaml, views and annotations"
             type="button"
             disabled={configurationBusy}
             onClick={async () => {
@@ -496,6 +544,8 @@ function Catalogue({
                   await contents.save("metanno-home", { type: "directory" });
                   await contents.save(path, { type: "file", format: "text", content: "connections: {}\nsources: {}\n" });
                 }
+                // The file browser shows metanno-home next to the configuration, with the views and annotations folders
+                await app.commands.execute("filebrowser:open-path", { path: home });
                 await app.commands.execute("docmanager:open", { path, factory: "Editor" });
               } catch (error) {
                 setError(String(error));
@@ -541,101 +591,46 @@ function Catalogue({
           </button>
         </div>
         <div className="metanno-viewer__sidebar-content">
-          <div className="metanno-viewer__sidebar-title">Explore</div>
-          {notebookEntries(true)}
-          <div className="metanno-viewer__views">
+          <section className="metanno-viewer__section" aria-label="Explore">
+            <div className="metanno-viewer__section-title">Explore</div>
+            {notebookEntries(true)}
             {views
               .filter((view) => matches(view.name))
               .map((view) => (
                 <Entry
                   key={view.name}
+                  depth={0}
+                  label={view.name}
                   title={Object.values(view.tables)
                     .map((table) => `${table.source}.${table.table}`)
                     .join(", ")}
-                  open={(newTab) => {
-                    openResource(
-                      {
-                        kind: "view",
-                        name: view.name,
-                      },
-                      newTab
-                    );
-                  }}
-                >
-                  {view.name}
-                </Entry>
+                  open={(newTab) => openResource({ kind: "view", name: view.name }, newTab)}
+                />
               ))}
-            {views.length === 0 && <div className="metanno-viewer__tables-empty">No saved views</div>}
-            {viewDirectories && (
-              <div className="metanno-viewer__view-links">
-                <button
-                  className="metanno-viewer__folder-link"
-                  title={viewDirectories.views}
-                  onClick={() =>
-                    void app.commands.execute("filebrowser:open-path", {
-                      path: viewDirectories.views,
-                    })
-                  }
-                >
-                  Open views folder
-                </button>
-              </div>
+            {sources
+              .filter((item) => {
+                // A databases source stays while one of its databases matches or is open, so the search also filters
+                // the tables of the open database
+                return (
+                  matches(item.name) ||
+                  item.name === source ||
+                  databasesOf(item.name).some((entry) => matches(entry.name) || entry.name === source)
+                );
+              })
+              .map((item) => (item.kind === "databases" ? databasesGroup(item) : sourceGroup(item, 0)))}
+            {views.length === 0 && sources.length === 0 && (
+              <Note depth={0}>No sources, add some with the settings button</Note>
             )}
-          </div>
-          {sources
-            .filter((item) => {
-              // A databases source stays while one of its databases matches or is open, so the search also filters
-              // the tables of the open database
-              return (
-                matches(item.name) ||
-                item.name === source ||
-                databasesOf(item.name).some((entry) => matches(entry.name) || entry.name === source)
-              );
-            })
-            .map((item) => (item.kind === "databases" ? databasesGroup(item) : sourceGroup(item)))}
-          <div className="metanno-viewer__sidebar-title">Annotations</div>
-          <div className="metanno-viewer__views">
-            {visibleStores.filter((store) => !store.group).map(storeEntry)}
-            {[...new Set(visibleStores.map((store) => store.group).filter(Boolean))].map((group: string) => {
-              const open = !closedGroups.includes(group);
-              return (
-                <section className="metanno-viewer__source-group" key={group}>
-                  <button
-                    className={`metanno-viewer__source${open ? " is-open" : ""}`}
-                    aria-expanded={open}
-                    onClick={() =>
-                      setClosedGroups(open ? [...closedGroups, group] : closedGroups.filter((name) => name !== group))
-                    }
-                  >
-                    <span className="metanno-viewer__disclosure">{open ? "▾" : "▸"}</span>
-                    <span className="metanno-viewer__source-name">{group}</span>
-                  </button>
-                  {open && (
-                    <div className="metanno-viewer__tables">
-                      {visibleStores.filter((store) => store.group === group).map(storeEntry)}
-                    </div>
-                  )}
-                </section>
-              );
-            })}
+          </section>
+          <section className="metanno-viewer__section" aria-label="Annotations">
+            <div className="metanno-viewer__section-title">Annotations</div>
+            {visibleStores.filter((store) => !store.group).map((store) => storeEntry(store, 0))}
+            {storeGroups}
+            {notebookEntries(false)}
             {stores.length === 0 && !displayEntries.some((entry) => !entry.read_only) && (
-              <div className="metanno-viewer__tables-empty">No Annotations</div>
+              <Note depth={0}>No annotations</Note>
             )}
-            {viewDirectories && (
-              <button
-                className="metanno-viewer__folder-link"
-                title={viewDirectories.stores}
-                onClick={() =>
-                  void app.commands.execute("filebrowser:open-path", {
-                    path: viewDirectories.stores,
-                  })
-                }
-              >
-                Open annotations folder
-              </button>
-            )}
-          </div>
-          {notebookEntries(false)}
+          </section>
         </div>
       </aside>
     </>

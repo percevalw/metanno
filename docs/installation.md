@@ -111,5 +111,5 @@ JupyterLab and of your notebooks, which do not need the explorer kernel to open 
     can find. When JupyterLab runs as another user or on another machine, its administrator must register the
     kernel there, with a Python executable available on that machine.
 
-    <span class="ui-button">Open configuration</span> still works while the kernel is missing, and notebook views
+    The settings button <span class="ui-button">⚙</span> still works while the kernel is missing, and notebook views
     still open in their own kernels.
