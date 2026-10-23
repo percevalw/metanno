@@ -382,7 +382,47 @@ button.metanno-viewer__connection:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.metanno-viewer__message-error { padding-left: calc(var(--depth, 0) * 16px + 16px); }
+
+/* Errors of the sidebar span its width, the text wraps by words and keeps the line breaks of a trace, a long one is
+   folded to 6 lines */
+.metanno-viewer__sidebar-error {
+  margin: 4px 0;
+  padding: 6px 8px;
+  border-radius: var(--jp-border-radius);
+  color: var(--jp-error-color1);
+  background: color-mix(in srgb, var(--jp-error-color1) 8%, var(--jp-layout-color1));
+  font-size: var(--jp-ui-font-size0);
+  line-height: 1.4;
+}
+.metanno-viewer__sidebar-error-text {
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+.metanno-viewer__sidebar-error-text.is-folded {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
+}
+.metanno-viewer__sidebar-error-text a { color: inherit; text-decoration: underline; }
+.metanno-viewer__sidebar-error-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 4px;
+}
+.metanno-viewer__sidebar-error-actions > button {
+  padding: 1px 6px;
+  border: 1px solid color-mix(in srgb, var(--jp-error-color1) 30%, transparent);
+  border-radius: var(--jp-border-radius);
+  background: var(--jp-layout-color1);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.metanno-viewer__sidebar-error-actions > button:hover {
+  background: color-mix(in srgb, var(--jp-error-color1) 12%, var(--jp-layout-color1));
+}
 .metanno-viewer__error a { color: inherit; text-decoration: underline; }
 
 .metanno-viewer__sidebar-top {
