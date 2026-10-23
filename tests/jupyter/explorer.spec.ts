@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 import { openExplorer, openNotebookPreview } from "./explorer";
 const { test, expect } = require(process.env.PRET_TESTING_HELPER);
 
@@ -566,4 +567,49 @@ test("connection per database", async ({ page }) => {
   await connection.selectOption("local");
   await expect(connection).toHaveValue("local");
   await view.getByRole("gridcell", { name: "todos source row", exact: true }).waitFor({ timeout: 60000 });
+});
+
+test("folder tree of a file source", async ({ page }) => {
+  test.setTimeout(180000);
+  const { directory, configurationPath } = await openExplorer(page);
+  // tree/notes is a dataset, tree/runs/2024/acts a dataset two folders down
+  const root = path.join(directory, "tree");
+  execFileSync(process.env.PYTHON, [
+    "-c",
+    "import pathlib, sys, pyarrow as pa, pyarrow.parquet as pq\n" +
+      "root = pathlib.Path(sys.argv[1])\n" +
+      "for folder in ('runs/2024/acts', 'notes'):\n" +
+      "    (root / folder).mkdir(parents=True, exist_ok=True)\n" +
+      "pq.write_table(pa.table({'act': ['tree act']}), root / 'runs/2024/acts/part-00000.parquet')\n" +
+      "pq.write_table(pa.table({'note': ['tree note']}), root / 'notes/part-00000.parquet')\n" +
+      "(root / 'notes/_SUCCESS').touch()\n",
+    root,
+  ]);
+  fs.writeFileSync(
+    configurationPath,
+    `connections:\n  local:\n    url: "duckdb://"\nsources:\n  tree:\n    connection: local\n    kind: files\n    uri: ${root}\n`
+  );
+  await page.evaluate(async () => {
+    await window.jupyterapp.commands.execute("metanno-viewer:open-resource");
+  });
+  const sidebar = page.locator("#metanno-viewer-sidebar");
+  await sidebar.getByRole("button", { name: "Reload configuration", exact: true }).click();
+  await sidebar.locator(".metanno-viewer__source").filter({ hasText: "tree" }).click();
+  const tables = sidebar.locator(".metanno-viewer__tables");
+  await tables.getByRole("button", { name: "notes", exact: true }).waitFor({ timeout: 60000 });
+  // Folders open in place, listing their own datasets and subfolders
+  await tables.locator('button[title="runs"]').click();
+  await tables.locator('button[title="runs/2024"]').click();
+  const acts = tables.locator('button[title="runs/2024/acts"]');
+  await acts.waitFor({ timeout: 60000 });
+  await expect(acts).toHaveText("acts");
+  // The search keeps the folders leading to a matching table
+  const searchBox = sidebar.getByRole("textbox", { name: "Search sources and tables" });
+  await searchBox.fill("acts");
+  await expect(acts).toBeVisible();
+  await expect(tables.getByRole("button", { name: "notes", exact: true })).toHaveCount(0);
+  await searchBox.fill("");
+  await acts.click();
+  const view = page.locator(".metanno-viewer-widget:visible");
+  await view.getByRole("gridcell", { name: "tree act", exact: true }).waitFor({ timeout: 60000 });
 });

@@ -26,12 +26,76 @@ class QueryError(RuntimeError):
     """
 
 
-def file_table_uri(config, source, table_name):
+def is_remote(uri):
     """
-    Return the location of a table of a file source, relative paths start from the metanno.yaml directory
+    Say whether a location is listed through the connection, eg hdfs://, s3a:// or gs://, rather than a local path
     """
-    uri = source.uri.rstrip("/") + "/" + table_name
-    return uri if ":" in uri or Path(uri).is_absolute() else str(config.directory / uri)
+    from urllib.parse import urlparse
+
+    return urlparse(uri).scheme not in ("", "file")
+
+
+def resolve_uri(config, uri):
+    """
+    Return the location of a file source folder, a local path starts from the metanno.yaml directory when relative,
+    a file:// uri becomes a path
+    """
+    from urllib.parse import urlparse
+
+    uri = uri.rstrip("/")
+    if is_remote(uri):
+        return uri
+    path = Path(urlparse(uri).path if uri.startswith("file:") else uri).expanduser()
+    return str(path if path.is_absolute() else config.directory / path)
+
+
+def storage_entries(backend, uri):
+    """
+    List a folder of a file source as (name, is_folder) pairs, for SourceCatalog.file_entries and file_table
+
+    Remote folders, eg on HDFS or S3, are listed by the connection, with its list_storage method or the Hadoop
+    filesystem of a Spark connection, local ones with pathlib. A connection with only list_folders gives the subfolders
+    """
+    if not is_remote(uri):
+        return [(path.name, path.is_dir()) for path in Path(uri).iterdir()]
+    if hasattr(backend, "list_storage"):
+        return backend.list_storage(uri)
+    if hasattr(backend, "list_folders"):
+        return [(name, True) for name in backend.list_folders(uri)]
+    if backend.name != "pyspark":
+        raise QueryError(f"Listing {uri} needs a Spark connection or a connection with a list_storage method")
+    spark = backend._session
+    path = spark._jvm.org.apache.hadoop.fs.Path(uri)
+    filesystem = path.getFileSystem(spark._jsc.hadoopConfiguration())
+    return [(status.getPath().getName(), status.isDirectory()) for status in filesystem.listStatus(path)]
+
+
+def is_dataset(entries):
+    """
+    Say whether a folder, from its storage_entries, is itself one dataset rather than a folder of datasets and folders
+
+    A Delta log, a Spark _SUCCESS marker or hive partition folders, eg year=2024, make a dataset, and so do data files,
+    eg part-00000.parquet or 000000_0, without subfolders. Next to subfolders, .parquet files are tables of their own,
+    see SourceCatalog.file_entries
+    """
+    if any(name in ("_delta_log", "_SUCCESS") or (folder and "=" in name) for name, folder in entries):
+        return True
+    if any(folder and visible(name) for name, folder in entries):
+        return False
+    return any(not folder and visible(name) for name, folder in entries)
+
+
+def visible(name):
+    return not name.startswith(("_", "."))
+
+
+def checked_path(path):
+    """
+    Return a table or folder path of a file source, refusing paths that leave the source folder, eg `../other`
+    """
+    if any(part in ("", ".", "..") for part in path.split("/")):
+        raise QueryError(f"Invalid path {path!r} in a file source")
+    return path
 
 
 def catalog_databases(backend, catalog):
@@ -206,44 +270,77 @@ class SourceCatalog:
     def database_name(self, source):
         return (source.catalog, source.database) if source.catalog else source.database
 
-    def list_tables(self, source_name):
+    def list_tables(self, source_name, folder=""):
         """
-        List catalogue tables or child datasets at the URI recorded in the source definition
+        List the tables of a catalogue source, or the datasets and subfolders of a folder of a file source
+
+        Each entry is a table or a folder named by its path under the source uri, eg `runs/notes`, which the sidebar
+        passes back as folder to list that folder. A file source whose uri is one dataset has a single table named
+        after its folder
         """
         source = self.source(source_name)
         if source.kind == "databases":
             raise QueryError(f"Source {source_name!r} lists databases, not tables, see list_databases")
         backend = self.connection(source.connection)
         if source.kind == "catalogue":
-            names = backend.list_tables(database=self.database_name(source))
+            entries = {name: "table" for name in backend.list_tables(database=self.database_name(source))}
         else:
-            names = self.list_storage_children(source, backend)
-        return [{"name": name, "source": source_name} for name in sorted(names)]
+            entries = self.file_entries(source, backend, folder)
+        return [{"name": name, "source": source_name, "kind": kind} for name, kind in sorted(entries.items())]
 
-    def list_storage_children(self, source, backend):
+    def file_entries(self, source, backend, folder):
         """
-        List local file datasets or use the source connection to access Hadoop filesystems
-        """
-        if source.uri.startswith(("hdfs:", "s3a:")):
-            if hasattr(backend, "list_folders"):
-                return backend.list_folders(source.uri)
-            if backend.name != "pyspark":
-                raise QueryError(
-                    "HDFS and S3A directory discovery requires a Spark connection or a list_folders method"
-                )
-            spark = backend._session
-            path = spark._jvm.org.apache.hadoop.fs.Path(source.uri)
-            filesystem = path.getFileSystem(spark._jsc.hadoopConfiguration())
-            return [status.getPath().getName() for status in filesystem.listStatus(path) if status.isDirectory()]
-        from urllib.parse import urlparse
+        Map the datasets and subfolders of a folder of a file source to "table" or "folder", eg {"runs/notes": "table"}
 
-        uri = urlparse(source.uri)
-        if uri.scheme not in ("", "file"):
-            raise QueryError(f"Directory discovery does not support {uri.scheme}, use a catalogue source")
-        root = Path(uri.path).expanduser()
-        if not root.is_absolute():
-            root = self.config.directory / root
-        return [path.name for path in root.iterdir() if path.is_dir() or path.suffix == ".parquet"]
+        Each subfolder is listed to tell a dataset from a folder of datasets, in parallel since listings do not query
+        the connection. A connection with only list_folders gives no files, so its subfolders are tables
+        """
+        root = resolve_uri(self.config, source.uri)
+        uri = f"{root}/{checked_path(folder)}" if folder else root
+        entries = storage_entries(backend, uri)
+        if not folder and is_dataset(entries):
+            return {root.rsplit("/", 1)[-1]: "table"}
+        prefix = f"{folder}/" if folder else ""
+        subfolders = [name for name, is_folder in entries if is_folder and visible(name) and "=" not in name]
+        if is_remote(uri) and not hasattr(backend, "list_storage") and hasattr(backend, "list_folders"):
+            return {prefix + name: "table" for name in subfolders}
+        with ThreadPoolExecutor(16) as pool:
+            datasets = list(pool.map(lambda name: is_dataset(storage_entries(backend, f"{uri}/{name}")), subfolders))
+        found = {prefix + name: "table" if dataset else "folder" for name, dataset in zip(subfolders, datasets)}
+        # Next to subfolders, .parquet files are tables of their own
+        found.update(
+            {
+                prefix + name: "table"
+                for name, is_folder in entries
+                if not is_folder and visible(name) and name.endswith(".parquet")
+            }
+        )
+        return found
+
+    def file_table(self, source_name, table_name, connection=None):
+        """
+        Return the location and format of a table of a file source, for table and Copy code
+
+        table_name is the path of the dataset under the source uri, or the name of the source folder when it is one
+        dataset. A dataset is read as Delta when its folder has a _delta_log, as Parquet otherwise, unless
+        metanno.yaml gives the format
+        """
+        source = self.source(source_name)
+        backend = self.connection(connection or source.connection)
+        root = resolve_uri(self.config, source.uri)
+        uri = f"{root}/{checked_path(table_name)}"
+        try:
+            if table_name == root.rsplit("/", 1)[-1] and is_dataset(storage_entries(backend, root)):
+                uri = root
+            # A .parquet file next to subfolders is a table of its own
+            elif table_name.endswith(".parquet"):
+                parent, name = uri.rsplit("/", 1)
+                if (name, False) in storage_entries(backend, parent):
+                    return uri, "parquet"
+            entries = storage_entries(backend, uri)
+        except (OSError, QueryError) as exc:
+            raise QueryError(f"Unknown file table {source_name}.{table_name}") from exc
+        return uri, source.format or ("delta" if ("_delta_log", True) in entries else "parquet")
 
     def table(self, source_name: str, table_name: str, connection: str | None = None) -> IbisTable:
         """
@@ -268,9 +365,7 @@ class SourceCatalog:
                         f"{connection!r}, it may not exist anymore or you may not be allowed to read its columns"
                     ) from exc
             else:
-                if table_name not in self.list_storage_children(source, backend):
-                    raise QueryError(f"Unknown file table {source_name}.{table_name}")
-                reader = backend.read_delta if source.format == "delta" else backend.read_parquet
-                table = reader(file_table_uri(self.config, source, table_name))
+                uri, format = self.file_table(source_name, table_name, connection)
+                table = (backend.read_delta if format == "delta" else backend.read_parquet)(uri)
             self.tables[key] = table
         return self.tables[key]

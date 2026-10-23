@@ -27,9 +27,18 @@ interface SourceSummary {
 type ListedDatabases = SourceSummary[] | { error?: string };
 
 interface TableSummary {
+  // Path under the source uri for a file source, eg `runs/notes`
   name: string;
   source: string;
+  // A folder of a file source lists its own datasets and subfolders once opened
+  kind: "table" | "folder";
 }
+
+// Entries of an opened folder of a file source, {} while listing, or the error of the listing
+type ListedFolder = TableSummary[] | { error?: string };
+
+// Key of a folder of a file source in the folder states
+const folderKey = (source: string, folder: string) => `${source}\n${folder}`;
 
 interface SavedViewSummary {
   name: string;
@@ -140,6 +149,8 @@ function Catalogue({
   const [tables, setTables] = useState<TableSummary[] | null>(null);
   const [listed, setListed] = useState<Record<string, ListedDatabases>>({});
   const [openDatabases, setOpenDatabases] = useState<string[]>([]);
+  const [folders, setFolders] = useState<Record<string, ListedFolder>>({});
+  const [openFolders, setOpenFolders] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [, updateEntries] = useState(0);
@@ -223,6 +234,8 @@ function Catalogue({
   useEffect(() => {
     let disposed = false;
     setTables(null);
+    setFolders({});
+    setOpenFolders([]);
     if (!source) return;
     void explorer
       .connect()
@@ -240,6 +253,24 @@ function Catalogue({
       disposed = true;
     };
   }, [source, openConnection, configurationRevision]);
+  // A folder of a file source lists its datasets and subfolders on the first click only
+  const toggleFolder = (sourceName: string, folder: string) => {
+    const key = folderKey(sourceName, folder);
+    const open = openFolders.includes(key);
+    if (folders[key] === undefined) listFolder(sourceName, folder);
+    setOpenFolders((current) => (open ? current.filter((other) => other !== key) : [...current, key]));
+  };
+  function listFolder(sourceName: string, folder: string) {
+    const key = folderKey(sourceName, folder);
+    setFolders((current) => ({ ...current, [key]: {} }));
+    void explorer
+      .connect()
+      .then((manager) => manager.request<{ tables: TableSummary[] }>("list_tables", { source: sourceName, folder }))
+      .then((reply) => setFolders((current) => ({ ...current, [key]: reply.data.tables })))
+      .catch((reason) =>
+        setFolders((current) => ({ ...current, [key]: { error: String(reason?.message ?? reason) } }))
+      );
+  }
   const openResource = (resource: SourceSelection, newTab = false) => {
     void app.commands
       .execute("metanno-viewer:open-resource", { resource: resource as unknown as ReadonlyPartialJSONObject, newTab })
@@ -286,6 +317,66 @@ function Catalogue({
     </Entry>
   );
 
+  // A folder stays while the search matches it or one of the entries listed under it
+  const shownEntry = (item: SourceSummary, entry: TableSummary): boolean => {
+    if (matches(entry.name) || matches(item.name)) return true;
+    const state = folders[folderKey(item.name, entry.name)];
+    return entry.kind === "folder" && Array.isArray(state) && state.some((child) => shownEntry(item, child));
+  };
+  // Tables and folders of a source, a folder shows its own entries under it once opened
+  const sourceEntries = (item: SourceSummary, entries: TableSummary[]): React.ReactNode[] =>
+    entries
+      .filter((entry) => shownEntry(item, entry))
+      .map((entry) => {
+        const label = entry.name.split("/").pop();
+        if (entry.kind === "table")
+          return (
+            <Entry
+              key={entry.name}
+              title={entry.name}
+              open={(newTab) => openResource({ kind: "table", source: item.name, table: entry.name }, newTab)}
+            >
+              {label}
+            </Entry>
+          );
+        const key = folderKey(item.name, entry.name);
+        const state = folders[key];
+        const open = openFolders.includes(key);
+        return (
+          <div className="metanno-viewer__folder" key={entry.name}>
+            <button
+              className="metanno-viewer__table"
+              aria-expanded={open}
+              title={entry.name}
+              onClick={() => toggleFolder(item.name, entry.name)}
+            >
+              <span className="metanno-viewer__disclosure">{open ? "▾" : "▸"}</span> {label}
+            </button>
+            {open && (
+              <div className="metanno-viewer__folder-entries">
+                {state !== undefined &&
+                  !Array.isArray(state) &&
+                  (state.error ? (
+                    <ErrorBanner
+                      text={state.error}
+                      onRetry={() => listFolder(item.name, entry.name)}
+                      onDismiss={() => {
+                        setOpenFolders((current) => current.filter((other) => other !== key));
+                        setFolders(({ [key]: _, ...rest }) => rest);
+                      }}
+                    />
+                  ) : (
+                    <div className="metanno-viewer__tables-empty">Listing…</div>
+                  ))}
+                {Array.isArray(state) && state.length === 0 && (
+                  <div className="metanno-viewer__tables-empty">No datasets</div>
+                )}
+                {Array.isArray(state) && sourceEntries(item, state)}
+              </div>
+            )}
+          </div>
+        );
+      });
   // A database with its connection, and its tables once opened
   const sourceGroup = (item: SourceSummary) => (
     <section className="metanno-viewer__source-group" key={item.name}>
@@ -316,18 +407,7 @@ function Catalogue({
         <div className="metanno-viewer__tables">
           {tables === null && <div className="metanno-viewer__tables-empty">Loading tables…</div>}
           {tables?.length === 0 && <div className="metanno-viewer__tables-empty">No tables</div>}
-          {(tables ?? [])
-            .filter((itemTable) => matches(itemTable.name) || matches(item.name))
-            .map((itemTable) => (
-              <Entry
-                key={itemTable.name}
-                open={(newTab) => {
-                  openResource({ kind: "table", source: item.name, table: itemTable.name }, newTab);
-                }}
-              >
-                {itemTable.name}
-              </Entry>
-            ))}
+          {sourceEntries(item, tables ?? [])}
         </div>
       )}
     </section>

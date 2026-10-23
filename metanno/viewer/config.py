@@ -46,11 +46,12 @@ class ConnectionConfig(Section):
 
 class SourceConfig(Section):
     """
-    A catalogue database, a directory of Parquet or Delta tables, or every database of a connection
+    A catalogue database, a folder tree of Parquet or Delta datasets, or every database of a connection
 
     connection is the one used by default, connections lists the others that can read the same database, e.g. DuckDB
     and Spark for a Hive database. A `databases` source lists the catalogs and databases of its connection, each
-    shown as its own source in the sidebar
+    shown as its own source in the sidebar. A `files` source shows the folder tree under its uri, format is detected
+    per table when left out, Delta when the table folder has a _delta_log
     """
 
     name: NonEmpty
@@ -64,8 +65,8 @@ class SourceConfig(Section):
 
     @model_validator(mode="after")
     def check_files(self):
-        if self.kind == "files" and (not self.uri or self.format is None):
-            raise ValueError(f"file source {self.name} requires uri and parquet or delta format")
+        if self.kind == "files" and not self.uri:
+            raise ValueError(f"file source {self.name} requires a uri")
         if self.connections and self.connection not in self.connections:
             raise ValueError(f"source {self.name} uses {self.connection}, which is not in its connections")
         return self

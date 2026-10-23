@@ -441,3 +441,4 @@ button.metanno-viewer__connection:hover {
 .metanno-viewer__icon-button { display: flex; align-items: center; padding: 0 6px; }
 .metanno-viewer__icon-button > span { display: flex; }
 .metanno-viewer__listed { margin-left: 12px; }
+.metanno-viewer__folder-entries { margin-left: 12px; }

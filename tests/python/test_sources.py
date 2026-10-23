@@ -11,7 +11,7 @@ import pytest
 import yaml
 
 from metanno.viewer.config import ConfigError, config_file, load_config
-from metanno.viewer.sources import QueryError, SourceCatalog
+from metanno.viewer.sources import QueryError, SourceCatalog, is_dataset
 
 
 def test_nearest_configuration_and_explicit_overrides(tmp_path, tmp_path_factory, config_path, monkeypatch):
@@ -80,7 +80,7 @@ def test_catalogue_queries_and_file_sources(tmp_path, config_path, monkeypatch):
         "lists",
         ibis.memtable({"id": [1, 2], "name": ["Home", "Work"], "amount": [Decimal("1.20"), Decimal("2.40")]}),
     )
-    assert {"name": "lists", "source": "planner"} in service.list_tables("planner")
+    assert {"name": "lists", "source": "planner", "kind": "table"} in service.list_tables("planner")
     assert service.table("planner", "lists").schema().names[0] == "id"
     root = tmp_path / "exports"
     root.mkdir()
@@ -99,11 +99,12 @@ def test_catalogue_queries_and_file_sources(tmp_path, config_path, monkeypatch):
     }
     path.write_text(yaml.safe_dump(config))
     service.config = load_config(path)
-    assert service.list_tables("files") == [{"name": "lists.parquet", "source": "files"}]
-    assert service.table("files", "lists.parquet").limit(1).to_pyarrow().num_rows == 1
+    # A folder holding only data files is one dataset, named after the folder
+    assert service.list_tables("files") == [{"name": "exports", "source": "files", "kind": "table"}]
+    assert service.table("files", "exports").limit(1).to_pyarrow().num_rows == 1
     assert service.list_tables("central") == [
-        {"name": "care_site", "source": "central"},
-        {"name": "person", "source": "central"},
+        {"name": "care_site", "source": "central", "kind": "table"},
+        {"name": "person", "source": "central", "kind": "table"},
     ]
     service.close()
     assert not service.connections
@@ -200,10 +201,10 @@ def test_stopped_spark_session_reconnects(tmp_path, monkeypatch):
     )
     service = SourceCatalog(path)
     first = service.connection("spark")
-    assert service.table("files", "todos.parquet").count().execute() == 2
+    assert service.table("files", "data").count().execute() == 2
     # Stop only the JVM context, the Python session still references it like after a lost YARN connection
     first._session.sparkContext._jsc.sc().stop()
-    assert service.table("files", "todos.parquet").count().execute() == 2
+    assert service.table("files", "data").count().execute() == 2
     assert service.connection("spark") is not first
     service.close()
 
@@ -331,8 +332,71 @@ def test_sources_switch_connection_and_list_databases(tmp_path):
 
     listed = {source["name"] for source in service.list_databases("everything")}
     assert "notes.cohort" in listed and "notes.main" not in listed
-    assert service.list_tables("notes.cohort") == [{"name": "patients", "source": "notes.cohort"}]
+    assert service.list_tables("notes.cohort") == [{"name": "patients", "source": "notes.cohort", "kind": "table"}]
     assert service.table("notes.cohort", "patients").count().execute() == 1
     with pytest.raises(QueryError):
         service.set_connection("notes.cohort", "fast")
+    service.close()
+
+
+def test_file_sources_browse_folders_at_any_depth(tmp_path):
+    """
+    A file source lists the datasets and subfolders of each folder, tables are named by their path under the source
+    uri, a source whose uri is one dataset has a single table, and a dataset is Delta when its folder has a _delta_log
+    """
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    exports = tmp_path / "data" / "exports"
+    for folder in ("notes", "visits/year=2024", "stays/_delta_log", "runs/2024/acts", "empty"):
+        (exports / folder).mkdir(parents=True)
+    pq.write_table(pa.table({"note_id": [1, 2, 3]}), exports / "notes" / "part-00000.parquet")
+    (exports / "notes" / "_SUCCESS").touch()
+    pq.write_table(pa.table({"visit_id": [1]}), exports / "visits" / "year=2024" / "part-00000.parquet")
+    pq.write_table(pa.table({"act_id": [1, 2]}), exports / "runs" / "2024" / "acts" / "part-00000.parquet")
+    pq.write_table(pa.table({"person_id": [1, 2]}), exports / "patients.parquet")
+    path = tmp_path / "metanno.yaml"
+    path.write_text(
+        yaml.safe_dump(
+            {
+                "connections": {"local": {"url": "duckdb://"}},
+                "sources": {
+                    "exports": {"connection": "local", "kind": "files", "uri": "data/exports"},
+                    "notes": {"connection": "local", "kind": "files", "uri": "data/exports/notes"},
+                    "acts": {"connection": "local", "kind": "files", "uri": f"file://{exports}/runs/2024/acts"},
+                },
+            }
+        )
+    )
+    service = SourceCatalog(path)
+
+    def entries(*args):
+        return [(entry["name"], entry["kind"]) for entry in service.list_tables(*args)]
+
+    assert entries("exports") == [
+        ("empty", "folder"),
+        ("notes", "table"),
+        ("patients.parquet", "table"),
+        ("runs", "folder"),
+        ("stays", "table"),
+        ("visits", "table"),
+    ]
+    assert entries("exports", "runs") == [("runs/2024", "folder")]
+    assert entries("exports", "runs/2024") == [("runs/2024/acts", "table")]
+    assert service.table("exports", "runs/2024/acts").count().execute() == 2
+    assert service.table("exports", "patients.parquet").count().execute() == 2
+    assert service.file_table("exports", "stays") == (str(exports / "stays"), "delta")
+    assert service.file_table("exports", "notes") == (str(exports / "notes"), "parquet")
+    assert entries("notes") == [("notes", "table")]
+    assert service.table("notes", "notes").count().execute() == 3
+    # A folder of data files without a Spark marker, given as a file:// uri, is one dataset too
+    assert entries("acts") == [("acts", "table")]
+    assert service.table("acts", "acts").count().execute() == 2
+    # Hive writes data files without extension, they make a dataset too
+    assert is_dataset([("000000_0", False), ("_SUCCESS", False)]) and is_dataset([("000000_0", False)])
+    assert not is_dataset([("000000_0", False), ("2024", True)])
+    with pytest.raises(QueryError):
+        service.list_tables("exports", "../exports")
+    with pytest.raises(QueryError):
+        service.table("exports", "missing")
     service.close()
