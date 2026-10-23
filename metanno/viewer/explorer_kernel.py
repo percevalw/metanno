@@ -266,7 +266,7 @@ class DataExplorerKernel(IPythonKernel):
             views = [view.model_dump() for view in load_views(view_path)]
             return {"views": views, "stores": stores, "directories": directories}
         if method == "list_tables":
-            return {"tables": self.sources.list_tables(data["source"])}
+            return {"tables": self.sources.list_tables(data["source"], data.get("folder", ""))}
         if method == "list_databases":
             return {"sources": self.sources.list_databases(data["source"])}
         if method == "set_source_connection":

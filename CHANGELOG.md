@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### JupyterLab viewer
+
+- File sources show the folder tree under their `uri` at any depth, local, mounted or remote, datasets are tables named by their path, eg `runs/notes`. A folder holding data files and no subfolder is one dataset, also when it is the `uri` itself, and without `format` a table is Delta when its folder has a `_delta_log`.
+- Connections list HDFS and S3 folders without Spark with a `list_storage(uri)` method returning `(name, is_folder)` pairs.
+
 ## v2.0.0-beta.2 (2026-10-22)
 
 ### JupyterLab viewer
