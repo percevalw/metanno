@@ -13,7 +13,7 @@ import { ViewerTabs } from "./tabs";
 import { ServerConnection } from "@jupyterlab/services";
 import { PageConfig } from "@jupyterlab/coreutils";
 import { LabIcon, settingsIcon } from "@jupyterlab/ui-components";
-import { errorText } from "./source_view";
+import { errorText, tableLabel } from "./source_view";
 
 interface SourceSummary {
   name: string;
@@ -623,7 +623,7 @@ function Catalogue({
                   depth={0}
                   label={view.name}
                   title={Object.values(view.tables)
-                    .map((table) => `${table.source}.${table.table}`)
+                    .map((table) => tableLabel(table.source, table.table))
                     .join(", ")}
                   open={(newTab) => openResource({ kind: "view", name: view.name }, newTab)}
                 />

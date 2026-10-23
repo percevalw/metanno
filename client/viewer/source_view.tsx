@@ -6,6 +6,12 @@ import { ExplorerKernelConnection, KernelClient, SourceSelection, ViewReply } fr
 import { fullscreenKey, FullscreenViews } from "./fullscreen";
 
 // Error message of the sidebar and table tabs with clickable links, e.g. a login link, and an optional Retry button
+// Name of a table with its source, joined with / when the source name is a path, eg hdfs:///user/me/runs/notes,
+// and with . otherwise, eg cohort.notes, for tab titles, query statuses and the sidebar
+export function tableLabel(source: string, table: string) {
+  return `${source}${source.includes("/") ? "/" : "."}${table}`;
+}
+
 // The text of an error with its links clickable, eg the login link of a Trino error, for ErrorBanner and the sidebar
 export function errorText(text: string) {
   return text.split(/(https?:\/\/[^\s"')]+)/).map((part, index) =>
@@ -60,7 +66,9 @@ function SourceView({ explorer, pretService, initialResource, fullscreenButton }
   const viewRef = useRef<string | null>(null);
   const label =
     initialResource.title ||
-    (initialResource.kind === "view" ? initialResource.name : `${initialResource.source}.${initialResource.table}`);
+    (initialResource.kind === "view"
+      ? initialResource.name
+      : tableLabel(initialResource.source, initialResource.table));
   const [status, setStatus] = useState("Connecting to the Metanno data explorer kernel");
   const [error, setError] = useState<string | null>(null);
   const [kernelGeneration, setKernelGeneration] = useState(0);
@@ -121,7 +129,7 @@ function SourceView({ explorer, pretService, initialResource, fullscreenButton }
             return;
           }
           const operationId = String(data.operation_id || "");
-          const queryTable = `${data.source}.${data.table}`;
+          const queryTable = tableLabel(String(data.source), String(data.table));
           if (data.phase === "queued") {
             setStatus(`Waiting for query worker, ${queryTable}`);
           } else if (data.phase === "running") {

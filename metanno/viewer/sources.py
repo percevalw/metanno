@@ -339,7 +339,8 @@ class SourceCatalog:
                     return uri, "parquet"
             entries = storage_entries(backend, uri)
         except (OSError, QueryError) as exc:
-            raise QueryError(f"Unknown file table {source_name}.{table_name}") from exc
+            separator = "/" if "/" in source_name else "."
+            raise QueryError(f"Unknown file table {source_name}{separator}{table_name}") from exc
         return uri, source.format or ("delta" if ("_delta_log", True) in entries else "parquet")
 
     def table(self, source_name: str, table_name: str, connection: str | None = None) -> IbisTable:
