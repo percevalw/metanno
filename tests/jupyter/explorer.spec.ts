@@ -630,6 +630,13 @@ test("folder tree of a file source", async ({ page }) => {
   await acts.click();
   const view = page.locator(".metanno-viewer-widget:visible");
   await view.getByRole("gridcell", { name: "tree act", exact: true }).waitFor({ timeout: 60000 });
+  // Another extension opens the same dataset by its path, in the tab the sidebar opened
+  const widgets = await page.locator(".metanno-viewer-widget").count();
+  await page.evaluate(async (uri) => {
+    await window.jupyterapp.commands.execute("metanno-viewer:open-resource", { resource: { kind: "path", uri } });
+  }, path.join(root, "runs", "2024", "acts"));
+  await expect(page.locator(".metanno-viewer-widget")).toHaveCount(widgets);
+  await view.getByRole("gridcell", { name: "tree act", exact: true }).waitFor();
   // A source whose folder cannot be listed shows the error under its row
   await sidebar.getByRole("button", { name: "broken", exact: true }).click();
   const broken = sidebar
