@@ -25,7 +25,7 @@ To keep Metanno with the other dependencies of your project, add it to your `pyp
     version = "0.1.0"
     requires-python = ">=3.10"
     dependencies = [
-      "metanno>=2.0.0-beta.2",
+      "metanno>=2.0.0-beta.3",
       "edsnlp>=0.21",  # used to pre-annotate the documents
     ]
     ```
@@ -39,7 +39,7 @@ To keep Metanno with the other dependencies of your project, add it to your `pyp
 === "requirements.txt"
 
     ```text
-    metanno>=2.0.0-beta.2
+    metanno>=2.0.0-beta.3
     edsnlp>=0.21  # used to pre-annotate the documents
     ```
 
