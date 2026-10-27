@@ -200,7 +200,7 @@ def export_view_code(store, view_definition, config_dir, purpose="annotation"):
         backend = emit_connection(provider.connection or source.connection)
         if source.kind == "files":
             uri, format = sources.file_table(provider.source, provider.table, provider.connection)
-            expression = f"{backend}.{'read_delta' if format == 'delta' else 'read_parquet'}({uri!r})"
+            expression = f"{backend}.read_{format}({uri!r})"
         else:
             database = sources.database_name(source)
             expression = f"{backend}.table({provider.table!r}" + (f", database={database!r}" if database else "") + ")"

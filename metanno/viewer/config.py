@@ -46,12 +46,12 @@ class ConnectionConfig(Section):
 
 class SourceConfig(Section):
     """
-    A catalogue database, a folder tree of Parquet or Delta datasets, or every database of a connection
+    A catalogue database, a folder tree of Parquet, Delta or CSV datasets, or every database of a connection
 
     connection is the one used by default, connections lists the others that can read the same database, e.g. DuckDB
     and Spark for a Hive database. A `databases` source lists the catalogs and databases of its connection, each
     shown as its own source in the sidebar. A `files` source shows the folder tree under its uri, format is detected
-    per table when left out, Delta when the table folder has a _delta_log
+    per table when left out, Delta when the table folder has a _delta_log, CSV when its data files are .csv files
     """
 
     name: NonEmpty
@@ -61,7 +61,7 @@ class SourceConfig(Section):
     catalog: Optional[str] = None
     database: Optional[str] = None
     uri: Optional[str] = None
-    format: Optional[Literal["parquet", "delta"]] = None
+    format: Optional[Literal["parquet", "delta", "csv"]] = None
 
     @model_validator(mode="after")
     def check_files(self):
