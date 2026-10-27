@@ -140,14 +140,15 @@ class DataExplorerKernel(IPythonKernel):
 
                 report_view_stage("building_view")
                 if method == "open_table_view":
-                    # The Store key is the table name, so recipes written for a table, e.g. notes, also render it
+                    # The Store key is the table name, so recipes written for a table, e.g. notes, also render it.
+                    # Widgets read a dot in a key as a nested path, so a file table such as notes.csv is notes_csv
                     source = self.sources.source(data["source"])
                     table = ViewTable(
                         source=data["source"],
                         table=data["table"],
                         connection=data.get("connection") or source.connection,
                     )
-                    definition = ViewConfig(tables={data["table"]: table}, recipe="table")
+                    definition = ViewConfig(tables={data["table"].replace(".", "_"): table}, recipe="table")
                 else:
                     saved = load_views(self.sources.config.directory / "views")
                     definition = {view.name: view for view in saved}[data["name"]]
