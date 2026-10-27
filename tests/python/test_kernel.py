@@ -222,3 +222,30 @@ def test_view_open_resolves_refreshing_backend_tables_again(tmp_path, monkeypatc
     kernel.sources.table("fresh", "notes")
     request(kernel, EventComm(), "open_table_view", {"source": "fresh", "table": "notes", "view_ref": "fresh"})
     assert ("fresh", "notes", "fresh") not in kernel.sources.tables
+
+
+def test_table_view_store_key_has_no_dot(tmp_path, monkeypatch):
+    """
+    A file table such as codes.csv opens under the Store key codes_csv, widgets read a dotted key as a nested path
+    """
+    import metanno.viewer.explorer_kernel as kernel_module
+    from metanno.viewer.sources import SourceCatalog
+
+    (tmp_path / "metanno.yaml").write_text(
+        f"connections:\n  local: {{factory: 'ibis:duckdb.connect'}}\n"
+        f"sources:\n  files: {{connection: local, kind: files, uri: '{tmp_path}'}}\n"
+    )
+    kernel = DataExplorerKernel.__new__(DataExplorerKernel)
+    kernel.sources = SourceCatalog(tmp_path)
+    kernel.views = {}
+    kernel.query_worker = SimpleNamespace(requests_by_view={}, close_view=lambda view_ref: None)
+    rendered = SimpleNamespace(_repr_mimebundle_=lambda: {"application/vnd.pret+json": {"view_data": {}}})
+    opened = []
+    monkeypatch.setattr(
+        kernel_module,
+        "create_source_view",
+        lambda sources, worker, view_ref, view: opened.append(view) or (rendered, None, []),
+    )
+    request(kernel, EventComm(), "open_table_view", {"source": "files", "table": "codes.csv", "view_ref": "codes"})
+    assert list(opened[0].tables) == ["codes_csv"]
+    assert opened[0].tables["codes_csv"].table == "codes.csv"
