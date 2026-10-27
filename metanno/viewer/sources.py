@@ -75,8 +75,8 @@ def is_dataset(entries):
     Say whether a folder, from its storage_entries, is itself one dataset rather than a folder of datasets and folders
 
     A Delta log, a Spark _SUCCESS marker or hive partition folders, eg year=2024, make a dataset, and so do data files,
-    eg part-00000.parquet or 000000_0, without subfolders. Next to subfolders, .parquet files are tables of their own,
-    see SourceCatalog.file_entries
+    eg part-00000.parquet or 000000_0, without subfolders. Next to subfolders, .parquet and .csv files are tables of
+    their own, see SourceCatalog.file_entries
     """
     if any(name in ("_delta_log", "_SUCCESS") or (folder and "=" in name) for name, folder in entries):
         return True
@@ -85,12 +85,22 @@ def is_dataset(entries):
     return any(not folder and visible(name) for name, folder in entries)
 
 
+def file_format(name):
+    """
+    Format of a data file from its extension, eg "csv" for part-00000.csv.gz, None for a file without a known one
+    """
+    for suffixes, format in (((".parquet",), "parquet"), ((".csv", ".csv.gz"), "csv")):
+        if name.endswith(suffixes):
+            return format
+    return None
+
+
 def opens_as_table(backend, uri):
     """
-    Say whether a location is a dataset or a .parquet file of its own, for SourceCatalog.resolve_path
+    Say whether a location is a dataset or a .parquet or .csv file of its own, for SourceCatalog.resolve_path
     """
     parent, name = uri.rsplit("/", 1)
-    if name.endswith(".parquet") and (name, False) in storage_entries(backend, parent):
+    if file_format(name) and (name, False) in storage_entries(backend, parent):
         return True
     return is_dataset(storage_entries(backend, uri))
 
@@ -376,12 +386,12 @@ class SourceCatalog:
         with ThreadPoolExecutor(16) as pool:
             datasets = list(pool.map(lambda name: is_dataset(storage_entries(backend, f"{uri}/{name}")), subfolders))
         found = {prefix + name: "table" if dataset else "folder" for name, dataset in zip(subfolders, datasets)}
-        # Next to subfolders, .parquet files are tables of their own
+        # Next to subfolders, .parquet and .csv files are tables of their own
         found.update(
             {
                 prefix + name: "table"
                 for name, is_folder in entries
-                if not is_folder and visible(name) and name.endswith(".parquet")
+                if not is_folder and visible(name) and file_format(name)
             }
         )
         return found
@@ -391,8 +401,8 @@ class SourceCatalog:
         Return the location and format of a table of a file source, for table and Copy code
 
         table_name is the path of the dataset under the source uri, or the name of the source folder when it is one
-        dataset. A dataset is read as Delta when its folder has a _delta_log, as Parquet otherwise, unless
-        metanno.yaml gives the format
+        dataset. A dataset is read as Delta when its folder has a _delta_log, as CSV when its data files are .csv files,
+        as Parquet otherwise, unless metanno.yaml gives the format
         """
         source = self.source(source_name)
         backend = self.connection(connection or source.connection)
@@ -401,16 +411,20 @@ class SourceCatalog:
         try:
             if table_name == root.rsplit("/", 1)[-1] and is_dataset(storage_entries(backend, root)):
                 uri = root
-            # A .parquet file next to subfolders is a table of its own
-            elif table_name.endswith(".parquet"):
+            # A .parquet or .csv file next to subfolders is a table of its own
+            elif file_format(table_name):
                 parent, name = uri.rsplit("/", 1)
                 if (name, False) in storage_entries(backend, parent):
-                    return uri, "parquet"
+                    return uri, file_format(name)
             entries = storage_entries(backend, uri)
         except (OSError, QueryError) as exc:
             separator = "/" if "/" in source_name else "."
             raise QueryError(f"Unknown file table {source_name}{separator}{table_name}") from exc
-        return uri, source.format or ("delta" if ("_delta_log", True) in entries else "parquet")
+        if source.format or ("_delta_log", True) in entries:
+            return uri, source.format or "delta"
+        # Spark writes the data files of a CSV dataset as part-00000-....csv, or .csv.gz when compressed
+        formats = {file_format(name) for name, folder in entries if not folder and visible(name)}
+        return uri, "csv" if formats == {"csv"} else "parquet"
 
     def table(self, source_name: str, table_name: str, connection: str | None = None) -> IbisTable:
         """
@@ -436,6 +450,6 @@ class SourceCatalog:
                     ) from exc
             else:
                 uri, format = self.file_table(source_name, table_name, connection)
-                table = (backend.read_delta if format == "delta" else backend.read_parquet)(uri)
+                table = getattr(backend, f"read_{format}")(uri)
             self.tables[key] = table
         return self.tables[key]

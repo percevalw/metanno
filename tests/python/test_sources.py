@@ -49,7 +49,7 @@ def test_nearest_configuration_and_explicit_overrides(tmp_path, tmp_path_factory
         {"preview": {"rows": 0}},
         {
             "connections": {"local": {"url": "duckdb://"}},
-            "sources": {"source": {"connection": "local", "kind": "files", "format": "csv", "uri": "/data"}},
+            "sources": {"source": {"connection": "local", "kind": "files", "format": "orc", "uri": "/data"}},
         },
         {
             "connections": {"local": {"url": "duckdb://"}, "other": {"url": "duckdb://"}},
@@ -343,6 +343,7 @@ def test_file_sources_browse_folders_at_any_depth(tmp_path):
     """
     A file source lists the datasets and subfolders of each folder, tables are named by their path under the source
     uri, a source whose uri is one dataset has a single table, and a dataset is Delta when its folder has a _delta_log
+    and CSV when its data files are .csv files
     """
     import pyarrow as pa
     import pyarrow.parquet as pq
@@ -355,6 +356,12 @@ def test_file_sources_browse_folders_at_any_depth(tmp_path):
     pq.write_table(pa.table({"visit_id": [1]}), exports / "visits" / "year=2024" / "part-00000.parquet")
     pq.write_table(pa.table({"act_id": [1, 2]}), exports / "runs" / "2024" / "acts" / "part-00000.parquet")
     pq.write_table(pa.table({"person_id": [1, 2]}), exports / "patients.parquet")
+    # A CSV dataset written by Spark, and a CSV file next to folders
+    (exports / "codes.csv").mkdir()
+    (exports / "codes.csv" / "_SUCCESS").touch()
+    (exports / "codes.csv" / "part-00000-c000.csv").write_text("code,label\nA,a\nB,b\n")
+    (exports / "codes.csv" / "part-00001-c000.csv").write_text("code,label\nC,c\n")
+    (exports / "units.csv").write_text("unit\nmg\n")
     path = tmp_path / "metanno.yaml"
     path.write_text(
         yaml.safe_dump(
@@ -374,11 +381,13 @@ def test_file_sources_browse_folders_at_any_depth(tmp_path):
         return [(entry["name"], entry["kind"]) for entry in service.list_tables(*args)]
 
     assert entries("exports") == [
+        ("codes.csv", "table"),
         ("empty", "folder"),
         ("notes", "table"),
         ("patients.parquet", "table"),
         ("runs", "folder"),
         ("stays", "table"),
+        ("units.csv", "table"),
         ("visits", "table"),
     ]
     assert entries("exports", "runs") == [("runs/2024", "folder")]
@@ -387,6 +396,9 @@ def test_file_sources_browse_folders_at_any_depth(tmp_path):
     assert service.table("exports", "patients.parquet").count().execute() == 2
     assert service.file_table("exports", "stays") == (str(exports / "stays"), "delta")
     assert service.file_table("exports", "notes") == (str(exports / "notes"), "parquet")
+    assert service.file_table("exports", "codes.csv") == (str(exports / "codes.csv"), "csv")
+    assert service.table("exports", "codes.csv").count().execute() == 3
+    assert service.table("exports", "units.csv").count().execute() == 1
     assert entries("notes") == [("notes", "table")]
     assert service.table("notes", "notes").count().execute() == 3
     # A folder of data files without a Spark marker, given as a file:// uri, is one dataset too
