@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### JupyterLab viewer
+
+- File sources read CSV datasets with the connection's `read_csv`: a folder whose data files are `.csv` or `.csv.gz` files, eg written by Spark, and a `.csv` file next to folders. `format: csv` sets it for a whole source.
+
 ## v2.0.0-beta.3 (2026-10-26)
 
 ### JupyterLab viewer
