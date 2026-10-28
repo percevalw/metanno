@@ -1,0 +1,348 @@
+html.js [dir=ltr] .md-sidebar--primary {
+    left: calc(-1 * var(--md-sidebar-width));
+}
+
+html.js [dir=rtl] .md-sidebar--primary {
+    right: calc(-1 * var(--md-sidebar-width));
+}
+
+html.js .md-sidebar--primary {
+    background-color: var(--md-default-bg-color) !important;
+    display: block;
+    height: 100%;
+    position: fixed;
+    top: 0 !important;
+    margin-top: 0 !important;
+    transform: translateX(0);
+    transition: transform .25s cubic-bezier(.4,0,.2,1),box-shadow .25s;
+    width: var(--md-sidebar-width);
+    z-index: 5
+}
+
+html.js [data-md-toggle=drawer]:checked~.md-container .md-sidebar--primary {
+    box-shadow: var(--md-shadow-z3);
+    transform: translateX(var(--md-sidebar-width));
+}
+
+html.js [dir=rtl] [data-md-toggle=drawer]:checked~.md-container .md-sidebar--primary {
+    transform: translateX(calc(-1 * var(--md-sidebar-width)));
+}
+
+html.js .md-sidebar--primary .md-sidebar__scrollwrap {
+    bottom: 0;
+    left: 0;
+    margin: 0;
+    overflow: hidden;
+    position: absolute;
+    right: 0;
+    scroll-snap-type: none;
+    top: 0
+}
+
+html.js .md-nav--primary,.md-nav--primary .md-nav {
+    background-color:var(--md-default-bg-color);
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    left: 0;
+    position: absolute;
+    right: 0;
+    top: 0;
+    z-index: 1
+}
+
+html.js .md-nav--primary .md-nav__item,.md-nav--primary .md-nav__title {
+    font-size: 1rem;
+    line-height: 1.5;
+}
+
+html.js .md-nav__item--nested>.md-nav>.md-nav__title {
+    display: block;
+}
+
+html.js .md-nav--primary .md-nav__title {
+    background-color: var(--md-default-fg-color--lightest) !important;
+    box-shadow: none !important;
+    color: var(--md-default-fg-color--light);
+    cursor: pointer;
+    height: 7rem;
+    line-height: 3rem;
+    padding: 3.75rem 1rem 0.25rem;
+    position: relative;
+    white-space: nowrap
+}
+
+html.js [dir=ltr] .md-nav--primary .md-nav__title .md-nav__icon {
+    left: 0.5rem
+}
+
+html.js [dir=rtl] .md-nav--primary .md-nav__title .md-nav__icon {
+    right: 0.5rem
+}
+
+html.js .md-nav--primary .md-nav__title .md-nav__icon {
+    display: block;
+    height: 1.5rem;
+    margin: 0.25rem;
+    position: absolute;
+    top: 0.5rem;
+    width: 1.5rem
+}
+
+html.js .md-nav--primary .md-nav__title .md-nav__icon:after {
+    background-color: currentcolor;
+    content: "";
+    display: block;
+    height: 100%;
+    -webkit-mask-image: var(--md-nav-icon--prev);
+    mask-image: var(--md-nav-icon--prev);
+    -webkit-mask-position: center;
+    mask-position: center;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    width: 100%
+}
+
+html.js .md-nav--primary .md-nav__title~.md-nav__list {
+    background-color: var(--md-default-bg-color);
+    box-shadow: 0 0.0625rem 0 var(--md-default-fg-color--lightest) inset;
+    overflow-y: auto;
+    scroll-snap-type: y mandatory;
+    touch-action: pan-y
+}
+
+html.js .md-nav--primary .md-nav__title~.md-nav__list>:first-child {
+    border-top: 0
+}
+
+html.js .md-nav--primary .md-nav__title[for=__drawer] {
+    background-color: var(--md-primary-fg-color) !important;
+    color: var(--md-primary-bg-color);
+    font-weight: 700
+}
+
+html.js .md-nav--primary .md-nav__title .md-logo {
+    display: block;
+    left: 0.25rem;
+    margin: 0.25rem;
+    padding: 0.5rem;
+    position: absolute;
+    right: 0.25rem;
+    top: 0.25rem
+}
+
+html.js .md-nav--primary .md-nav__list {
+    flex: 1
+}
+
+html.js .md-nav--primary .md-nav__item {
+    border-top: 0.0625rem solid var(--md-default-fg-color--lightest);
+    padding: 0
+}
+
+html.js .md-nav--primary .md-nav__item--active>.md-nav__link {
+    color: var(--md-typeset-a-color)
+}
+
+html.js .md-nav--primary .md-nav__item--active>.md-nav__link:focus,.md-nav--primary .md-nav__item--active>.md-nav__link:hover {
+    color: var(--md-accent-fg-color)
+}
+
+html.js .md-nav--primary .md-nav__link {
+    margin-top: 0;
+    padding: 0.75rem 1rem
+}
+
+html.js .md-nav--primary .md-nav__link svg {
+    margin-top: .1em
+}
+
+html.js .md-nav--primary .md-nav__link>.md-nav__link {
+    padding: 0
+}
+
+html.js [dir=ltr] .md-nav--primary .md-nav__link .md-nav__icon {
+    margin-right: -0.25rem
+}
+
+html.js [dir=rtl] .md-nav--primary .md-nav__link .md-nav__icon {
+    margin-left: -0.25rem
+}
+
+html.js .md-nav--primary .md-nav__link .md-nav__icon {
+    font-size: 1.5rem;
+    height: 1.5rem;
+    width: 1.5rem
+}
+
+html.js .md-nav--primary .md-nav__link .md-nav__icon:after {
+    background-color: currentcolor;
+    content: "";
+    display: block;
+    height: 100%;
+    -webkit-mask-image: var(--md-nav-icon--next);
+    mask-image: var(--md-nav-icon--next);
+    -webkit-mask-position: center;
+    mask-position: center;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    width: 100%
+}
+
+html.js [dir=rtl] .md-nav--primary .md-nav__icon:after {
+    transform: scale(-1)
+}
+
+html.js .md-nav--primary .md-nav--secondary .md-nav {
+    background-color: initial;
+    position: static
+}
+
+html.js [dir=ltr] .md-nav--primary .md-nav--secondary .md-nav .md-nav__link {
+    padding-left: 1.75rem
+}
+
+html.js [dir=rtl] .md-nav--primary .md-nav--secondary .md-nav .md-nav__link {
+    padding-right: 1.75rem
+}
+
+html.js [dir=ltr] .md-nav--primary .md-nav--secondary .md-nav .md-nav .md-nav__link {
+    padding-left: 2.5rem
+}
+
+html.js [dir=rtl] .md-nav--primary .md-nav--secondary .md-nav .md-nav .md-nav__link {
+    padding-right: 2.5rem
+}
+
+html.js [dir=ltr] .md-nav--primary .md-nav--secondary .md-nav .md-nav .md-nav .md-nav__link {
+    padding-left: 3.25rem
+}
+
+html.js [dir=rtl] .md-nav--primary .md-nav--secondary .md-nav .md-nav .md-nav .md-nav__link {
+    padding-right: 3.25rem
+}
+
+html.js [dir=ltr] .md-nav--primary .md-nav--secondary .md-nav .md-nav .md-nav .md-nav .md-nav__link {
+    padding-left: 4rem
+}
+
+html.js [dir=rtl] .md-nav--primary .md-nav--secondary .md-nav .md-nav .md-nav .md-nav .md-nav__link {
+    padding-right: 4rem
+}
+
+html.js .md-nav--secondary {
+    background-color: initial
+}
+
+html.js .md-nav__toggle~.md-nav {
+    display: flex;
+    opacity: 0;
+    transform: translateX(100%);
+    transition: transform .25s cubic-bezier(.8,0,.6,1),opacity 125ms 50ms
+}
+
+html.js [dir=rtl] .md-nav__toggle~.md-nav {
+    transform: translateX(-100%)
+}
+
+html.js .md-nav__toggle:checked~.md-nav {
+    opacity: 1;
+    transform: translateX(0);
+    transition: transform .25s cubic-bezier(.4,0,.2,1),opacity 125ms 125ms
+}
+
+html.js .md-nav__toggle:checked~.md-nav>.md-nav__list {
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden
+}
+
+html.js .md-sidebar--secondary {
+    display: none !important;
+}
+
+html.js .md-header__button[for=__drawer] {
+    display: inline-block;
+}
+
+html .md-overlay {
+    background-color:#0000008a;
+    height: 0;
+    opacity: 0;
+    position: fixed;
+    top: 0;
+    transition: width 0ms .25s,height 0ms .25s,opacity .25s;
+    width: 0;
+    z-index: 5
+}
+
+html [data-md-toggle=drawer]:checked~.md-overlay {
+    height: 100%;
+    opacity: 1;
+    transition: width 0ms,height 0ms,opacity .25s;
+    width: 100%
+}
+
+html .md-main .md-main__inner {
+    max-width: unset !important;
+    height: calc(100vh - 53px);
+}
+
+html .md-content {
+    display: flex;
+    flex-direction: column;
+}
+
+html .md-content__inner {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    padding-top: 0;
+}
+
+html .md-content__inner:before {
+    display: none;
+}
+
+html .pret-code-snippet {
+    margin: 0 -1rem;
+    width: 100vw;
+    height: 100%;
+}
+
+html .pret-code-snippet .pret-code-snippet-view-container {
+    height: 100%;
+}
+
+html .pret-code-snippet .pret-code-snippet-view-content {
+    width: 100%;
+    height: 100%;
+}
+
+html article.md-content__inner {
+    margin-left: 1rem !important;
+    margin-right: 1rem !important;
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+.render-with-pret, div.footnote, .md-footer {
+    display: none;
+}
+
+.md-content__inner > *:not(.pret-code-snippet) {
+    display: none;
+}
+
+html .md-grid {
+    max-width: unset;
+}
+
+.md-typeset .pret-code-snippet hr {
+    border-bottom: unset;
+    display: unset;
+    margin: unset;
+}
