@@ -7,6 +7,7 @@ from .version import __version__
 __all__ = [
     "AnnotatedText",
     "AnnotatedImage",
+    "AnnotatedVolume",
     "Table",
     "DataRelation",
     "DataWidgetFactory",
@@ -20,7 +21,7 @@ def __getattr__(name):
     """
     Load application and widget APIs on first use
     """
-    if name in ("AnnotatedText", "AnnotatedImage", "Table"):
+    if name in ("AnnotatedText", "AnnotatedImage", "AnnotatedVolume", "Table"):
         from . import ui as module
     elif name in ("DataRelation", "DataWidgetFactory"):
         from .recipes import data_widget_factory as module

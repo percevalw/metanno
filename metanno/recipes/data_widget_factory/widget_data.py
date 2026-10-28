@@ -104,11 +104,13 @@ def use_selected_rows(data, primary_key, identities=None, filter=None, selection
 
 async def edit_rows(data, primary_key, rows=(), values=None, remove=False, insert=None, read_only=False):
     """
-    Update or remove the given rows, or insert new ones, in a DataFrame or a Store list as one Store action
+    Update or remove the given rows, then insert new ones, in a DataFrame or a Store list as one Store action, so
+    that one undo reverts them all, e.g. the outlines that Fill slices replaces
     """
     if read_only:
         raise ValueError("This view is read only")
-    if not len(rows) and insert is None:
+    insert = insert or []
+    if not len(rows) and not len(insert):
         # Deleting or updating no row, e.g. Backspace with only text selected, changes nothing
         return None
     if getattr(data, "__pret_dataframe__", False):
@@ -119,27 +121,24 @@ async def edit_rows(data, primary_key, rows=(), values=None, remove=False, inser
             else {"kind": "update", "row_identity": row[identity], "values": values}
             for row in rows
         ]
-        result = (
-            await data.insert(insert)
-            if insert is not None
-            else await data.applyMutation({"kind": "batch", "edits": edits})
-        )
+        for row in insert:
+            edits.append({"kind": "insert", "values": row})
+        result = await data.applyMutation({"kind": "batch", "edits": edits})
         if result is not None and result.status != "applied":
             raise ValueError(result.error or result.message or "Edit was rejected")
         return result
     keys = [row[primary_key] for row in rows]
     indices = [idx for idx in range(len(data)) if data[idx][primary_key] in keys]
     with transact(data):
-        if insert is not None:
-            for row in insert:
-                data.append(row)
-        elif remove:
+        if remove:
             for idx in sorted(indices, reverse=True):
                 del data[idx]
         else:
             for idx in indices:
                 for key, value in values.items():
                     data[idx][key] = value
+        for row in insert:
+            data.append(row)
 
 
 # Browser Store of the statuses of the view rendered by render_recipe, `{"errors": {}, "busy": {}, "dismissed": {}}`,
