@@ -42,6 +42,7 @@ In addition to the Pret component suite, Metanno provides components for common 
 
 - **[AnnotatedText][metanno.ui.AnnotatedText]**: display text with highlighted, nestable spans
 - **[AnnotatedImage][metanno.ui.AnnotatedImage]**: draw shapes (boxes, polygons, etc.) over images
+- **[AnnotatedVolume][metanno.ui.AnnotatedVolume]**: browse and annotate MRI or CT volumes in linked panels
 - **[Table][metanno.ui.Table]**: an editable, filterable spreadsheet-style grid for inspecting and editing annotations
 
 Compose them in notebook outputs, standalone Pret apps, or [views](tutorials/review-entities.md) opened in the JupyterLab viewer.
