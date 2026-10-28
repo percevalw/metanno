@@ -10,14 +10,15 @@ from metanno.viewer.recipes import load_recipes, load_views
 from metanno.viewer.source_provider import SourceDataFrameProvider
 
 
-def test_view_opener_renders_plain_store_with_explicit_recipe(tmp_path):
+def test_view_opener_renders_plain_store_with_explicit_recipe(tmp_path, monkeypatch):
     from pret import DataFrame, create_store
 
     from metanno import view_opener
     from metanno.viewer.view_opener import MIMETYPE, rendered_views
 
-    recipes = tmp_path / "views"
-    recipes.mkdir()
+    recipes = tmp_path / "metanno-home" / "views"
+    recipes.mkdir(parents=True)
+    monkeypatch.chdir(tmp_path)
     (recipes / "summary.py").write_text(
         "from pret import component\nfrom pret.react import div\n\n"
         "@component\ndef main(store):\n"
@@ -25,15 +26,15 @@ def test_view_opener_renders_plain_store_with_explicit_recipe(tmp_path):
     )
     store = create_store({"title": "Planner summary"}, sync=True)
     with pytest.raises(ValueError, match="requires view"):
-        view_opener(store, config_path=tmp_path)
-    output = view_opener(store, view="summary", config_path=tmp_path)
+        view_opener(store)
+    output = view_opener(store, view="summary")
     assert output._repr_mimebundle_()[MIMETYPE]["choices"] == ["summary"]
     rendered = output.render("summary", {}, {})
     assert rendered["read_only"]
     assert rendered_views.pop(rendered["view_ref"]) is not None
 
     rows = create_store({"rows": DataFrame([{"id": 1}])}, sync=True)
-    opener = view_opener(rows, config_path=tmp_path)
+    opener = view_opener(rows)
     assert opener.view == "table"
     # The table view and the project recipes are offered, the table view only for a Store with one DataFrame
     assert opener.choices() == ["table", "summary"]
@@ -48,11 +49,12 @@ def test_cell_rerun_releases_openers_without_open_tabs(tmp_path, monkeypatch):
 
     shell = SimpleNamespace(parent_header={})
     monkeypatch.setattr(IPython, "get_ipython", lambda: shell)
+    monkeypatch.chdir(tmp_path)
     store = create_store({"rows": DataFrame([{"id": 1}])}, sync=True)
 
     def run_cell(execution):
         shell.parent_header = {"header": {"msg_id": execution}, "metadata": {"cellId": "cell"}}
-        opener = view_opener(store, config_path=tmp_path)
+        opener = view_opener(store)
         opener._repr_mimebundle_()
         return opener
 
@@ -248,8 +250,9 @@ def test_export_view_code_and_notebook_display(tmp_path, monkeypatch):
     )
     backend.execute("CREATE TABLE tags(todo_id INTEGER, label TEXT, start INTEGER, end INTEGER, word TEXT)")
     backend.execute("INSERT INTO tags VALUES (1,'a',0,5,'First'),(2,'b',0,6,'Second'),(3,'c',0,5,'Third')")
-    recipes = tmp_path / "views"
-    recipes.mkdir()
+    home = tmp_path / "metanno-home"
+    recipes = home / "views"
+    recipes.mkdir(parents=True)
     (recipes / "todo_tags.py").write_text((Path(__file__).parents[1] / "jupyter/related_recipe.py").read_text())
     frames = {
         name: DataFrame(provider=SourceDataFrameProvider(None, None, "source", name, "view"))
@@ -273,15 +276,17 @@ def test_export_view_code_and_notebook_display(tmp_path, monkeypatch):
             },
         },
     }
-    (tmp_path / "metanno.yaml").write_text(
+    (home / "metanno.yaml").write_text(
         f"connections:\n  local:\n    url: sqlite:///{tmp_path / 'source.sqlite'}\n"
         "sources:\n  source:\n    connection: local\n"
     )
     from metanno.viewer.sources import SourceCatalog
 
-    catalog = SourceCatalog(tmp_path)
+    catalog = SourceCatalog(home)
     for frame in frames.values():
         frame.provider.sources = catalog
+    # Openers and generated annotation code find metanno-home from the current folder
+    monkeypatch.chdir(tmp_path)
     # Keep the notebook display object while running the generated saving code
     monkeypatch.setattr(
         metanno,
@@ -290,7 +295,6 @@ def test_export_view_code_and_notebook_display(tmp_path, monkeypatch):
             store,
             kwargs.get("view"),
             kwargs.get("parameters"),
-            kwargs.get("config_path"),
             None,
             kwargs.get("read_only"),
         ),
@@ -298,12 +302,11 @@ def test_export_view_code_and_notebook_display(tmp_path, monkeypatch):
     with_defaults = {**frames, "todos": frames["todos"].with_columns(done=False)}
     frames["tags"].provider.last_query["filter"]["source_relation"]["resource_id"] = with_defaults["todos"].resource_id
     view = ViewConfig(recipe="todo_tags", tables={name: {"source": "source", "table": name} for name in frames})
-    code = export_view_code(with_defaults, view, tmp_path)
+    code = export_view_code(with_defaults, view)
     assert "ANNOTATION_NAME = \n" in code and ".limit(1)" in code
     query_code = export_view_code(
         with_defaults,
         view.model_copy(update={"parameters": {"tag_key": "__pret_row_id"}}),
-        tmp_path,
         "query",
     )
     assert "save_store" not in query_code
@@ -367,18 +370,20 @@ def test_export_view_code_and_notebook_display(tmp_path, monkeypatch):
         tag_id = connection.execute("SELECT tag_id FROM tags").fetchone()[0]
         assert tag_id
     store = load_store(path)
-    output = ViewOpener(store, None, None, None, None, None)
+    # The reopened Store gives its view and parameters, its recipes come from the metanno-home of the current folder
+    output = ViewOpener(store, None, None, None, None)
     assert output.view == "todo_tags"
     assert output.parameters == {"tag_key": "tag_id"}
-    assert output.config_dir == tmp_path
+    assert output.config_dir == home
     assert not output._repr_mimebundle_()[MIMETYPE]["read_only"]
     reply = output.render("todo_tags", {}, {"notebook": "planner.ipynb", "cell": "prepare", "kernelspec": "py311"})
     assert reply["path"] == str(path)
     assert load_store(path).metadata["kernelspec"] == "py311"
+    assert "config_path" not in load_store(path).metadata
     assert store["tags"].materialize()["tag_id"][0].as_py() == tag_id
-    single = export_view_code({"todos": frames["todos"]}, None, tmp_path)
+    single = export_view_code({"todos": frames["todos"]}, None)
     exec(single.replace("ANNOTATION_NAME = \n", "ANNOTATION_NAME = 'single'\n"), {})
-    assert load_store(tmp_path / "annotations/single.pret")["todos"].materialize().num_rows == 1
+    assert load_store(home / "annotations/single.pret")["todos"].materialize().num_rows == 1
     tag_filter = {"kind": "predicate", "column": "label", "operator": "eq", "value": "b"}
     parent_filter = {
         "kind": "predicate",
@@ -409,15 +414,15 @@ def test_export_view_code_and_notebook_display(tmp_path, monkeypatch):
             },
         ],
     }
-    from_child = export_view_code(frames, view, tmp_path)
+    from_child = export_view_code(frames, view)
     exec(from_child.replace("ANNOTATION_NAME = \n", "ANNOTATION_NAME = 'from_tags'\n"), {})
-    with sqlite3.connect(tmp_path / "annotations/from_tags.pret") as connection:
+    with sqlite3.connect(home / "annotations/from_tags.pret") as connection:
         assert connection.execute("SELECT todo_id FROM todos").fetchall() == [(2,)]
         assert connection.execute("SELECT todo_id FROM tags").fetchall() == [(2,)]
     transient = create_store({"todos": DataFrame([{"todo_id": 1}])})
-    assert ViewOpener(transient, None, {}, tmp_path, None, None).read_only
+    assert ViewOpener(transient, None, {}, None, None).read_only
     with pytest.raises(ValueError, match="file backed"):
-        ViewOpener(transient, None, {}, tmp_path, None, False)
+        ViewOpener(transient, None, {}, None, False)
 
 
 def test_export_view_code_writes_typed_ibis_filters(tmp_path, monkeypatch):
@@ -494,7 +499,7 @@ def test_export_view_code_writes_typed_ibis_filters(tmp_path, monkeypatch):
             ],
         },
     }
-    imports, code = export_view_code({"todos": frame}, None, tmp_path, "query").split("\n\n\n", 1)
+    imports, code = export_view_code({"todos": frame}, None, "query").split("\n\n\n", 1)
     # The connections and queries stop before the Store and view opening, which use PRET and Metanno
     query = code[: code.index("# Tables maps")]
     assert "_['due_date'] >= datetime.date(2026, 1, 3)" in query and "_['score'] > Decimal('1')" in query

@@ -13,7 +13,6 @@ const TARGET = "metanno.viewer_display";
 export interface AnnotationMetadata {
   title?: string;
   view?: string;
-  config_path?: string;
   origin?: NotebookOrigin;
   kernelspec?: string;
 }
@@ -25,7 +24,6 @@ export type ViewOpenerData = {
   title: string;
   path: string | null;
   read_only: boolean;
-  config_path: string;
   cell: string | null;
 };
 // Key of the tab showing `view` of `output`, Annotations have one tab per file, other data one tab per view
@@ -147,7 +145,6 @@ export class RecipeViewWidget extends Widget {
               metadata: {
                 title: output.title,
                 view: this.view,
-                config_path: output.config_path,
                 kernelspec: this.context.session?.kernel?.name || this.origin.kernelspec,
               },
             }
@@ -483,7 +480,6 @@ export async function openAnnotation(
     read_only: false,
     view: metadata.view || "table",
     choices: [],
-    config_path: metadata.config_path || "",
     cell: null,
   };
   let created = false;

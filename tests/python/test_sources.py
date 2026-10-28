@@ -252,11 +252,12 @@ from pret import DataFrame, create_store
 service = SourceCatalog(sys.argv[1])
 assert service.list_sources() == []
 store = create_store({"todos": DataFrame([{"id": 1}])}, sync=True)
-output = ViewOpener(store, None, None, sys.argv[1], None, True)
+output = ViewOpener(store, None, None, None, True)
 assert output.read_only and output._repr_mimebundle_()
 """,
             str(tmp_path),
         ],
+        cwd=tmp_path,
         capture_output=True,
         text=True,
     )

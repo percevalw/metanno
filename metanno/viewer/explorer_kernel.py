@@ -185,12 +185,7 @@ class DataExplorerKernel(IPythonKernel):
                 from .code_export import export_view_code
 
                 entry = self.views[data["view_ref"]]
-                code = export_view_code(
-                    entry.store,
-                    entry.definition,
-                    entry.sources.config.directory,
-                    data.get("purpose", "annotation"),
-                )
+                code = export_view_code(entry.store, entry.definition, data.get("purpose", "annotation"))
                 send_message(comm, "response", method, request_id=request_id, data={"code": code})
                 return
             # Work on a source runs on the query thread of its connection

@@ -138,7 +138,7 @@ def config_file(path: Path | None = None) -> Path:
     path = Path(path).expanduser().resolve()
     if not path.is_dir():
         return path
-    # A folder may hold its metanno-home, e.g. the file browser root saved by Stores
+    # A folder may hold its metanno-home, e.g. the file browser root
     return path / "metanno.yaml" if (path / "metanno.yaml").is_file() else path / "metanno-home" / "metanno.yaml"
 
 
