@@ -22,7 +22,7 @@ class ViewOpener:
     Describe an Open with Metanno button and keep the Store needed when the button is clicked
     """
 
-    def __init__(self, store, view, parameters, config_path, title, read_only):
+    def __init__(self, store, view, parameters, title, read_only):
         from pret import DataFrame, Store
 
         if not isinstance(store, Store):
@@ -33,10 +33,7 @@ class ViewOpener:
             raise ValueError("Annotation editing requires a writable file backed Store")
         self.read_only = bool(read_only) if read_only is not None else self.path is None
         self.store = store
-        if config_path is None:
-            config_path = store.metadata.get("config_path") or config_file()
-        config_path = Path(config_path).expanduser().resolve()
-        self.config_dir = config_path if config_path.is_dir() else config_path.parent
+        self.config_dir = config_file().parent
         # Recipes and notebooks can import the modules of the config folder, e.g. metanno-home/my_connections.py
         if str(self.config_dir) not in sys.path:
             sys.path.insert(0, str(self.config_dir))
@@ -98,7 +95,6 @@ class ViewOpener:
                 "title": self.title,
                 "path": self.path,
                 "read_only": self.read_only,
-                "config_path": str(self.config_dir),
                 "cell": cell,
             },
         }
@@ -123,7 +119,6 @@ class ViewOpener:
                         "view": name,
                         "recipe": recipe,
                         "parameters": parameters,
-                        "config_path": str(self.config_dir),
                         "origin": origin,
                         "kernelspec": origin["kernelspec"],
                         "title": self.title,
@@ -186,7 +181,6 @@ def register_view_comm():
                     store,
                     metadata.get("view"),
                     metadata.get("parameters"),
-                    metadata.get("config_path"),
                     metadata.get("title"),
                     data.get("read_only", False),
                 )
@@ -216,7 +210,7 @@ def register_view_comm():
     shell.kernel.comm_manager.register_target(COMM_TARGET, attach_comm)
 
 
-def view_opener(store, view=None, *, parameters=None, config_path=None, title=None, read_only=None):
+def view_opener(store, view=None, *, parameters=None, title=None, read_only=None):
     """
     Return a MIME opener that launches a Store application in a Metanno tab.
 
@@ -236,8 +230,6 @@ def view_opener(store, view=None, *, parameters=None, config_path=None, title=No
         The function receives store and parameters and returns a PRET component
     parameters
         Keyword arguments supplied to the selected recipe
-    config_path
-        Configuration file or directory, defaults to Store metadata then the nearest metanno-home/metanno.yaml
     title
         Entry and tab title, defaults to the saved filename or Metanno view
     read_only
@@ -249,4 +241,4 @@ def view_opener(store, view=None, *, parameters=None, config_path=None, title=No
         MIME output containing a recipe selector and a button that opens a Metanno tab
     """
     register_view_comm()
-    return ViewOpener(store, view, parameters, config_path, title, read_only)
+    return ViewOpener(store, view, parameters, title, read_only)

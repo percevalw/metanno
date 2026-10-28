@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### JupyterLab viewer
+
+- Views always come from the nearest `metanno-home` above the kernel folder: annotation Stores no longer save its path, so a `.pret` file also reopens on another machine or account, and `view_opener` no longer takes `config_path`.
+
 ## v2.0.0-beta.5 (2026-10-28)
 
 ### JupyterLab viewer

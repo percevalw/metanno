@@ -13,7 +13,7 @@ from pret.dataframe_external import coerce_ibis_literal
 from .source_provider import SourceDataFrameProvider, unwrap_added_columns
 
 
-def export_view_code(store, view_definition, config_dir, purpose="annotation"):
+def export_view_code(store, view_definition, purpose="annotation"):
     """
     Generate notebook code for the Metanno Copy code menu
 
@@ -26,7 +26,6 @@ def export_view_code(store, view_definition, config_dir, purpose="annotation"):
     """
     import keyword
     import re
-    from pathlib import Path
 
     from .recipes import load_recipes
 
@@ -61,7 +60,6 @@ def export_view_code(store, view_definition, config_dir, purpose="annotation"):
     query_names = {}
     collected_tables = {}
     used_names = {
-        "config_path",
         "store",
         "tables",
         "parameters",
@@ -334,7 +332,7 @@ def export_view_code(store, view_definition, config_dir, purpose="annotation"):
             "# The options are saved with the Store and used again when it is reopened",
             "options = {'dataframe_sync': 'full', 'dataframe_max_bytes': 50 * 1024 * 1024}",
             "save_store(create_store(tables, sync=True), destination, metadata={",
-            f"    'view': {recipe!r}, 'parameters': parameters, 'config_path': config_path, **options,",
+            f"    'view': {recipe!r}, 'parameters': parameters, **options,",
             "})",
             "store = load_store(destination, **options)",
         ]
@@ -344,14 +342,12 @@ def export_view_code(store, view_definition, config_dir, purpose="annotation"):
             "store = create_store(tables, sync=True)",
         ]
     lines += [
-        f"view_opener(store, view={recipe!r}, parameters=parameters, config_path=config_path, read_only=True)"
+        f"view_opener(store, view={recipe!r}, parameters=parameters, read_only=True)"
         if purpose == "query"
         else "view_opener(store)",
         "",
     ]
     lines = [
-        f"config_path = {str(Path(config_dir).resolve())!r}",
-        "",
         "# Connections of metanno.yaml, rerun this cell if a connection is lost",
         *project_imports,
         *connection_lines,

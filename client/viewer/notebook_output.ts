@@ -104,7 +104,6 @@ export class NotebookOutputs {
                   {
                     title: output.title,
                     view,
-                    config_path: output.config_path,
                     origin,
                     kernelspec: origin.kernelspec,
                   },

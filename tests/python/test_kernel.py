@@ -80,7 +80,7 @@ def test_preparation_uses_the_requested_view(monkeypatch, tmp_path):
     monkeypatch.setattr(
         dataframe_module,
         "export_view_code",
-        lambda store, view, root, purpose: f"prepare({store!r})",
+        lambda store, view, purpose: f"prepare({store!r})",
     )
     comm = EventComm()
     request(kernel, comm, "export_view_code", {"view_ref": "A"})

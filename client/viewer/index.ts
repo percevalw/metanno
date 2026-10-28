@@ -58,7 +58,6 @@ const plugin: JupyterFrontEndPlugin<void> = {
           metadata: {
             title: args.output.title,
             view: args.view,
-            config_path: args.output.config_path,
             kernelspec: args.origin?.kernelspec,
           },
         };
