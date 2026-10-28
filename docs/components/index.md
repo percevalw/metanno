@@ -10,6 +10,7 @@ and let you write what happens on each click or selection.
 | [DataWidgetFactory](data-widget-factory.md) | tables, texts, forms and PDFs connected to a Store, the usual way to build a view |
 | [AnnotatedText][metanno.ui.AnnotatedText] | a text with highlighted spans, reporting the text you select and the spans you click |
 | [AnnotatedImage][metanno.ui.AnnotatedImage] | an image with boxes and shapes drawn on it, reporting the shapes you draw |
+| [AnnotatedVolume][metanno.ui.AnnotatedVolume] | a plane through MRI or CT volumes with a crosshair and points, panels linked by a shared view |
 | [Table][metanno.ui.Table] | rows in an editable grid, reporting the cells you edit and select |
 
 Use the components directly when the factory widgets do not fit, for instance to decide yourself what a text

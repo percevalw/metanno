@@ -28,6 +28,10 @@ props_mapping = {
     "on_mouse_enter_shape": "onMouseEnterShape",
     "on_mouse_leave_shape": "onMouseLeaveShape",
     "on_mouse_select": "onMouseSelect",
+    "on_shape_change": "onShapeChange",
+    "on_view_change": "onViewChange",
+    "load_slices": "loadSlices",
+    "shape_styles": "shapeStyles",
     "highlighted_rows": "highlightedRows",
     "input_value": "inputValue",
     "on_input_change": "onInputChange",
@@ -209,6 +213,221 @@ def AnnotatedImage(
 
         - `modkeys`: Modifier keys pressed during selection
         - `shapes`: All shapes inside the lasso / rectangle
+    """
+
+
+@stub_component(js.Metanno.AnnotatedVolume, props_mapping)
+def AnnotatedVolume(
+    *children,
+    volumes: Any,
+    load_slices: Any,
+    layers: Any,
+    plane: str,
+    view: Any,
+    shapes: Any,
+    shape_styles: Any,
+    selected: Any,
+    mode: str,
+    tool: str,
+    style: Any,
+    key: Union[str, int],
+    on_view_change: Any,
+    on_mouse_select: Any,
+    on_shape_change: Any,
+    on_click: Any,
+    on_mouse_enter_shape: Any,
+    on_mouse_leave_shape: Any,
+    on_key_press: Any,
+):
+    """
+    One panel of a medical volume viewer (MRI, CT): it shows a plane through the volumes, the crosshair of the cursor
+    and the annotation points and polygons lying on that plane.
+
+    Positions are millimetres in DICOM patient space (LPS: x towards the patient left, y towards the back, z towards
+    the head), so annotations stay valid whatever the series, plane or zoom. The panel holds no view state: the
+    cursor, zoom and windows come from `view`, and user actions emit partial views through `on_view_change`. Panels
+    given the same `view` from one Store stay linked, eg an axial and a sagittal panel of the same series, or the
+    T2 and ADC series of an exam side by side.
+
+    Voxels are rendered with WebGL2 and stay out of Stores: the panels of a page share one cache and ask
+    `load_slices` for a few slices at a time, nearest to their cursor first, two requests at a time. A panel that
+    changes series stops asking for the old one, and its slices already received stay cached for 30 s. Each volume
+    frame is one 3D texture, so a volume wider than the GPU allows, often 2048 voxels on laptops, is shown with one
+    row and column every `step` and its slices are requested with that step.
+
+    | Input                                | Effect                                                         |
+    |--------------------------------------|----------------------------------------------------------------|
+    | wheel, up/down arrows, page up/down  | move the cursor to the next slice of the first layer           |
+    | left/right arrows                    | previous or next frame of the first layer                      |
+    | middle drag, left drag in `move`     | pan                                                            |
+    | ctrl or cmd + wheel                  | zoom around the pointer                                        |
+    | right drag, or Option (Alt) + drag   | window: horizontal for the width, vertical for the level       |
+    | left click in `move` mode            | move the cursor, or click the shape under the pointer          |
+    | left drag on a shape in `move` mode  | move the shape, emitted once on release                        |
+    | left drag on a handle in `move` mode | move one point of the selected polygon                         |
+    | left click on a band in `move` mode  | glide the cursor onto the plane of that polygon and click it   |
+    | left click or drag in `edit` mode    | draw with `tool`, Enter or double click closes a polygon       |
+    | Escape                               | cancel the polygon being drawn                                 |
+
+    Slices, clicks, pans and zooms stay within the first layer, so the scan cannot leave the panel.
+
+    Examples
+    --------
+
+    The volume of this example is built in the browser, in a notebook `metanno.volume.serve_volumes` gives
+    `describe` and `load_slices` from a loader reading DICOM, NIfTI or any other format.
+
+    <!-- blacken-docs:off -->
+    ```python { .render-with-pret style="height: 320px" }
+    import time
+    from pret import component, create_store, use_state, use_store_snapshot
+    from pret.react import button, div
+    from metanno import AnnotatedVolume
+
+    # 32 slices of 64 x 64 voxels, 1 mm pixels and 3 mm slices, tilted by 8 degrees like many prostate series
+    PHANTOM = {
+        "id": "phantom",
+        "shape": [32, 64, 64],
+        "dtype": "int16",
+        "affine": [[1, 0, 0, -32], [0, 0.99, -0.42, -32], [0, 0.14, 2.97, -48], [0, 0, 0, 1]],
+        "frames": [{}],
+        "window": [450, 1000],
+    }
+
+    async def load_slices(volume_id, frame, start, stop):
+        # Slices start:stop of an ellipsoid organ with a brighter round lesion
+        data = __new__(Int16Array((stop - start) * 64 * 64))
+        for k in range(start, stop):
+            for j in range(64):
+                for i in range(64):
+                    organ = ((i - 32) / 24) ** 2 + ((j - 32) / 18) ** 2 + ((k - 16) / 12) ** 2
+                    lesion = ((i - 40) / 6) ** 2 + ((j - 28) / 6) ** 2 + ((k - 16) / 3) ** 2
+                    value = 400 if organ < 1 else 50
+                    data[((k - start) * 64 + j) * 64 + i] = 900 if lesion < 1 else value
+        return {"shape": [stop - start, 64, 64], "dtype": "int16", "bytes": __new__(Uint8Array(data.buffer))}
+
+    view = create_store({})
+    points = create_store([])
+
+    @component
+    def Viewer():
+        tracked_view = use_store_snapshot(view)
+        tracked_points = use_store_snapshot(points)
+        mode, set_mode = use_state("move")
+
+        def on_view_change(patch):
+            for key, value in patch.items():
+                view[key] = value
+
+        def on_mouse_select(modkeys, shapes):
+            points.append({"id": str(time.time()), "kind": "point", "points": shapes[0]["points"]})
+
+        def on_shape_change(shape_id, new_points):
+            for point in points:
+                if point["id"] == shape_id:
+                    point["points"] = new_points
+
+        def panel(plane):
+            return AnnotatedVolume(
+                volumes=[PHANTOM],
+                load_slices=load_slices,
+                layers=[{"volume": "phantom"}],
+                plane=plane,
+                view=tracked_view,
+                shapes=tracked_points,
+                mode=mode,
+                on_view_change=on_view_change,
+                on_mouse_select=on_mouse_select,
+                on_shape_change=on_shape_change,
+                style={"flex": 1},
+            )
+
+        return div(
+            button(
+                "Move mode" if mode == "move" else "Edit mode, click to add points",
+                on_click=lambda event: set_mode("edit" if mode == "move" else "move"),
+            ),
+            div(panel("axial"), panel("sagittal"), style={"display": "flex", "gap": "4px", "flex": 1}),
+            style={"display": "flex", "flexDirection": "column", "height": "300px", "gap": "4px"},
+        )
+
+    Viewer()
+    ```
+    <!-- blacken-docs:on -->
+
+    Parameters
+    ----------
+    volumes: List[Dict]
+        Metadata of the volumes that layers can show, as returned by `describe` of `metanno.volume.serve_volumes`:
+
+        - `id`: volume id passed to `load_slices`
+        - `shape`: `[k, j, i]` size of one 3D frame
+        - `dtype`: type of the frame bytes, eg `"int16"`
+        - `affine`: 4x4 matrix from voxel `(i, j, k, 1)` to world millimetres
+        - `frames`: one dict per frame, eg `{"label": "b800"}`, its `label` is shown on the panel
+        - `window`: optional default `[level, width]`, otherwise from the 1st and 99th value percentiles
+        - `axis_letters`: optional patient directions of the `i` and `j` axes, like the DICOM PatientOrientation, eg
+          `["P", "L"]` for a mammogram placed in world space without its patient geometry, which letter the panel
+          edges along these axes instead of the directions of the affine
+    load_slices: Callable[[str, int, int, int], Awaitable[Dict]]
+        Async function returning `{"shape", "dtype", "bytes"}` for a volume id, a frame index and the slices
+        `start:stop` along the acquisition axis, given a fifth `step` argument for volumes wider than the GPU allows
+        that keeps one row and column every `step`, with `"compression": "deflate"` when the bytes are zlib compressed,
+        eg the `load_slices` server function of `metanno.volume.serve_volumes`
+    layers: List[Dict]
+        Volumes drawn from bottom to top, at most 4. The first one is the reference that sets the slice step, the
+        default orientation, cursor and window
+
+        - `volume`: volume id
+        - `colormap`: `"gray"` (default), `"hot"` or `"labels"` for masks
+        - `opacity`: from 0 to 1, default 1
+    plane: str
+        `"axial"`, `"sagittal"` or `"coronal"`, relative to `view["orientation"]`
+    view: Dict
+        Shared view state, every key is optional
+
+        - `cursor`: `[x, y, z]` point the panel plane goes through
+        - `orientation`: 3x3 rotation of the planes, by default aligned with the voxels of the first layer so that
+          its acquired slices are shown without resampling
+        - `center`: `[x, y, z]` point shown in the middle of the panel
+        - `zoom`: 1 fits the first layer in the panel
+        - `windows`: `[level, width]` by volume id
+        - `frames`: frame index by volume id
+    shapes: List[Dict]
+        Annotation rows with an `id`, a `kind` (`"point"` or `"polygon"`), `points` as a list of `[x, y, z]`, and an
+        optional `label`, `style` (a key of `shape_styles` or a style dict), `editable`, `object` and `thickness`.
+        Shapes with the same `object`, eg the outlines of one lesion, share a color unless their style sets one. A
+        polygon stands for a slab of `thickness` millimetres around its plane: a panel whose plane crosses the slab at
+        every point of the polygon shows the polygon, other panels show the part of the slab their plane cuts as a
+        translucent band. A point is shown when it lies closer than half a slice
+    shape_styles: Dict[str, Dict]
+        Named styles with `strokeColor`, `strokeWidth`, `fillColor`, `opacity` and `textColor`
+    selected: List[Any]
+        Ids of the shapes drawn with a thicker stroke
+    mode: str
+        `"move"` (default) to move the cursor and shapes, `"edit"` to create shapes. In move mode, the points of
+        a selected polygon show handles that move one point at a time
+    tool: str
+        Shape created in edit mode: `"point"` (default) on click, `"polygon"` from clicks closed by a double click,
+        Enter or a click on its first point (Escape cancels it), or `"lasso"` from a drag
+    style: Dict[str, Any]
+        Inline style of the panel container
+    key: Union[str, int]
+        React key for stable reconciliation
+    on_view_change: Callable[[Dict], None]
+        Called with the changed view keys, eg `{"cursor": [x, y, z]}`, to merge into the shared view. Nested
+        `windows` and `frames` dicts are sent whole
+    on_mouse_select: Callable[[List[str], List[Dict]], None]
+        Called with the modifier keys and the created shapes, eg `[{"kind": "point", "points": [[x, y, z]]}]`.
+        Polygons also carry `thickness`, the slice spacing of the first layer they were drawn on
+    on_shape_change: Callable[[Any, List[List[float]]], None]
+        Called with the id and new points of a moved shape or a moved polygon point
+    on_click: Callable[[Any, List[str]], None]
+        Called with the id of the clicked shape, or None for a click outside shapes, and the modifier keys
+    on_mouse_enter_shape / on_mouse_leave_shape: Callable[[Any, List[str]], None]
+        Called with the shape id when the pointer enters or leaves a shape
+    on_key_press: Callable[[str, List[str]], None]
+        Called with the keys the panel does not handle, eg `"Delete"`, and the modifier keys
     """
 
 

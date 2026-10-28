@@ -47,8 +47,10 @@ dependencies = [
 
 [project.optional-dependencies]
 # Ibis 12 calls fetch_arrow_table, which DuckDB 2.0 removed, the cap can go once an Ibis release supports DuckDB 2
-testing = ["pret[testing]", "edsnlp", "ibis-framework[sqlite,duckdb]>=12,<13", "duckdb<2"]
+testing = ["pret[testing]", "metanno[volume]", "edsnlp", "ibis-framework[sqlite,duckdb]>=12,<13", "duckdb<2"]
 coverage = ["metanno[testing]", "pret[coverage]"]
+# interpolate_contours and rasterize_shapes of metanno.volume
+volume = ["scipy", "scikit-image"]
 
 [tool.pret.testing]
 python = ["tests/python"]

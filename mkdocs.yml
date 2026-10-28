@@ -50,6 +50,7 @@ nav:
       - components/data-widget-factory.md
       - components/annotated-text.md
       - components/annotated-image.md
+      - components/annotated-volume.md
       - components/table.md
   - Reference: reference/
   - Changelog: changelog.md

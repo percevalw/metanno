@@ -8,6 +8,10 @@
 
 ## v2.0.0-beta.6 (2026-11-01)
 
+### Components
+
+- `AnnotatedVolume` shows MRI or CT volumes in panels linked by a shared view, with a crosshair, window and frame controls, and point, polygon and lasso annotations in millimetres whose slabs show as bands in the other planes, and `metanno.volume.serve_volumes` streams the slices of a Python loader to it, compressed and nearest to the cursor first. `metanno.volume.interpolate_contours` fills the slices between the outlines of a lesion and `rasterize_shapes` turns outlines into a voxel mask, both with the `metanno[volume]` extra. `DataWidgetFactory.create_volume_widget` shows the series of the study selected in a table, linked unless their `space` differs, eg the right and left views of a mammography, in a grid or as tabs of the dock of the view, and, when given a shapes list, saves its shapes as rows, which tables and forms select and edit.
+
 ### JupyterLab viewer
 
 - ++ctrl+z++ undoes a change made with a button that loses the focus, such as **Delete** in the span toolbar, and changes made after a click in Safari or Firefox on macOS, which do not focus clicked buttons: the shortcut then goes to the widget clicked last instead of being lost.

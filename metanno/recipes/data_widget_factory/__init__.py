@@ -27,12 +27,13 @@ from .form_widget import FormWidgetHandle, FormWidgets
 from .pdf_widget import PdfWidgets
 from .table_widgets import TableWidgetHandle, TableWidgets
 from .text_widget import TextWidgetHandle, TextWidgets
+from .volume_widget import VolumeWidgets
 from .widget_data import StatusBar, get_parent_selection, use_selected_rows
 
 VIEW_READ_ONLY = ContextVar("metanno_view_read_only", default=False)
 
 
-class DataWidgetFactory(TableWidgets, FormWidgets, TextWidgets, PdfWidgets):
+class DataWidgetFactory(TableWidgets, FormWidgets, TextWidgets, PdfWidgets, VolumeWidgets):
     """
     Build tables, forms and annotation views that share a PRET Store.
 

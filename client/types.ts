@@ -131,6 +131,79 @@ export type ImageMethods = {
   onMouseSelect?: (modkeys: string[], shapes: Shape[]) => void;
 };
 
+// Volume types, positions are millimetres in DICOM patient space (LPS)
+
+export type VolumeMeta = {
+  id: string;
+  shape: number[];
+  dtype: string;
+  affine: number[][];
+  frames: object[];
+  window?: [number, number] | null;
+  // Rows and columns kept by the panels, one every `step`, for volumes wider than the 3D textures of the GPU
+  step?: number;
+  // Patient directions of the i and j voxel axes, eg ["P", "L"], lettering the panel edges along them
+  axis_letters?: string[] | null;
+};
+
+export type VolumeLayer = {
+  volume: string;
+  colormap?: "gray" | "hot" | "labels";
+  opacity?: number;
+};
+
+export type VolumeView = {
+  cursor?: [number, number, number];
+  orientation?: number[][];
+  center?: [number, number, number];
+  zoom?: number;
+  windows?: { [volumeId: string]: [number, number] };
+  frames?: { [volumeId: string]: number };
+};
+
+export type VolumeShape = {
+  id: any;
+  kind: "point" | "polygon";
+  points: [number, number, number][];
+  label?: string;
+  style?: string | Partial<ImageAnnotationStyle>;
+  editable?: boolean;
+  // Shapes sharing an object, eg the outlines of one lesion, share a color
+  object?: any;
+  // Slab thickness of a polygon in millimetres, half on each side of its plane
+  thickness?: number;
+};
+
+export type VolumeData = {
+  volumes: VolumeMeta[];
+  loadSlices: (
+    volumeId: string,
+    frame: number,
+    start: number,
+    stop: number,
+    step?: number
+  ) => Promise<{ shape: number[]; dtype: string; bytes: Uint8Array; compression?: "deflate" }>;
+  layers: VolumeLayer[];
+  plane: "axial" | "sagittal" | "coronal";
+  view: VolumeView;
+  shapes: VolumeShape[];
+  shapeStyles: { [styleName: string]: Partial<ImageAnnotationStyle> };
+  selected: any[];
+  mode: "move" | "edit";
+  tool: "point" | "polygon" | "lasso";
+  style: CSSProperties;
+};
+
+export type VolumeMethods = {
+  onViewChange?: (patch: VolumeView) => void;
+  onMouseSelect?: (modkeys: string[], shapes: Pick<VolumeShape, "kind" | "points" | "thickness">[]) => void;
+  onShapeChange?: (shape_id: any, points: [number, number, number][]) => void;
+  onClick?: (shape_id: any, modkeys: string[]) => void;
+  onMouseEnterShape?: (shape_id: any, modkeys: string[]) => void;
+  onMouseLeaveShape?: (shape_id: any, modkeys: string[]) => void;
+  onKeyPress?: (key: string, modkeys: string[]) => void;
+};
+
 // Table types
 
 export type ColumnData = {

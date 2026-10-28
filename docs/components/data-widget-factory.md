@@ -24,6 +24,7 @@ factory = DataWidgetFactory(
 | `create_form_widget` | the fields of the selected row, with buttons to go to the previous or next row | [Design your view](../tutorials/design-your-view.md) |
 | `create_selected_field_view` | one field of the selected row, such as the ID of a note above its text | [Design your view](../tutorials/design-your-view.md) |
 | `create_pdf_widget` | the PDF of the selected row, in the PDF viewer of the browser | see below |
+| `create_volume_widget` | the MRI or CT series of the selected study in linked panels, with its points and outlines | [AnnotatedVolume](annotated-volume.md#annotate-studies-with-datawidgetfactory) |
 | `create_status_bar` | the last edit Python refused, and whether the view is connected to Python | [Design your view](../tutorials/design-your-view.md) |
 
 Tables, texts and forms take a `fields` list, which picks the columns to show and how to edit them, see
@@ -85,4 +86,5 @@ The widgets behave the same way in every view:
             - create_form_widget
             - create_selected_field_view
             - create_pdf_widget
+            - create_volume_widget
             - create_status_bar

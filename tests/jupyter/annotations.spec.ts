@@ -431,3 +431,284 @@ test("AnnotatedImage draws shapes and edits their style", async ({ page }) => {
   await page.mouse.click(box.x + 100, box.y + 18);
   await page.waitForFunction(() => window.konvaStyles?.[0] === "secondary");
 });
+
+// Two panels share one view Store: wheel, keys, right drag and clicks write the shared view or add point rows
+test("AnnotatedVolume panels render a served volume and share their view", async ({ page }) => {
+  await openNotebook(page, "volume.ipynb", ["from volume_app import Viewer\nViewer()"], { run: true });
+  const image = page.locator(".pret-view div[tabindex] > canvas").first();
+  await image.waitFor();
+  // The organ fills the middle of the axial panel, brighter than the background with the default window
+  const centerGray = () =>
+    page.evaluate(() => {
+      const canvas = document.querySelector(".pret-view div[tabindex] > canvas") as HTMLCanvasElement;
+      return canvas.getContext("2d").getImageData(canvas.width / 2 + 20, canvas.height / 2 + 20, 1, 1).data[0];
+    });
+  await expect.poll(centerGray).toBeGreaterThan(150);
+
+  const box = await image.boundingBox();
+  await page.mouse.move(box.x + 150, box.y + 150);
+  await page.mouse.wheel(0, -100);
+  await page.waitForFunction(() => window.volumeView?.cursor !== undefined);
+  const first = await page.evaluate(() => window.volumeView.cursor);
+  await page.mouse.wheel(0, -100);
+  // One wheel step moves the cursor by one 3 mm slice along the tilted slice normal
+  await page.waitForFunction((z) => window.volumeView.cursor[2] > z + 2.5, first[2]);
+
+  // A click focuses the panel for keys, and moves the cursor within the shown plane
+  await page.mouse.click(box.x + 150, box.y + 150);
+  await page.keyboard.press("ArrowRight");
+  await page.waitForFunction(() => window.volumeView.frames?.phantom === 1);
+
+  // The 20 slices stop the wheel at the last one
+  for (let idx = 0; idx < 25; idx++) await page.mouse.wheel(0, -100);
+  await page.waitForTimeout(500);
+  const top = await page.evaluate(() => window.volumeView.cursor[2]);
+  await page.mouse.wheel(0, -100);
+  await page.waitForTimeout(500);
+  expect(await page.evaluate(() => window.volumeView.cursor[2])).toBeCloseTo(top, 6);
+
+  // Option (Alt) with a left drag sets the window like a right drag, for trackpads
+  await page.keyboard.down("Alt");
+  await page.mouse.move(box.x + 150, box.y + 150);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 200, box.y + 170);
+  await page.mouse.up();
+  await page.keyboard.up("Alt");
+  await page.waitForFunction(() => window.volumeView.windows?.phantom?.length === 2);
+
+  await page.getByRole("button", { name: "Edit" }).click();
+  await page.mouse.click(box.x + 120, box.y + 140);
+  await page.waitForFunction(() => window.volumePoints?.length === 1);
+  // The point lies on the plane shown by the axial panel, through the cursor
+  const [cursor, point] = await page.evaluate(() => [window.volumeView.cursor, window.volumePoints[0].points[0]]);
+  const normal = [0, -Math.sin((8 * Math.PI) / 180), Math.cos((8 * Math.PI) / 180)];
+  const depth = normal.reduce((sum, n, idx) => sum + n * (point[idx] - cursor[idx]), 0);
+  expect(Math.abs(depth)).toBeLessThan(1e-6);
+});
+
+// Polygons from clicks and lassos from drags become rows with their slab thickness, a handle moves one point
+test("AnnotatedVolume draws polygons and lassos and moves polygon points", async ({ page }) => {
+  await openNotebook(page, "volume-draw.ipynb", ["from volume_app import Viewer\nViewer()"], { run: true });
+  const image = page.locator(".pret-view div[tabindex] > canvas").first();
+  await image.waitFor();
+  const box = await image.boundingBox();
+  const at = (x: number, y: number) => [box.x + x, box.y + y] as [number, number];
+
+  await page.getByRole("button", { name: "Edit" }).click();
+  await page.getByRole("button", { name: "Polygon" }).click();
+  for (const [x, y] of [[100, 100], [200, 100], [150, 180]]) await page.mouse.click(...at(x, y));
+  await page.keyboard.press("Enter");
+  await page.waitForFunction(() => window.volumePoints?.length === 1);
+  const polygon = await page.evaluate(() => window.volumePoints[0]);
+  expect([polygon.kind, polygon.points.length]).toEqual(["polygon", 3]);
+  // 3 mm slices of the phantom
+  expect(polygon.thickness).toBeCloseTo(3, 6);
+
+  // A circle traced every few pixels keeps only the points that bend it
+  await page.getByRole("button", { name: "Lasso" }).click();
+  await page.mouse.move(...at(230, 150));
+  await page.mouse.down();
+  for (let step = 1; step <= 60; step++) {
+    const angle = (step / 60) * 2 * Math.PI;
+    await page.mouse.move(...at(200 + 30 * Math.cos(angle), 150 + 30 * Math.sin(angle)));
+  }
+  await page.mouse.up();
+  await page.waitForFunction(() => window.volumePoints.length === 2);
+  const lasso = await page.evaluate(() => window.volumePoints[1].points.length);
+  expect(lasso).toBeGreaterThan(8);
+  expect(lasso).toBeLessThan(60);
+
+  // In move mode, clicking the polygon selects it and its handles move one point at a time
+  await page.getByRole("button", { name: "Move", exact: true }).click();
+  await page.mouse.click(...at(150, 120));
+  await page.mouse.move(...at(200, 100));
+  await page.mouse.down();
+  await page.mouse.move(...at(230, 60), { steps: 5 });
+  await page.mouse.up();
+  await page.waitForFunction((before) => JSON.stringify(window.volumePoints[0].points) !== before, JSON.stringify(polygon.points));
+  const after = await page.evaluate(() => window.volumePoints[0].points);
+  expect(after[0]).toEqual(polygon.points[0]);
+  expect(after[2]).toEqual(polygon.points[2]);
+  expect(after[1]).not.toEqual(polygon.points[1]);
+
+  // The sagittal panel shows the axial polygon as a band, a click on it brings the cursor back onto the polygon plane
+  // and selects it
+  const normal = [0, -Math.sin((8 * Math.PI) / 180), Math.cos((8 * Math.PI) / 180)];
+  const depth = (p: number[]) => normal.reduce((sum, n, idx) => sum + n * (p[idx] - after[0][idx]), 0);
+  await page.mouse.click(...at(140, 270));
+  await page.waitForFunction(() => window.volumeSelected.length === 0);
+  await page.mouse.wheel(0, -100);
+  await page.mouse.wheel(0, -100);
+  await expect.poll(async () => depth(await page.evaluate(() => window.volumeView.cursor))).toBeGreaterThan(5.5);
+  const band = await page.evaluate(() => {
+    const stage = window.Konva.stages.find((stage) => stage.findOne(".band"));
+    const rect = stage.findOne(".band").getClientRect();
+    const box = stage.container().getBoundingClientRect();
+    return [box.x + rect.x + rect.width / 2, box.y + rect.y + rect.height / 2] as [number, number];
+  });
+  await page.mouse.click(...band);
+  await page.waitForFunction(() => window.volumeSelected.length === 1);
+  expect(await page.evaluate(() => window.volumeSelected[0])).toEqual(polygon.id);
+  await expect.poll(async () => Math.abs(depth(await page.evaluate(() => window.volumeView.cursor)))).toBeLessThan(1e-3);
+});
+
+test("Volume widget without shapes only shows the series of the selected study", async ({ page }) => {
+  await openNotebook(page, "volume-browse.ipynb", ["from volume_widget_app import Browser\nBrowser()"], { run: true });
+  await page.getByRole("gridcell", { name: "s1", exact: true }).click();
+  const panels = page.locator(".pret-view div[tabindex] > canvas");
+  await expect(panels).toHaveCount(3);
+  await expect(page.getByRole("button", { name: "edit", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "New object", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "sequence", exact: true }).click();
+  await expect(panels).toHaveCount(2);
+});
+
+test("Volume widget series of different spaces move and keep their shapes apart", async ({ page }) => {
+  await openNotebook(page, "volume-spaces.ipynb", ["from volume_widget_app import Spaces\nSpaces()"], { run: true });
+  await page.getByRole("gridcell", { name: "s3", exact: true }).click();
+  // The right series in the @R cell of the dock, the two left ones as tabs of the @L cell
+  const panels = page.locator(".pret-view div[tabindex] > canvas");
+  await expect(panels).toHaveCount(2);
+  const shapes = () => page.evaluate(() => window.spaceShapes.map((row) => ({ ...row })));
+  const click = async (idx: number) => {
+    const box = await panels.nth(idx).boundingBox();
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  };
+  const [right, left] = await Promise.all([0, 1].map((idx) => panels.nth(idx).boundingBox()));
+  expect(Math.abs(right.y - left.y)).toBeLessThan(1);
+  expect(left.x).toBeGreaterThan(right.x + right.width - 1);
+  // The edges of the first left series come from its axis letters, the others from their affine
+  const letters = () =>
+    page.evaluate(() =>
+      window.Konva.stages.map((stage) =>
+        stage
+          .find("Text")
+          .map((text) => text.text())
+          .filter((text) => /^[APLRSIHF]+$/.test(text))
+          .sort()
+      )
+    );
+  expect(await letters()).toEqual([
+    ["A", "L", "P", "R"],
+    ["A", "FR", "HL", "P"],
+  ]);
+
+  // A point on the right panel, then three slices further on the right panel only, then a point on the left panel
+  await page.getByRole("button", { name: "edit", exact: true }).click();
+  await click(0);
+  await expect.poll(async () => (await shapes()).length).toBe(1);
+  for (let idx = 0; idx < 3; idx++) await page.mouse.wheel(0, -100);
+  await click(1);
+  await expect.poll(async () => (await shapes()).length).toBe(2);
+  const [rightPoint, leftPoint] = await shapes();
+  expect(rightPoint).toMatchObject({ kind: "point", space: "r" });
+  expect(leftPoint).toMatchObject({ kind: "point", space: "l" });
+  // The left panel kept its own slice, where it draws its point but not the right point lying on that slice
+  expect(leftPoint.points[0][2]).toBeCloseTo(rightPoint.points[0][2], 3);
+  const circles = () => page.evaluate(() => window.Konva.stages.map((stage) => stage.find("Circle").length));
+  expect(await circles()).toEqual([0, 1]);
+
+  // Three slices further on the left series, then its projection tab, which still shows its slice, keeps the cursor
+  // depth on the wheel and draws the left points of every depth
+  for (let idx = 0; idx < 3; idx++) await page.mouse.wheel(0, -100);
+  await page.locator(".tab-handle", { hasText: /^L2$/ }).click();
+  await expect.poll(letters).toEqual([
+    ["A", "L", "P", "R"],
+    ["A", "L", "P", "R"],
+  ]);
+  const brightness = () =>
+    page.evaluate(() => {
+      const canvas = document.querySelectorAll(".pret-view div[tabindex] > canvas")[1] as HTMLCanvasElement;
+      return canvas.getContext("2d").getImageData(canvas.width / 2, canvas.height / 2 + 20, 1, 1).data[0];
+    });
+  await expect.poll(brightness).toBeGreaterThan(40);
+  const box = await panels.nth(1).boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  for (let idx = 0; idx < 3; idx++) await page.mouse.wheel(0, -100);
+  await click(1);
+  await expect.poll(async () => (await shapes()).length).toBe(3);
+  const projectionPoint = (await shapes())[2];
+  expect(projectionPoint).toMatchObject({ kind: "point", space: "l" });
+  expect(projectionPoint.points[0][2]).not.toBeCloseTo(leftPoint.points[0][2], 1);
+  await expect.poll(circles).toEqual([0, 2]);
+
+  // The tabs arrangement stacks the series in one cell, the orthogonal layout gives each series a tab of three planes
+  const tabs = () => page.locator(".tab-handle").allInnerTexts();
+  await page.getByRole("button", { name: "tabs", exact: true }).click();
+  await expect(panels).toHaveCount(1);
+  await expect.poll(tabs).toEqual(expect.arrayContaining(["R", "L", "L2", "Toolbar"]));
+  await page.getByRole("button", { name: "orthogonal", exact: true }).click();
+  await expect(panels).toHaveCount(3);
+  await expect.poll(tabs).toEqual(expect.arrayContaining(["R", "L", "L2", "Toolbar"]));
+  await page.getByRole("button", { name: "sides", exact: true }).click();
+  await expect(panels).toHaveCount(2);
+});
+
+// The same checks with the shapes in a Store list and in a DataFrame, as annotation copies of a recipe save them
+for (const [kind, viewer] of [
+  ["list", "Viewer"],
+  ["DataFrame", "DataFrameViewer"],
+]) {
+  test(`Volume widget draws shapes of the selected study and follows the shapes table, ${kind} shapes`, async ({
+    page,
+  }) => {
+    const code = `from volume_widget_app import ${viewer}\n${viewer}()`;
+    await openNotebook(page, `volume-widget-${kind}.ipynb`, [code], { run: true });
+    await page.getByRole("gridcell", { name: "s1", exact: true }).click();
+    const panels = page.locator(".pret-view div[tabindex] > canvas");
+    await expect(panels).toHaveCount(3);
+    // Clicks in the notebook output may scroll it, so the axial panel is measured before each use
+    const at = async (x: number, y: number) => {
+      const box = await panels.first().boundingBox();
+      return [box.x + x, box.y + y] as [number, number];
+    };
+    const shapes = () => page.evaluate(() => window.volumeShapes.map((row) => ({ ...row })));
+    const triangle = async () => {
+      for (const [x, y] of [[100, 100], [200, 100], [150, 180]]) await page.mouse.click(...(await at(x, y)));
+      await page.keyboard.press("Enter");
+    };
+    // Closed lines of a stage, the outlines and bands of the shapes, and the selected outlines drawn twice as thick
+    const outlines = (stageIdx: number) =>
+      page.evaluate((stageIdx) => {
+        const lines = window.Konva.stages[stageIdx].find("Line").filter((line) => line.closed());
+        return { all: lines.length, selected: lines.filter((line) => line.strokeWidth() === 4).length };
+      }, stageIdx);
+
+    // Two outlines of L1 three slices apart, filled in between, then an outline of L2
+    await page.getByRole("button", { name: "edit", exact: true }).click();
+    await page.getByRole("button", { name: "polygon", exact: true }).click();
+    await triangle();
+    await expect.poll(async () => (await shapes()).length).toBe(1);
+    expect((await shapes())[0]).toMatchObject({ study_uid: "s1", kind: "polygon", object: "L1", label: "L1" });
+    for (let idx = 0; idx < 3; idx++) await page.mouse.wheel(0, -100);
+    await triangle();
+    await expect.poll(async () => (await shapes()).length).toBe(2);
+    await page.getByRole("button", { name: "Fill slices" }).click();
+    await expect.poll(async () => (await shapes()).filter((row) => row.interpolated).length).toBe(2);
+    await page.getByRole("button", { name: "New object" }).click();
+    await page.mouse.move(...(await at(150, 150)));
+    await page.mouse.wheel(0, -100);
+    await triangle();
+    await expect.poll(async () => (await shapes()).length).toBe(5);
+    expect((await shapes())[4]).toMatchObject({ study_uid: "s1", object: "L2" });
+
+    // A row of the shapes table glides the panels onto its shape and selects it, Delete removes it
+    await page.mouse.wheel(0, -100);
+    await page.mouse.wheel(0, -100);
+    await page.getByRole("gridcell", { name: "polygon" }).first().click();
+    await expect.poll(async () => (await outlines(0)).selected).toBe(1);
+    await panels.first().locator("..").focus();
+    await page.keyboard.press("Delete");
+    await expect.poll(async () => (await shapes()).length).toBe(4);
+
+    // The sequence layout shows one axial panel per series
+    await page.getByRole("button", { name: "sequence", exact: true }).click();
+    await expect(panels).toHaveCount(2);
+
+    // Study s2 shows none of the shapes of s1
+    await page.getByRole("gridcell", { name: "s2", exact: true }).click();
+    await expect(panels).toHaveCount(1);
+    await page.waitForTimeout(500);
+    expect(await outlines(0)).toEqual({ all: 0, selected: 0 });
+  });
+}
