@@ -9,7 +9,7 @@ import { fullscreenKey, FullscreenViews } from "./fullscreen";
 // Name of a table with its source, joined with / when the source name is a path, eg hdfs:///user/me/runs/notes,
 // and with . otherwise, eg cohort.notes, for tab titles, query statuses and the sidebar
 export function tableLabel(source: string, table: string) {
-  return `${source}${source.includes("/") ? "/" : "."}${table}`;
+  return `${source}${source.endsWith("/") ? "" : source.includes("/") ? "/" : "."}${table}`;
 }
 
 // The text of an error with its links clickable, eg the login link of a Trino error, for ErrorBanner and the sidebar

@@ -452,3 +452,51 @@ def test_resolve_path_finds_the_source_of_a_dataset(tmp_path):
     assert service.table(source, table).count().execute() == 1
     service.close()
     assert place("hdfs://namenode/user/me/") == place("hdfs:///user/me") == "hdfs:///user/me"
+
+
+def test_bare_scheme_source_lists_buckets(tmp_path):
+    """
+    A file source whose uri is only a scheme, eg s3a://, shows the buckets as folders and names their tables by path
+    """
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    from metanno.viewer.sources import place
+
+    todos = tmp_path / "store" / "todo-app" / "todos"
+    todos.mkdir(parents=True)
+    pq.write_table(pa.table({"todo_id": [1, 2, 3]}), todos / "part-00000.parquet")
+    # The connection reads s3a:// locations from the local store folder
+    (tmp_path / "s3_store.py").write_text(
+        "from pathlib import Path\n\n"
+        "import ibis\n\n\n"
+        "def connect():\n"
+        "    backend = ibis.duckdb.connect()\n"
+        f"    local = lambda uri: Path({str(tmp_path / 'store')!r}) / uri.removeprefix('s3a://')\n"
+        "    backend.list_storage = lambda uri: [(path.name, path.is_dir()) for path in local(uri).iterdir()]\n"
+        "    read = backend.read_parquet\n"
+        "    backend.read_parquet = lambda uri: read(f'{local(uri)}/*.parquet')\n"
+        "    return backend\n"
+    )
+    path = tmp_path / "metanno.yaml"
+    path.write_text(
+        "connections:\n  local: {factory: 's3_store:connect'}\n"
+        "sources:\n  's3a://': {connection: local, kind: files, uri: 's3a://'}\n"
+    )
+    service = SourceCatalog(path)
+    assert [(entry["name"], entry["kind"]) for entry in service.list_tables("s3a://")] == [("todo-app", "folder")]
+    assert [(entry["name"], entry["kind"]) for entry in service.list_tables("s3a://", "todo-app")] == [
+        ("todo-app/todos", "table")
+    ]
+    assert service.file_table("s3a://", "todo-app/todos") == (
+        "s3a://todo-app/todos",
+        "parquet",
+    )
+    assert service.table("s3a://", "todo-app/todos").count().execute() == 3
+    assert service.resolve_path("s3a://todo-app/todos/") == (
+        "s3a://",
+        "todo-app/todos",
+        "local",
+    )
+    service.close()
+    assert place("s3a://") == "s3a://" and place("hdfs://namenode/") == "hdfs://"

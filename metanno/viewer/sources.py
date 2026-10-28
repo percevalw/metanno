@@ -42,11 +42,16 @@ def resolve_uri(config, uri):
     """
     from urllib.parse import urlparse
 
-    uri = uri.rstrip("/")
+    # A bare scheme such as s3a:// stays whole, its folders are the buckets
+    uri = uri if uri.endswith("://") else uri.rstrip("/")
     if is_remote(uri):
         return uri
     path = Path(urlparse(uri).path if uri.startswith("file:") else uri).expanduser()
     return str(path if path.is_absolute() else config.directory / path)
+
+
+def join_uri(uri, path):
+    return f"{uri}{path}" if uri.endswith("/") else f"{uri}/{path}"
 
 
 def storage_entries(backend, uri):
@@ -116,7 +121,7 @@ def place(uri):
     from urllib.parse import urlparse
 
     parsed = urlparse(uri)
-    return f"hdfs://{parsed.path.rstrip('/')}" if parsed.scheme == "hdfs" else uri.rstrip("/")
+    return f"hdfs://{parsed.path.rstrip('/')}" if parsed.scheme == "hdfs" else uri
 
 
 def checked_path(path):
@@ -263,7 +268,7 @@ class SourceCatalog:
             root = resolve_uri(self.config, source.uri) if source.kind == "files" else None
             if root is None or (connection and connection not in source.allowed_connections):
                 continue
-            if (key == place(root) or key.startswith(place(root) + "/")) and (
+            if (key == place(root) or key.startswith(join_uri(place(root), ""))) and (
                 found is None or len(place(root)) > len(place(found[1]))
             ):
                 found = source, root
@@ -274,8 +279,8 @@ class SourceCatalog:
                 if not is_dataset(storage_entries(backend, root)):
                     raise QueryError(f"{uri} is a folder, open one of its datasets")
                 return source.name, root.rsplit("/", 1)[-1], connection or source.connection
-            table = key[len(place(root)) + 1 :]
-            if not opens_as_table(backend, f"{root}/{table}"):
+            table = key[len(join_uri(place(root), "")) :]
+            if not opens_as_table(backend, join_uri(root, table)):
                 raise QueryError(f"{uri} is a folder, open one of its datasets")
             return source.name, table, connection or source.connection
         connection = connection or self.config.default_connection
@@ -375,7 +380,7 @@ class SourceCatalog:
         the connection. A connection with only list_folders gives no files, so its subfolders are tables
         """
         root = resolve_uri(self.config, source.uri)
-        uri = f"{root}/{checked_path(folder)}" if folder else root
+        uri = join_uri(root, checked_path(folder)) if folder else root
         entries = storage_entries(backend, uri)
         if not folder and is_dataset(entries):
             return {root.rsplit("/", 1)[-1]: "table"}
@@ -384,7 +389,9 @@ class SourceCatalog:
         if is_remote(uri) and not hasattr(backend, "list_storage") and hasattr(backend, "list_folders"):
             return {prefix + name: "table" for name in subfolders}
         with ThreadPoolExecutor(16) as pool:
-            datasets = list(pool.map(lambda name: is_dataset(storage_entries(backend, f"{uri}/{name}")), subfolders))
+            datasets = list(
+                pool.map(lambda name: is_dataset(storage_entries(backend, join_uri(uri, name))), subfolders)
+            )
         found = {prefix + name: "table" if dataset else "folder" for name, dataset in zip(subfolders, datasets)}
         # Next to subfolders, .parquet and .csv files are tables of their own
         found.update(
@@ -407,7 +414,7 @@ class SourceCatalog:
         source = self.source(source_name)
         backend = self.connection(connection or source.connection)
         root = resolve_uri(self.config, source.uri)
-        uri = f"{root}/{checked_path(table_name)}"
+        uri = join_uri(root, checked_path(table_name))
         try:
             if table_name == root.rsplit("/", 1)[-1] and is_dataset(storage_entries(backend, root)):
                 uri = root
@@ -418,8 +425,8 @@ class SourceCatalog:
                     return uri, file_format(name)
             entries = storage_entries(backend, uri)
         except (OSError, QueryError) as exc:
-            separator = "/" if "/" in source_name else "."
-            raise QueryError(f"Unknown file table {source_name}{separator}{table_name}") from exc
+            label = join_uri(source_name, table_name) if "/" in source_name else f"{source_name}.{table_name}"
+            raise QueryError(f"Unknown file table {label}") from exc
         if source.format or ("_delta_log", True) in entries:
             return uri, source.format or "delta"
         # Spark writes the data files of a CSV dataset as part-00000-....csv, or .csv.gz when compressed
