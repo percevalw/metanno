@@ -4,7 +4,8 @@
 
 ### JupyterLab viewer
 
-- A table whose name contains a dot, eg the `mycsv.csv` dataset of a file source, shows its rows: its tab names it `mycsv_csv` in the Store, since widgets read a dot in a Store key as a nested path.
+- A table whose name contains a dot, for instance a `mycsv.csv` dataset of a file source, shows its rows: its tab names it `mycsv_csv` in the Store, since widgets read a dot in a Store key as a nested path.
+- A file source whose `uri` is only a scheme, e.g. `s3a://`, shows the buckets as its folders, its tables are named like `my_database/my_table`.
 
 ## v2.0.0-beta.4 (2026-10-27)
 
