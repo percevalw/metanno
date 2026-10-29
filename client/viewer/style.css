@@ -68,17 +68,22 @@
   color: var(--jp-ui-font-color2);
 }
 
+/* The recipe and connection selectors draw their own arrow, so it keeps some room from the right border */
 .metanno-viewer__recipe {
   box-sizing: border-box;
   height: 30px;
   min-width: 90px;
   max-width: 180px;
-  padding: 0 8px;
+  padding: 0 28px 0 8px;
   border: 1px solid var(--jp-border-color2);
   border-radius: var(--jp-border-radius);
   color: var(--jp-ui-font-color1);
-  background: var(--jp-layout-color1);
+  background: var(--jp-layout-color1)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23888' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+    no-repeat right 10px center;
   font: inherit;
+  appearance: none;
+  cursor: pointer;
 }
 
 .metanno-viewer__recipe:focus-visible {
@@ -283,9 +288,9 @@ body.metanno-viewer-fullscreen > #main {
 
 .metanno-viewer__section-title {
   padding: 8px 4px 4px;
-  color: var(--jp-ui-font-color2);
+  color: var(--jp-ui-font-color0);
   font-size: var(--jp-ui-font-size0);
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -442,3 +447,162 @@ button.metanno-viewer__connection:hover {
 .metanno-viewer__sidebar-top > .metanno-viewer__search { flex: 1; min-width: 0; margin-bottom: 0; }
 .metanno-viewer__icon-button { display: flex; align-items: center; padding: 0 6px; }
 .metanno-viewer__icon-button > span { display: flex; }
+
+/* Table pickers of a recipe, shown in a tab in place of its view until each Store key has a table, centered in the
+   tab. The form fills the tab so the open suggestion lists are not cut by its scroll area, and margin auto keeps a
+   column taller than the tab scrollable from its top */
+.metanno-viewer__recipe-form {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 24px;
+  overflow: auto;
+}
+
+.metanno-viewer__recipe-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: min(560px, 100%);
+  margin: auto;
+  padding-bottom: 15vh;
+}
+
+.metanno-viewer__recipe-form-title {
+  margin-bottom: 8px;
+  color: var(--jp-ui-font-color0);
+  font-size: 20px;
+  text-align: center;
+}
+
+.metanno-viewer__recipe-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--jp-ui-font-color1);
+}
+
+.metanno-viewer__recipe-note {
+  color: var(--jp-ui-font-color2);
+  line-height: 1.5;
+  text-align: center;
+}
+
+.metanno-viewer__recipe-note > pre {
+  margin: 8px 0 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  color: var(--jp-ui-font-color1);
+  background: var(--jp-layout-color2);
+  font-family: var(--jp-code-font-family);
+  font-size: var(--jp-code-font-size);
+  text-align: left;
+  overflow-x: auto;
+}
+
+.metanno-viewer__recipe-section {
+  margin-top: 8px;
+  color: var(--jp-ui-font-color0);
+  font-size: var(--jp-ui-font-size0);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.metanno-viewer__recipe-field.is-inline {
+  flex-direction: row-reverse;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.metanno-viewer__recipe-error {
+  color: var(--jp-error-color1);
+}
+
+/* Text and number fields of the parameters look like the table pickers */
+.metanno-viewer__recipe-input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid var(--jp-border-color1);
+  border-radius: 6px;
+  color: var(--jp-ui-font-color1);
+  background: var(--jp-layout-color1);
+  font: inherit;
+}
+
+.metanno-viewer__recipe-input:focus {
+  outline: 2px solid var(--jp-brand-color1);
+  outline-offset: -1px;
+}
+
+.metanno-viewer__recipe-description {
+  margin-left: 6px;
+  color: var(--jp-ui-font-color2);
+}
+
+.metanno-viewer__recipe-form .react-autosuggest__container {
+  position: relative;
+}
+
+.metanno-viewer__recipe-form .react-autosuggest__input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid var(--jp-border-color1);
+  border-radius: 6px;
+  color: var(--jp-ui-font-color1);
+  background: var(--jp-layout-color1);
+  font: inherit;
+}
+
+.metanno-viewer__recipe-form .react-autosuggest__input--focused {
+  outline: 2px solid var(--jp-brand-color1);
+  outline-offset: -1px;
+}
+
+.metanno-viewer__recipe-form .react-autosuggest__suggestions-container--open {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 320px;
+  padding: 4px;
+  overflow: auto;
+  border: 1px solid var(--jp-border-color2);
+  border-radius: 6px;
+  background: var(--jp-layout-color1);
+  box-shadow: var(--jp-elevation-z4);
+}
+
+.metanno-viewer__recipe-form .react-autosuggest__suggestions-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.metanno-viewer__recipe-form .react-autosuggest__suggestion {
+  padding: 4px 8px;
+  border-radius: 4px;
+  color: var(--jp-ui-font-color1);
+  cursor: pointer;
+}
+
+.metanno-viewer__recipe-form .react-autosuggest__suggestion strong {
+  color: var(--jp-ui-font-color0);
+}
+
+.metanno-viewer__recipe-form .react-autosuggest__suggestion--highlighted {
+  background: var(--jp-layout-color2);
+}
+
+.metanno-viewer__recipe-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.metanno-viewer__recipe-actions > .metanno-viewer__toolbar-button {
+  border: 1px solid var(--jp-border-color1);
+  border-radius: 6px;
+}

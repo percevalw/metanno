@@ -37,7 +37,7 @@ class ViewOpener:
         # Recipes and notebooks can import the modules of the config folder, e.g. metanno-home/my_connections.py
         if str(self.config_dir) not in sys.path:
             sys.path.insert(0, str(self.config_dir))
-        self.recipes = load_recipes(self.config_dir / "views")
+        self.recipes = load_recipes(self.config_dir)
         self.view_definitions = {view.name: view for view in load_views(self.config_dir / "views")}
         if callable(view):
             if view.__module__ == "__main__" or "<locals>" in view.__qualname__:
@@ -45,10 +45,10 @@ class ViewOpener:
             view = f"{view.__module__}:{view.__qualname__}"
         self.view = view or store.metadata.get("view")
         if self.view is None:
-            if sum(isinstance(store[key], DataFrame) for key in store) != 1:
+            if not any(isinstance(store[key], DataFrame) for key in store):
                 raise ValueError(
-                    "view_opener requires view=... for a Store without exactly one DataFrame, "
-                    "pass a recipe function or the name of a view in the views directory"
+                    "view_opener requires view=... for a Store without DataFrame, pass a recipe function, "
+                    "the name of a recipe in the recipes folder or of a view in the views folder"
                 )
             self.view = "table"
         self.parameters = dict(store.metadata.get("parameters", {})) if parameters is None else parameters
@@ -215,9 +215,9 @@ def view_opener(store, view=None, *, parameters=None, title=None, read_only=None
     Return a MIME opener that launches a Store application in a Metanno tab.
 
     A Store holds application state, the view function decides how to render that
-    state. When view is omitted, the built in table view requires exactly one
-    DataFrame in the Store. Other Store structures require an explicit recipe
-    or a view recorded in the Store metadata.
+    state. When view is omitted, the built in table view shows each DataFrame
+    of the Store in its own tab. A Store without DataFrame requires an explicit
+    recipe or a view recorded in the Store metadata.
 
     Parameters
     ----------
@@ -225,8 +225,8 @@ def view_opener(store, view=None, *, parameters=None, title=None, read_only=None
         Application state passed to the view, this may contain ordinary values and DataFrames
         Editable Metanno views require a saved Store
     view
-        Recipe name, importable function, module and function separated by a colon,
-        or the name of a view file in the views directory
+        Importable function, module and function separated by a colon,
+        name of a recipe file in the recipes folder or of a view file in the views folder
         The function receives store and parameters and returns a PRET component
     parameters
         Keyword arguments supplied to the selected recipe

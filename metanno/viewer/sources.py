@@ -171,6 +171,8 @@ class SourceCatalog:
         self.tables = {}
         # Databases found by list_databases, by the name shown in the sidebar, e.g. my_catalog.my_database
         self.listed = {}
+        # Entries of each list_tables call by (source, folder), the tables the recipe table pickers start from
+        self.listings = {}
 
     def connection(self, name):
         """
@@ -370,7 +372,9 @@ class SourceCatalog:
             entries = {name: "table" for name in backend.list_tables(database=self.database_name(source))}
         else:
             entries = self.file_entries(source, backend, folder)
-        return [{"name": name, "source": source_name, "kind": kind} for name, kind in sorted(entries.items())]
+        listing = [{"name": name, "source": source_name, "kind": kind} for name, kind in sorted(entries.items())]
+        self.listings[source_name, folder] = listing
+        return listing
 
     def file_entries(self, source, backend, folder):
         """

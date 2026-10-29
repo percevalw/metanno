@@ -109,7 +109,8 @@ class ViewConfig(BaseModel):
 
 class ProjectConfig(Section):
     """
-    directory is the config folder, e.g. metanno-home, holding the connection modules, views/ and annotations/.
+    directory is the config folder, e.g. metanno-home, holding the connection modules, recipes/, views/ and
+    annotations/.
     default_connection reads a dataset opened by its path outside the sources, see SourceCatalog.resolve_path
     """
 

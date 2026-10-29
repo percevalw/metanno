@@ -74,11 +74,13 @@ def open_related():
 if __name__ == "__main__":
     # Prepare the same local recipe and source files that the Explorer opens through its normal APIs
     root = Path(__file__).parent
+    recipes = root / "metanno-home" / "recipes"
     views = root / "metanno-home" / "views"
-    views.mkdir(parents=True, exist_ok=True)
-    for target in (root / "review.py", views / "review.py", views / "alternate.py"):
+    for folder in (recipes, views):
+        folder.mkdir(parents=True, exist_ok=True)
+    for target in (root / "review.py", recipes / "review.py", recipes / "alternate.py"):
         shutil.copyfile(root / "explorer_recipe.py", target)
-    shutil.copyfile(root / "related_recipe.py", views / "todo_tags.py")
+    shutil.copyfile(root / "related_recipe.py", recipes / "todo_tags.py")
     (root / "metanno-home" / "explorer_connections.py").write_text(
         f"import ibis\n\n\ndef connect():\n    return ibis.sqlite.connect({str(root / 'source.sqlite')!r})\n"
     )

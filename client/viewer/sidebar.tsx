@@ -40,6 +40,12 @@ type ListedFolder = TableSummary[] | { error?: string };
 // Key of a folder of a file source in the folder states
 const folderKey = (source: string, folder: string) => `${source}\n${folder}`;
 
+// A recipe of metanno-home/recipes with the Store keys it reads, null when it does not declare them
+interface RecipeSummary {
+  name: string;
+  tables: Record<string, { description: string; keywords: string[] }> | null;
+}
+
 interface SavedViewSummary {
   name: string;
   tables: Record<string, { source: string; table: string }>;
@@ -206,6 +212,8 @@ function Catalogue({
   const displayEntries = [...outputs.entries.values()];
   const [sources, setSources] = useState<SourceSummary[]>([]);
   const [views, setViews] = useState<SavedViewSummary[]>([]);
+  const [recipes, setRecipes] = useState<RecipeSummary[]>([]);
+  const [recipesError, setRecipesError] = useState<string | null>(null);
   const [stores, setStores] = useState<StoreSummary[]>([]);
   // Folder of metanno.yaml relative to the Jupyter root, metanno-home until the kernel says otherwise
   const [home, setHome] = useState("metanno-home");
@@ -223,6 +231,22 @@ function Catalogue({
   const [search, setSearch] = useState("");
   const [, updateEntries] = useState(0);
   const [configurationRevision, setConfigurationRevision] = useState(0);
+  // When a tab saves a view, we list the views again so it shows under Explore, without listing the sources again
+  // nor closing the open ones
+  useEffect(
+    () =>
+      explorer.onViewsChanged(
+        () =>
+          void explorer
+            .connect()
+            .then((manager) =>
+              manager.request<{ views: SavedViewSummary[] }>("list_views", { root: PageConfig.getOption("serverRoot") })
+            )
+            .then((reply) => setViews(reply.data.views))
+            .catch((reason) => setError(String(reason?.message ?? reason)))
+      ),
+    [explorer]
+  );
   const [configurationBusy, setConfigurationBusy] = useState(false);
   useEffect(() => {
     let disposed = false;
@@ -231,9 +255,15 @@ function Catalogue({
     void explorer
       .connect()
       .then(async (manager) => {
-        const [catalogue, recipes] = await Promise.all([
+        const [catalogue, listing] = await Promise.all([
           manager.request<{ sources: SourceSummary[] }>("list_sources", {}),
-          manager.request<{ views: SavedViewSummary[]; stores: StoreSummary[]; home: string }>("list_views", {
+          manager.request<{
+            views: SavedViewSummary[];
+            stores: StoreSummary[];
+            home: string;
+            recipes: RecipeSummary[];
+            recipes_error: string | null;
+          }>("list_views", {
             root: PageConfig.getOption("serverRoot"),
           }),
         ]);
@@ -241,9 +271,11 @@ function Catalogue({
         setSources(catalogue.data.sources);
         setListed({});
         setOpenDatabases([]);
-        setViews(recipes.data.views);
-        setStores(recipes.data.stores);
-        setHome(recipes.data.home);
+        setViews(listing.data.views);
+        setRecipes(listing.data.recipes);
+        setRecipesError(listing.data.recipes_error);
+        setStores(listing.data.stores);
+        setHome(listing.data.home);
       })
       .catch((error) => {
         if (!disposed) setError(String(error));
@@ -270,7 +302,10 @@ function Catalogue({
     void explorer
       .connect()
       .then((manager) => manager.request<{ sources: SourceSummary[] }>("list_databases", { source: name }))
-      .then((reply) => setListed((current) => ({ ...current, [name]: reply.data.sources })))
+      .then((reply) => {
+        setListed((current) => ({ ...current, [name]: reply.data.sources }));
+        explorer.reportListing(name, null);
+      })
       .catch((reason) =>
         setListed((current) => ({ ...current, [name]: { error: String(reason?.message ?? reason) } }))
       );
@@ -308,6 +343,7 @@ function Catalogue({
       .connect()
       .then((manager) => manager.request<{ tables: TableSummary[] }>("list_tables", { source }))
       .then((reply) => {
+        explorer.reportListing(source, reply.data.tables);
         if (!disposed) setTables(reply.data.tables);
       })
       .catch((error) => {
@@ -333,7 +369,10 @@ function Catalogue({
     void explorer
       .connect()
       .then((manager) => manager.request<{ tables: TableSummary[] }>("list_tables", { source: sourceName, folder }))
-      .then((reply) => setFolders((current) => ({ ...current, [key]: reply.data.tables })))
+      .then((reply) => {
+        setFolders((current) => ({ ...current, [key]: reply.data.tables }));
+        explorer.reportListing(sourceName, reply.data.tables);
+      })
       .catch((reason) =>
         setFolders((current) => ({ ...current, [key]: { error: String(reason?.message ?? reason) } }))
       );
@@ -612,6 +651,24 @@ function Catalogue({
               onDismiss={() => setError(null)}
             />
           )}
+          <section className="metanno-viewer__section" aria-label="Recipes">
+            <div className="metanno-viewer__section-title">Recipes</div>
+            {recipesError && <Note depth={0}>{errorText(recipesError)}</Note>}
+            {recipes
+              .filter((recipe) => matches(recipe.name))
+              .map((recipe) => (
+                <Entry
+                  key={recipe.name}
+                  depth={0}
+                  label={recipe.name}
+                  title={recipe.tables ? `Reads ${Object.keys(recipe.tables).join(", ")}` : undefined}
+                  open={(newTab) => openResource({ kind: "recipe", name: recipe.name }, newTab)}
+                />
+              ))}
+            {recipes.length === 0 && !recipesError && (
+              <Note depth={0}>No recipes, add Python files to the recipes folder of metanno-home</Note>
+            )}
+          </section>
           <section className="metanno-viewer__section" aria-label="Explore">
             <div className="metanno-viewer__section-title">Explore</div>
             {notebookEntries(true)}
