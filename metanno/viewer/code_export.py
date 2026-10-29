@@ -302,7 +302,7 @@ def export_view_code(store, view_definition, purpose="annotation"):
     parameters = dict(view_definition.parameters) if view_definition else {}
     annotation_setup = ""
     if purpose == "annotation":
-        application = load_recipes(config.directory / "views")[recipe]
+        application = load_recipes(config.directory)[recipe]
         if application.annotation_setup_code is not None:
             annotation_setup = application.annotation_setup_code(parameters).rstrip()
     lines += [

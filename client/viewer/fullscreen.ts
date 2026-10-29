@@ -19,6 +19,7 @@ export function fullscreenKey(resource: FullscreenResource): string {
     return `annotation:${JSON.stringify({ path: resource.path, ...resource.metadata })}`;
   if (resource.kind === "preview") return `preview:${JSON.stringify(resource.args)}`;
   if (resource.kind === "view") return `view:${resource.name}`;
+  if (resource.kind === "recipe") return `recipe:${JSON.stringify({ name: resource.name, tables: resource.tables })}`;
   return `table:${encodeURIComponent(resource.source)}/${encodeURIComponent(resource.table)}`;
 }
 
@@ -34,6 +35,7 @@ export function decodeFullscreenKey(key: string): FullscreenResource {
   }
   if (kind === "preview") return { kind, args: JSON.parse(value) };
   if (kind === "view") return { kind, name: value };
+  if (kind === "recipe") return { kind, ...JSON.parse(value) };
   if (kind === "table" && value.includes("/")) {
     const [source, ...table] = value.split("/");
     return { kind, source: decodeURIComponent(source), table: decodeURIComponent(table.join("/")) };

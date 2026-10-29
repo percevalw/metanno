@@ -23,7 +23,7 @@ function isDataResource(value: unknown): value is SourceSelection | PathSelectio
   if (resource.kind === "path") return typeof resource.uri === "string";
   return resource.kind === "table"
     ? typeof resource.source === "string" && typeof resource.table === "string"
-    : resource.kind === "view" && typeof resource.name === "string";
+    : (resource.kind === "view" || resource.kind === "recipe") && typeof resource.name === "string";
 }
 
 const plugin: JupyterFrontEndPlugin<void> = {

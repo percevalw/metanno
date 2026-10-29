@@ -16,7 +16,7 @@ def test_view_opener_renders_plain_store_with_explicit_recipe(tmp_path, monkeypa
     from metanno import view_opener
     from metanno.viewer.view_opener import MIMETYPE, rendered_views
 
-    recipes = tmp_path / "metanno-home" / "views"
+    recipes = tmp_path / "metanno-home" / "recipes"
     recipes.mkdir(parents=True)
     monkeypatch.chdir(tmp_path)
     (recipes / "summary.py").write_text(
@@ -33,11 +33,13 @@ def test_view_opener_renders_plain_store_with_explicit_recipe(tmp_path, monkeypa
     assert rendered["read_only"]
     assert rendered_views.pop(rendered["view_ref"]) is not None
 
-    rows = create_store({"rows": DataFrame([{"id": 1}])}, sync=True)
+    rows = create_store({"rows": DataFrame([{"id": 1}]), "tags": DataFrame([{"id": 2}]), "title": "Two"}, sync=True)
     opener = view_opener(rows)
     assert opener.view == "table"
-    # The table view and the project recipes are offered, the table view only for a Store with one DataFrame
+    # The table view and the project recipes are offered, the table view for any Store with a DataFrame
     assert opener.choices() == ["table", "summary"]
+    # The table view renders a Store with several DataFrames, each in its own tab
+    assert rendered_views.pop(opener.render("table", {}, {})["view_ref"]) is not None
 
 
 def test_cell_rerun_releases_openers_without_open_tabs(tmp_path, monkeypatch):
@@ -68,10 +70,11 @@ def test_cell_rerun_releases_openers_without_open_tabs(tmp_path, monkeypatch):
 
 
 def test_confit_recipe_and_saved_view_discovery(tmp_path):
-    # Recipes and saved views share the views folder
+    # Recipes are in the recipes folder and saved views in the views folder
     views_path = tmp_path / "views"
     views_path.mkdir()
-    (views_path / "documents.py").write_text(
+    (tmp_path / "recipes").mkdir()
+    (tmp_path / "recipes" / "documents.py").write_text(
         "def main(store, title: str = 'Documents'):\n    return store, title\n",
         encoding="utf-8",
     )
@@ -87,8 +90,12 @@ def test_confit_recipe_and_saved_view_discovery(tmp_path):
         encoding="utf-8",
     )
 
-    recipes = load_recipes(views_path)
+    # A metanno-home made before the recipes folder keeps recipes in views, the recipes folder wins on a name clash
+    (views_path / "documents.py").write_text("def main(store):\n    return 'old'\n", encoding="utf-8")
+    (views_path / "older.py").write_text("def main(store):\n    return 'older'\n", encoding="utf-8")
+    recipes = load_recipes(tmp_path)
     store = object()
+    assert recipes["older"](store=store) == "older"
 
     assert recipes["documents"](store=store, title="Todos") == (
         store,
@@ -104,9 +111,35 @@ def test_confit_recipe_and_saved_view_discovery(tmp_path):
         }
     ]
     # A recipe entrypoint receives the Store
-    (views_path / "related.py").write_text("def main(table):\n    return table\n", encoding="utf-8")
+    (tmp_path / "recipes" / "related.py").write_text("def main(table):\n    return table\n", encoding="utf-8")
     with pytest.raises(ValueError, match="main.store"):
-        load_recipes(views_path)
+        load_recipes(tmp_path)
+
+
+def test_recipe_max_rows_bound_tables_without_their_own(tmp_path):
+    """
+    The RecipeTable max_rows bounds a table of the view unless the view sets max_rows, other tables load preview.rows
+    """
+    service = SimpleNamespace(config=SimpleNamespace(preview=SimpleNamespace(rows=500)))
+    (tmp_path / "recipes").mkdir()
+    # Postponed annotations are resolved in the recipe module
+    (tmp_path / "recipes" / "patients.py").write_text(
+        "from __future__ import annotations\n\n"
+        "from typing import Annotated, TypedDict\n\n"
+        "from pret import DataFrame\n\n"
+        "from metanno import RecipeTable\n\n\n"
+        "class Tables(TypedDict):\n"
+        "    person: Annotated[DataFrame, RecipeTable(max_rows=50)]\n"
+        "    visit: Annotated[DataFrame, RecipeTable(max_rows=20000)]\n"
+        "    note: DataFrame\n\n\n"
+        "def main(store: Tables):\n    return store\n"
+    )
+    tables = {key: {"source": "omop", "table": key} for key in ("person", "visit", "note")}
+    tables["visit"]["max_rows"] = 100
+    _, store, _ = create_source_view(
+        service, None, "view", ViewConfig(recipe="patients", tables=tables), load_recipes(tmp_path)
+    )
+    assert {key: store[key].provider.max_rows for key in tables} == {"person": 50, "visit": 100, "note": 500}
 
 
 def test_source_relations_follow_derived_parent_views_before_paging(tmp_path):
@@ -120,7 +153,7 @@ def test_source_relations_follow_derived_parent_views_before_paging(tmp_path):
     service.config = SimpleNamespace(directory=tmp_path, preview=SimpleNamespace(max_bytes=100_000, rows=500))
     service.table = lambda source, name, connection=None: backend.table(name)
     service.source = lambda name: SimpleNamespace(connection="local")
-    recipes = tmp_path / "views"
+    recipes = tmp_path / "recipes"
     recipes.mkdir()
     (recipes / "todos.py").write_text(
         'def main(store):\n    store["todos"] = store["todos"].with_columns(done=False)\n    return store\n'
@@ -145,6 +178,7 @@ def test_source_relations_follow_derived_parent_views_before_paging(tmp_path):
                     name: {"source": "planner", "table": name, "paging": True} for name in ("lists", "todos", "tags")
                 },
             ),
+            load_recipes(tmp_path),
         )
         parent_filter = {
             "kind": "relation",
@@ -251,7 +285,7 @@ def test_export_view_code_and_notebook_display(tmp_path, monkeypatch):
     backend.execute("CREATE TABLE tags(todo_id INTEGER, label TEXT, start INTEGER, end INTEGER, word TEXT)")
     backend.execute("INSERT INTO tags VALUES (1,'a',0,5,'First'),(2,'b',0,6,'Second'),(3,'c',0,5,'Third')")
     home = tmp_path / "metanno-home"
-    recipes = home / "views"
+    recipes = home / "recipes"
     recipes.mkdir(parents=True)
     (recipes / "todo_tags.py").write_text((Path(__file__).parents[1] / "jupyter/related_recipe.py").read_text())
     frames = {
@@ -615,3 +649,80 @@ def test_closing_view_cancels_queued_and_running_work():
         assert queries.pending_requests == {}
     finally:
         queries.close([])
+
+
+def test_recipe_reports_missing_tables_before_running(tmp_path):
+    """
+    A recipe that declares its tables fails with the missing Store keys instead of an error raised inside main
+    """
+    from pret import DataFrame, create_store
+
+    from metanno.viewer.recipes import load_recipes, render_recipe
+
+    (tmp_path / "recipes").mkdir()
+    (tmp_path / "recipes" / "todo_tags.py").write_text(
+        "from typing import TypedDict\n\n"
+        "from pret import DataFrame\n\n\n"
+        "class Tables(TypedDict):\n    todos: DataFrame\n    tags: DataFrame\n\n\n"
+        'def main(store: Tables):\n    return store["tags"]\n'
+    )
+    store = create_store({"todos": DataFrame([{"id": 1}])}, sync=True)
+    with pytest.raises(ValueError, match="reads the tables tags, missing from this Store which has todos"):
+        render_recipe(store, "todo_tags", {}, load_recipes(tmp_path))
+
+
+def test_recipe_parameters_describe_fields_and_check_values():
+    """
+    The parameters of a recipe give the fields of the table pickers, from their types, defaults and docstring, and
+    their values are checked with pydantic before the recipe runs
+    """
+    from typing import Annotated, Literal, Optional
+
+    from metanno import Column
+    from metanno.viewer.recipes import check_parameters, recipe_parameters
+
+    def main(
+        store,
+        mode: Literal["todo", "done"],
+        limit: int = 10,
+        title: Optional[str] = None,
+        todo_key: Annotated[str, Column("todos")] = "todo_id",
+        show_done: bool = True,
+        tags: list = [],
+        read_only=False,
+    ):
+        """
+        Show todos
+
+        Parameters
+        ----------
+        store
+            Store with the todos
+        mode : str
+            Todos to show
+        limit
+            Number of todos,
+            at most
+        """
+
+    fields = {field["name"]: field for field in recipe_parameters(main)}
+    assert list(fields) == ["mode", "limit", "title", "todo_key", "show_done", "tags"]
+    assert fields["mode"] == {
+        "name": "mode",
+        "kind": "choice",
+        "required": True,
+        "default": None,
+        "choices": ["todo", "done"],
+        "table": None,
+        "description": "Todos to show",
+    }
+    assert fields["limit"]["kind"] == "integer" and fields["limit"]["description"] == "Number of todos, at most"
+    assert fields["title"]["kind"] == "text" and not fields["title"]["required"]
+    assert fields["todo_key"]["kind"] == "column" and fields["todo_key"]["table"] == "todos"
+    assert fields["show_done"]["kind"] == "boolean" and fields["tags"]["kind"] == "json"
+    # Text values cast like the recipe call, a missing required value and a wrong type are reported by parameter
+    assert check_parameters(main, {"mode": "todo", "limit": "5"}) == {}
+    assert check_parameters(main, {"limit": "many"}) == {
+        "mode": "Required",
+        "limit": "Input should be a valid integer, unable to parse string as an integer",
+    }

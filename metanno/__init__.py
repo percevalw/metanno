@@ -11,6 +11,8 @@ __all__ = [
     "DataRelation",
     "DataWidgetFactory",
     "view_opener",
+    "Column",
+    "RecipeTable",
 ]
 
 
@@ -24,6 +26,8 @@ def __getattr__(name):
         from .recipes import data_widget_factory as module
     elif name == "view_opener":
         from .viewer import view_opener as module
+    elif name in ("Column", "RecipeTable"):
+        from .viewer import recipes as module
     else:
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
     value = getattr(module, name)

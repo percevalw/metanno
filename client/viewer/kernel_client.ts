@@ -19,7 +19,35 @@ export interface CommMessage<T = unknown> {
 // A table of a source, read with connection or the source default, or a saved view
 export type SourceSelection =
   | { kind: "table"; source: string; table: string; connection?: string; title?: string }
-  | { kind: "view"; name: string; title?: string };
+  | { kind: "view"; name: string; title?: string }
+  | { kind: "recipe"; name: string; tables?: Record<string, TablePick>; title?: string };
+
+// A table picked for a Store key of a recipe in RecipeForm, sent to open_recipe_view
+export type TablePick = { source: string; table: string; connection?: string };
+
+// A parameter of a recipe main function, see recipe_parameters: its field kind, default value, the choices of a
+// Literal or Enum, and the table whose columns a Column parameter offers
+export type RecipeParameter = {
+  name: string;
+  kind: "text" | "integer" | "number" | "boolean" | "choice" | "column" | "json";
+  required: boolean;
+  default: unknown;
+  choices: unknown[] | null;
+  table: string | null;
+  description: string;
+};
+
+// Table pickers and parameter fields sent by the kernel instead of a view when a recipe reads Store keys the view has
+// no table for, or lacks a valid value for one of its parameters: the description and keywords of each key, the
+// tables the view already has, the parameters with their current values, and the errors of those values
+export type RecipeFormData = {
+  recipe: string;
+  tables: Record<string, { description: string; keywords: string[] }>;
+  current: Record<string, TablePick>;
+  parameters: RecipeParameter[];
+  values: Record<string, unknown>;
+  errors: Record<string, string>;
+};
 
 // A dataset given by its location, eg by an HDFS file browser extension, opened as the table of the source containing
 // it, see SourceCatalog.resolve_path
@@ -30,8 +58,10 @@ export type ViewReply = Parameters<IPretHost["render"]>[0] & {
   view_ref: string;
   view: string;
   choices: string[];
-  connection?: string;
+  // Connection of the tables of the view, null when they use different ones, and the connections they can all use
+  connection?: string | null;
   connections?: string[];
+  form?: RecipeFormData;
   // Seconds spent by kernel steps, logged when diagnosing slow view openings
   timings?: Record<string, number>;
 };
@@ -219,6 +249,31 @@ export class ExplorerKernelConnection {
   private ready: Promise<void> | null = null;
   private client: Promise<KernelClient> | null = null;
   private starting: Promise<unknown> | null = null;
+  // Listings made by the sidebar, which open recipe forms add to their tables, see RecipeForm, and views saved by a
+  // tab, which the sidebar lists again
+  private listedListeners = new Set<(source: string, tables: { name: string; kind: string }[] | null) => void>();
+  private viewsListeners = new Set<() => void>();
+
+  // The sidebar reports the tables of each source or folder it lists (null for the databases of a source), so open
+  // forms add them and retry the listings that failed before, e.g. a Trino source once its login is done
+  reportListing(source: string, tables: { name: string; kind: string }[] | null): void {
+    this.listedListeners.forEach((listener) => listener(source, tables));
+  }
+
+  onListing(listener: (source: string, tables: { name: string; kind: string }[] | null) => void): () => void {
+    this.listedListeners.add(listener);
+    return () => this.listedListeners.delete(listener);
+  }
+
+  // When a tab saves a view, the sidebar lists the saved views again so the new one shows under Explore
+  reportViewsChanged(): void {
+    this.viewsListeners.forEach((listener) => listener());
+  }
+
+  onViewsChanged(listener: () => void): () => void {
+    this.viewsListeners.add(listener);
+    return () => this.viewsListeners.delete(listener);
+  }
 
   constructor(private services: ServiceManager.IManager) {
     this.context = createSession(services, ".metanno-viewer/data-panel", "Metanno Data Explorer");

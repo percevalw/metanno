@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+import yaml
 from ipykernel.ipkernel import IPythonKernel
 from ipykernel.kernelapp import IPKernelApp
 
@@ -124,7 +125,7 @@ class DataExplorerKernel(IPythonKernel):
                     self.query_worker.executor(None).submit(entry.sources.close)
                 send_message(comm, "response", method, request_id=request_id, data={})
                 return
-            if method in {"open_table_view", "open_saved_view"}:
+            if method in {"open_table_view", "open_saved_view", "open_recipe_view"}:
                 started = time.monotonic()
 
                 def report_view_stage(stage):
@@ -136,7 +137,7 @@ class DataExplorerKernel(IPythonKernel):
 
                 report_view_stage("loading_modules")
                 # Create PRET bindings on the kernel loop after its comm manager exists
-                from .recipes import load_views
+                from .recipes import check_parameters, load_recipes, load_views, recipe_parameters
 
                 report_view_stage("building_view")
                 if method == "open_table_view":
@@ -149,13 +150,51 @@ class DataExplorerKernel(IPythonKernel):
                         connection=data.get("connection") or source.connection,
                     )
                     definition = ViewConfig(tables={data["table"].replace(".", "_"): table}, recipe="table")
-                else:
+                elif method == "open_saved_view":
                     saved = load_views(self.sources.config.directory / "views")
                     definition = {view.name: view for view in saved}[data["name"]]
+                else:
+                    # A recipe opened from the sidebar, or completed in a tab, with the tables picked for its Store keys
+                    tables = {key: ViewTable(**table) for key, table in data.get("tables", {}).items()}
+                    parameters = data.get("parameters", {})
+                    definition = ViewConfig.model_construct(tables=tables, recipe=data["recipe"], parameters=parameters)
                 # The recipe selector of the tab renders the same tables with another recipe, without the
                 # parameters the saved view gives its own recipe
                 if data.get("recipe", definition.recipe) != definition.recipe:
                     definition = definition.model_copy(update={"recipe": data["recipe"], "parameters": {}})
+                # Since related tables are queried together, the connection selector of the tab moves every table of
+                # the view to the same connection
+                if data.get("connection"):
+                    tables = {
+                        key: table.model_copy(update={"connection": data["connection"]})
+                        for key, table in definition.tables.items()
+                    }
+                    definition = definition.model_copy(update={"tables": tables})
+                recipes = load_recipes(self.sources.config.directory)
+                recipe = recipes.get(definition.recipe)
+                declared = getattr(recipe, "tables", None) or {}
+                errors = check_parameters(recipe.main, definition.parameters) if recipe is not None else {}
+                if not definition.tables or any(key not in definition.tables for key in declared) or errors:
+                    # The tab shows a table picker for each Store key of the recipe and a field for each of its
+                    # parameters instead of an error, prefilled with the tables and values the view already has, see
+                    # RecipeForm
+                    form = {
+                        "recipe": definition.recipe,
+                        "tables": declared,
+                        "current": {
+                            key: table.model_dump(exclude_none=True) for key, table in definition.tables.items()
+                        },
+                        "parameters": recipe_parameters(recipe.main) if recipe is not None else [],
+                        "values": definition.parameters,
+                        "errors": errors,
+                    }
+                    reply = {"form": form, "view": definition.recipe, "choices": list(recipes)}
+                    send_message(comm, "response", method, request_id=request_id, data=reply)
+                    return
+                if method == "open_recipe_view":
+                    definition = ViewConfig(
+                        tables=definition.tables, recipe=definition.recipe, parameters=definition.parameters
+                    )
                 view_ref = data["view_ref"]
                 # Factory backends that list table files at table() time ask for a new table at each view open,
                 # e.g. the DuckDB views of Delta tables then see the commits made since the previous open
@@ -167,7 +206,9 @@ class DataExplorerKernel(IPythonKernel):
                         del self.sources.tables[key]
                 self.query_worker.requests_by_view[view_ref] = set()
                 try:
-                    view, store, choices = create_source_view(self.sources, self.query_worker, view_ref, definition)
+                    view, store, choices = create_source_view(
+                        self.sources, self.query_worker, view_ref, definition, recipes
+                    )
                     report_view_stage("serializing_view")
                     mime = view._repr_mimebundle_()["application/vnd.pret+json"]
                 except Exception:
@@ -176,9 +217,18 @@ class DataExplorerKernel(IPythonKernel):
                 self.views[view_ref] = SourceView(store, definition, self.sources)
                 report_view_stage("reply_ready")
                 reply = {**mime["view_data"], "view_ref": view_ref, "view": definition.recipe, "choices": choices}
-                if method == "open_table_view":
-                    reply["connection"] = table.connection
-                    reply["connections"] = source.allowed_connections
+                # The selector offers the connections every table of the view can use, and shows the one they use,
+                # None when they use different ones
+                sources = [self.sources.source(table.source) for table in definition.tables.values()]
+                used = {
+                    table.connection or source.connection for table, source in zip(definition.tables.values(), sources)
+                }
+                reply["connection"] = used.pop() if len(used) == 1 else None
+                reply["connections"] = [
+                    name
+                    for name in sources[0].allowed_connections
+                    if all(name in source.allowed_connections for source in sources)
+                ]
                 send_message(comm, "response", method, request_id=request_id, data=reply)
                 return
             if method == "export_view_code":
@@ -226,12 +276,12 @@ class DataExplorerKernel(IPythonKernel):
         if method == "list_views":
             from pret import load_store_snapshot
 
-            from .recipes import load_views
+            from .recipes import load_recipes, load_views
 
             view_path = self.sources.config.directory / "views"
             store_path = self.sources.config.directory / "annotations"
             # Created here so the file browser shows them even in a new project
-            for directory in (view_path, store_path):
+            for directory in (self.sources.config.directory / "recipes", view_path, store_path):
                 directory.mkdir(parents=True, exist_ok=True)
             stores = []
             for path in sorted([*store_path.glob("*.pret"), *store_path.glob("*/*.pret")]):
@@ -259,12 +309,44 @@ class DataExplorerKernel(IPythonKernel):
                 raise ValueError(f"The Metanno directory {directory} must be inside the Jupyter root {root}")
             home = "" if directory == root else directory.relative_to(root).as_posix()
             views = [view.model_dump() for view in load_views(view_path)]
-            return {"views": views, "stores": stores, "home": home}
+            # The Recipes section of the sidebar opens each recipe with table pickers for the Store keys it declares,
+            # and if a recipe file fails to load, we show its error there rather than failing the whole sidebar
+            try:
+                recipes = [
+                    {"name": name, "tables": recipe.tables}
+                    for name, recipe in load_recipes(self.sources.config.directory).items()
+                    if name != "table"
+                ]
+                recipes_error = None
+            except Exception as error:
+                recipes, recipes_error = [], str(error)
+            return {"views": views, "stores": stores, "home": home, "recipes": recipes, "recipes_error": recipes_error}
         if method == "resolve_path":
             source, table, connection = self.sources.resolve_path(data["uri"], data.get("connection"))
             return {"source": source, "table": table, "connection": connection}
         if method == "list_tables":
             return {"tables": self.sources.list_tables(data["source"], data.get("folder", ""))}
+        if method == "save_view":
+            # An open view saved as views/<name>.yml, with its recipe, tables and parameters, shown under Explore
+            name = data["name"].strip()
+            if not name or any(char in name for char in "/\\.") or name.startswith("~"):
+                raise ValueError("A view name cannot be empty or contain / \\ or .")
+            path = self.sources.config.directory / "views" / f"{name}.yml"
+            if path.exists():
+                raise ValueError(f"A view named {name} already exists, choose another name")
+            saved = self.views[data["view_ref"]].definition.model_dump(exclude_defaults=True, exclude={"name"})
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(yaml.safe_dump(saved, sort_keys=False))
+            return {"name": name}
+        if method == "table_columns":
+            # Columns of a picked table, offered by the fields of the recipe parameters marked with Column
+            table = self.sources.table(data["source"], data["table"], data.get("connection"))
+            return {"columns": list(table.columns)}
+        if method == "listed_tables":
+            # Tables listed so far by the sidebar or the table pickers, so a new recipe form starts from them instead
+            # of listing every source (Spark sources take minutes)
+            listings = list(self.sources.listings.items())
+            return {"listings": [{"source": source, "tables": tables} for (source, _), tables in listings]}
         if method == "list_databases":
             return {"sources": self.sources.list_databases(data["source"])}
         if method == "set_source_connection":
@@ -323,17 +405,20 @@ class DataExplorerKernel(IPythonKernel):
         return {"status": "ok", "restart": restart}
 
 
-def create_source_view(sources, query_worker, view_id, view):
+def create_source_view(sources, query_worker, view_id, view, recipes):
     """
-    Create DataFrame providers for the source view definition and pass their Store to its recipe.
+    Create DataFrame providers for the source view definition and pass their Store to its recipe, one of the recipes
+    loaded by the explorer kernel for the view opening.
 
     Returns the rendered view, its Store and the recipes the recipe selector of the tab offers for that Store.
     """
     from pret import DataFrame, create_store
 
-    from .recipes import load_recipes, recipe_choices, render_recipe
+    from .recipes import recipe_choices, render_recipe
     from .source_provider import SourceDataFrameProvider
 
+    # A table without its own max_rows loads the rows its recipe declares for its key, then preview.rows
+    declared = getattr(recipes.get(view.recipe), "tables", None) or {}
     frames = {
         name: DataFrame(
             provider=SourceDataFrameProvider(
@@ -344,7 +429,7 @@ def create_source_view(sources, query_worker, view_id, view):
                 view_id,
                 connection=table.connection,
                 paging=table.paging,
-                max_rows=table.max_rows or sources.config.preview.rows,
+                max_rows=table.max_rows or declared.get(name, {}).get("max_rows") or sources.config.preview.rows,
             )
         )
         for name, table in view.tables.items()
@@ -352,7 +437,6 @@ def create_source_view(sources, query_worker, view_id, view):
     store = create_store(frames, sync=True)
     for frame in frames.values():
         frame.provider.dataframes_by_id = store.doc._dataframe_registry
-    recipes = load_recipes(sources.config.directory / "views")
     rendered = render_recipe(store, view.recipe, view.parameters, recipes, True)
     return rendered, store, recipe_choices(store, recipes)
 
