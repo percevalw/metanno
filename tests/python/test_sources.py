@@ -501,3 +501,37 @@ def test_bare_scheme_source_lists_buckets(tmp_path):
     )
     service.close()
     assert place("s3a://") == "s3a://" and place("hdfs://namenode/") == "hdfs://"
+
+
+def test_annotation_files_are_a_read_only_source_on_the_default_connection(tmp_path):
+    """
+    The tables of annotation files list by group and file, and open as copies on default_connection, next to the
+    tables of the other sources so views can relate them
+    """
+    from pret import DataFrame, create_store, save_store
+
+    from metanno.viewer.sources import SourceCatalog
+
+    (tmp_path / "metanno.yaml").write_text(
+        "connections:\n  local: {url: 'duckdb://'}\ndefault_connection: local\n"
+        "sources:\n  planner: {connection: local}\n"
+    )
+    (tmp_path / "annotations" / "campaign").mkdir(parents=True)
+    store = create_store({"todos": DataFrame([{"todo_id": 1, "done": True}]), "title": "Alice"})
+    save_store(store, tmp_path / "annotations" / "campaign" / "alice.pret")
+    catalog = SourceCatalog(tmp_path)
+    assert {"name": "annotations", "kind": "annotations", "connection": "local", "connections": ["local"]} in (
+        catalog.list_sources()
+    )
+    assert catalog.list_tables("annotations") == [{"name": "campaign", "source": "annotations", "kind": "folder"}]
+    assert catalog.list_tables("annotations", "campaign") == [
+        {"name": "campaign/alice", "source": "annotations", "kind": "folder"}
+    ]
+    assert catalog.list_tables("annotations", "campaign/alice") == [
+        {"name": "campaign/alice/todos", "source": "annotations", "kind": "table"}
+    ]
+    todos = catalog.table("annotations", "campaign/alice/todos")
+    assert todos.to_pyarrow().to_pylist() == [{"todo_id": 1, "done": True}]
+    # The copy lives in the connection of the other sources, so relations between them run in one query
+    catalog.connection("local").raw_sql("CREATE TABLE notes AS SELECT 1 AS todo_id")
+    assert todos.get_backend() is catalog.table("planner", "notes").get_backend()

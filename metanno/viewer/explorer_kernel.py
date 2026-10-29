@@ -202,7 +202,12 @@ class DataExplorerKernel(IPythonKernel):
                     connection = table.connection or self.sources.source(table.source).connection
                     key = table.source, table.table, connection
                     cached = self.sources.tables.get(key)
-                    if cached is not None and getattr(cached.get_backend(), "refresh_tables_on_view_open", False):
+                    # Since annotation tables are copies, we read them again so a view shows the edits made since
+                    # the last open
+                    if cached is not None and (
+                        getattr(cached.get_backend(), "refresh_tables_on_view_open", False)
+                        or self.sources.source(table.source).kind == "annotations"
+                    ):
                         del self.sources.tables[key]
                 self.query_worker.requests_by_view[view_ref] = set()
                 try:

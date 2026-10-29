@@ -17,6 +17,7 @@
 - The table pickers of a recipe also show a field for each parameter of its `main`, from its type, default and docstring description, checked with pydantic before the view opens. A parameter marked `Annotated[str, Column("entities")]` lists the columns of the table picked for `entities`. Switching a view to a recipe with a required parameter shows the same form.
 - **Save view** in the toolbar of a source tab saves the open view, its recipe, tables and parameters, as `metanno-home/views/<name>.yml`, which then shows under **Explore**.
 - The **Connection** selector of a tab also switches views with several tables: it offers the connections all their tables can use, e.g. Spark when DuckDB is too slow, and moves every table to the chosen one, since related tables are queried together. **Save view** then keeps that connection.
+- Annotation files show as an `annotations` source, read only: each file is a folder of its tables, e.g. `doc_classif/doctor1/docs`, to compare annotators or show annotations next to database tables. Their rows are copied into `default_connection` when a view opens, so views can relate them with the tables of DuckDB sources, or into an in-memory DuckDB without one.
 
 ## v2.0.0-beta.5 (2026-10-28)
 

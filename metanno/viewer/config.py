@@ -51,13 +51,15 @@ class SourceConfig(Section):
     connection is the one used by default, connections lists the others that can read the same database, e.g. DuckDB
     and Spark for a Hive database. A `databases` source lists the catalogs and databases of its connection, each
     shown as its own source in the sidebar. A `files` source shows the folder tree under its uri, format is detected
-    per table when left out, Delta when the table folder has a _delta_log, CSV when its data files are .csv files
+    per table when left out, Delta when the table folder has a _delta_log, CSV when its data files are .csv files. An
+    `annotations` source shows the annotation files of metanno-home/annotations, read only, and copies their tables
+    into its DuckDB connection when a view opens
     """
 
     name: NonEmpty
     connection: NonEmpty
     connections: List[NonEmpty] = []
-    kind: Literal["catalogue", "files", "databases"] = "catalogue"
+    kind: Literal["catalogue", "files", "databases", "annotations"] = "catalogue"
     catalog: Optional[str] = None
     database: Optional[str] = None
     uri: Optional[str] = None

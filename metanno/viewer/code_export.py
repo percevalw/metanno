@@ -199,6 +199,12 @@ def export_view_code(store, view_definition, purpose="annotation"):
         if source.kind == "files":
             uri, format = sources.file_table(provider.source, provider.table, provider.connection)
             expression = f"{backend}.read_{format}({uri!r})"
+        elif source.kind == "annotations":
+            # The copied code reads the rows of the annotation table as a memtable, so Ibis runs it on the connection
+            # of the tables it is related to
+            path, store_key = sources.annotation_file(source, provider.table)
+            imports.extend(["import ibis", "from pret import load_store_snapshot"])
+            expression = f"ibis.memtable(load_store_snapshot({str(path)!r})[{store_key!r}].materialize())"
         else:
             database = sources.database_name(source)
             expression = f"{backend}.table({provider.table!r}" + (f", database={database!r}" if database else "") + ")"

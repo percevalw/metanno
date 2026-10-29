@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 
 from ibis.common.exceptions import TableNotFound
 
-from .config import SourceConfig, config_file, load_config
+from .config import ConnectionConfig, SourceConfig, config_file, load_config
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table as IbisTable
@@ -153,6 +153,58 @@ def catalog_databases(backend, catalog):
         return []
 
 
+def annotation_tables(path):
+    """
+    Return the DataFrame references saved at the top of an annotation file by Store key, without reading their rows,
+    for the tables of the annotations source
+    """
+    from pret.store import StoreDatabase, is_marker
+
+    database = StoreDatabase(path, readonly=True)
+    try:
+        state, _ = database.read_state()
+    finally:
+        database.close()
+    data = state["data"] if isinstance(state["data"], dict) else {}
+    return {key: value for key, value in data.items() if is_marker(value)}
+
+
+def read_annotation_table(path, key):
+    """
+    Read the rows of a DataFrame of an annotation file as an Arrow table, copied into DuckDB by SourceCatalog.table
+    """
+    # TODO put in eds-relai later ?
+    from pret.dataframe_sqlite import SQLiteDataFrameProvider
+    from pret.store import DATAFRAME_REF_KEY, StoreDatabase
+
+    database = StoreDatabase(path, readonly=True)
+    try:
+        state, _ = database.read_state()
+        return SQLiteDataFrameProvider(database, state["data"][key][DATAFRAME_REF_KEY]).materialize()
+    finally:
+        database.close()
+
+
+def annotation_entries(root, folder):
+    """
+    Map the groups, files and tables under a folder of the annotations source to "folder" or "table"
+
+    A group folder, eg doc_classif, and an annotation file, eg doc_classif/doctor1 for doc_classif/doctor1.pret, are
+    folders, and the DataFrames saved at the top of a file are its tables, eg doc_classif/doctor1/docs
+    """
+    path = root / checked_path(folder) if folder else root
+    if folder and path.with_suffix(".pret").is_file():
+        return {f"{folder}/{key}": "table" for key in annotation_tables(path.with_suffix(".pret"))}
+    prefix = f"{folder}/" if folder else ""
+    entries = {}
+    for child in sorted(path.iterdir()) if path.is_dir() else []:
+        if child.suffix == ".pret" and child.is_file():
+            entries[prefix + child.stem] = "folder"
+        elif child.is_dir() and any(child.rglob("*.pret")):
+            entries[prefix + child.name] = "folder"
+    return entries
+
+
 class SourceCatalog:
     """
     Share lazily opened Ibis connections across the sources listed in metanno.yaml
@@ -164,6 +216,16 @@ class SourceCatalog:
         # Connection factories and recipes import the modules of the config folder, e.g. metanno-home/my_connections.py
         if str(self.config.directory) not in sys.path:
             sys.path.insert(0, str(self.config.directory))
+        # Unless metanno.yaml defines its own annotations source, we add one for the annotation files, read only and
+        # copied into default_connection so views can relate them with the tables of other sources (or into an
+        # in-memory DuckDB without one)
+        if "annotations" not in self.config.sources:
+            connection = self.config.default_connection or "annotations"
+            if connection == "annotations":
+                self.config.connections.setdefault("annotations", ConnectionConfig(url="duckdb://"))
+            self.config.sources["annotations"] = SourceConfig(
+                name="annotations", kind="annotations", connection=connection
+            )
         self.connections = {}
         self.resources = {}
         self.connection_locks = {}
@@ -226,7 +288,8 @@ class SourceCatalog:
     def list_sources(self):
         """
         Describe each source for the sidebar: its default connection, the ones it can switch to, and whether it is a
-        `databases` source that the sidebar expands with list_databases
+        `databases` source that the sidebar expands with list_databases. An annotations source shows once its folder
+        holds an annotation file
         """
         return [
             {
@@ -236,6 +299,7 @@ class SourceCatalog:
                 "connections": source.allowed_connections,
             }
             for source in self.config.sources.values()
+            if source.kind != "annotations" or any(self.annotation_folder(source).rglob("*.pret"))
         ]
 
     def source(self, name):
@@ -367,11 +431,13 @@ class SourceCatalog:
         source = self.source(source_name)
         if source.kind == "databases":
             raise QueryError(f"Source {source_name!r} lists databases, not tables, see list_databases")
-        backend = self.connection(source.connection)
-        if source.kind == "catalogue":
+        if source.kind == "annotations":
+            entries = annotation_entries(self.annotation_folder(source), folder)
+        elif source.kind == "catalogue":
+            backend = self.connection(source.connection)
             entries = {name: "table" for name in backend.list_tables(database=self.database_name(source))}
         else:
-            entries = self.file_entries(source, backend, folder)
+            entries = self.file_entries(source, self.connection(source.connection), folder)
         listing = [{"name": name, "source": source_name, "kind": kind} for name, kind in sorted(entries.items())]
         self.listings[source_name, folder] = listing
         return listing
@@ -406,6 +472,22 @@ class SourceCatalog:
             }
         )
         return found
+
+    def annotation_folder(self, source):
+        """
+        Return the folder of the annotation files, the uri of the source or metanno-home/annotations
+        """
+        return Path(source.uri).expanduser() if source.uri else self.config.directory / "annotations"
+
+    def annotation_file(self, source, table_name):
+        """
+        Split a table of the annotations source, eg doc_classif/doctor1/docs, into its file and Store key
+        """
+        folder, _, store_key = table_name.rpartition("/")
+        path = self.annotation_folder(source) / f"{checked_path(folder)}.pret"
+        if not folder or not path.is_file():
+            raise QueryError(f"Unknown annotation table {table_name}")
+        return path, store_key
 
     def file_table(self, source_name, table_name, connection=None):
         """
@@ -459,6 +541,23 @@ class SourceCatalog:
                         f"Table {table_name!r} of source {source_name!r} cannot be read on connection "
                         f"{connection!r}, it may not exist anymore or you may not be allowed to read its columns"
                     ) from exc
+            elif source.kind == "annotations":
+                if backend.name != "duckdb":
+                    raise QueryError(
+                        f"The annotations source copies its tables into DuckDB, but its connection {connection!r} "
+                        "is not a DuckDB one, set default_connection to a DuckDB connection in metanno.yaml"
+                    )
+                path, store_key = self.annotation_file(source, table_name)
+                # We copy the rows, which the explorer kernel reads again at each view open. Since Ibis 12
+                # create_table fails on DuckDB 1.5, we register the rows and copy them with SQL
+                # TODO move to Ibis create_table later, so Spark connections can hold annotation tables too
+                name = "annotations_" + "".join(char if char.isalnum() else "_" for char in table_name)
+                backend.con.register(f"{name}_rows", read_annotation_table(path, store_key))
+                try:
+                    backend.raw_sql(f'CREATE OR REPLACE TABLE "{name}" AS SELECT * FROM "{name}_rows"')
+                finally:
+                    backend.con.unregister(f"{name}_rows")
+                table = backend.table(name)
             else:
                 uri, format = self.file_table(source_name, table_name, connection)
                 table = getattr(backend, f"read_{format}")(uri)
