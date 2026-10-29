@@ -69,6 +69,10 @@ def make_dataframe_queries(tables, relations):
     def related_filter(column, key, parent_column, scope):
         # Preview rows supply IDs, complete tables use the parent query in their provider
         if scope.rows is not None:
+            # A missing column reads as undefined in the browser and would reach the query as a null value, so we
+            # name the missing column instead
+            if len(scope.rows) and not any(parent_column in row for row in scope.rows):
+                raise Exception(f"Table {key} has no column {parent_column}, read by its relation with another table")
             return {
                 "kind": "predicate",
                 "column": column,
@@ -104,6 +108,10 @@ def make_dataframe_queries(tables, relations):
             scopes = {key: await tables[key].fetchScope(filters, [], offset)}
             if generation != state["generations"][root]:
                 return False
+            # We show the rows of the queried table at once, but its related tables keep their loading status until
+            # their own queries return (which can take minutes on a large source table)
+            shown = scopes[key]
+            tables[key].setScope(shown, True, filters)
             current = key
             while current != root:
                 relation = parents[current]
@@ -142,9 +150,10 @@ def make_dataframe_queries(tables, relations):
                     pending.append(child)
             if generation != state["generations"][root]:
                 return False
-            # Replace every scope of the group before widgets render, so related tables stay consistent
+            # Replace the other scopes of the group before widgets render, so related tables stay consistent
             for name in group:
-                tables[name].setScope(scopes[name], False, filters if name == key else None)
+                if name != key or scopes[name] is not shown:
+                    tables[name].setScope(scopes[name], False, filters if name == key else None)
             for name in group:
                 tables[name].notifySubscribers()
             return True

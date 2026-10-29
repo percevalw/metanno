@@ -495,8 +495,11 @@ class TableWidgets:
             )
             configured = {c["key"]: c for c in columns}
             inferred_by_key = {c["key"]: c for c in inferred}
+            # A configured field absent from every row, eg a score no one has filled yet, is named by its key
             displayed_columns = (
-                [{**inferred_by_key.get(c["key"], {}), **c} for c in columns] if len(columns) else inferred
+                [{"name": c["key"], **inferred_by_key.get(c["key"], {}), **c} for c in columns]
+                if len(columns)
+                else inferred
             )
             if len(columns) and include_unconfigured_columns:
                 displayed_columns.extend([{**c, "editable": False} for c in inferred if c["key"] not in configured])

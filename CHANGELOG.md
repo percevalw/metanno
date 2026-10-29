@@ -4,7 +4,10 @@
 
 ### JupyterLab viewer
 
+- A table field that no row has yet, for instance a score no one has filled, shows its key as column name instead of an empty header.
 - Views always come from the nearest `metanno-home` above the kernel folder: annotation Stores no longer save its path, so a `.pret` file also reopens on another machine or account, and `view_opener` no longer takes `config_path`.
+- **Query source** shows the rows of its table as soon as its own query returns, while its related tables show *Loading related data* until theirs return, so a large related table (for instance the notes of selected entities) no longer hides the queried rows for minutes.
+- A related table without the column of its relation, for instance notes without `note_id` next to TNM entities, shows which column is missing instead of `null literals require is_null or is_not_null`.
 
 ## v2.0.0-beta.5 (2026-10-28)
 
