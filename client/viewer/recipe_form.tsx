@@ -351,7 +351,11 @@ export function RecipeForm({
     // minutes (e.g. Spark sources)
     void manager
       .request<{ listings: { source: string; tables: { name: string; kind: string }[] }[] }>("listed_tables", {})
-      .then((reply) => reply.data.listings.forEach((entry) => addTables(entry.source, entry.tables)))
+      .then((reply) => {
+        reply.data.listings.forEach((entry) => addTables(entry.source, entry.tables));
+        // Annotation files are local and quick to list, so we offer their tables without opening them in the sidebar
+        list("annotations");
+      })
       .catch((reason) => setError(String(reason?.message ?? reason)))
       .finally(() => setKnown(true));
   }, [manager]);
