@@ -289,6 +289,16 @@ application`,
     assert.equal(Number(added.end), 10);
     await undo(page);
     await page.waitForFunction(async () => (await readRows("tags")).length === 2);
+    // A click that leaves no focused element, as Safari and Firefox on macOS do for buttons, sends shortcuts to the
+    // page body, they undo in the widget clicked last
+    await page.getByText("First", { exact: true }).first().click();
+    await page.getByRole("button", { name: /^Delete( 1 selected)? ⌫$/ }).click();
+    await page.waitForFunction(() => !historyState.getSnapshot().pending && historyState.canUndo);
+    assert.equal(await page.evaluate(async () => (await readRows("tags")).length), 1);
+    await page.evaluate(() => document.activeElement.blur());
+    await page.keyboard.press("Control+z");
+    await page.waitForFunction(() => !historyState.getSnapshot().pending);
+    await expect.poll(() => page.evaluate(async () => (await readRows("tags")).length)).toBe(2);
     await page.getByText("First", { exact: true }).first().click();
     if (kind === "dataframe") {
       const begin = page.getByLabel("begin", { exact: true });
