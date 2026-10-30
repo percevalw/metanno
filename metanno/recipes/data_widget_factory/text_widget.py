@@ -12,6 +12,7 @@ from typing_extensions import Literal, TypedDict
 
 from metanno import AnnotatedText
 
+from .data_relations import ancestor_filter
 from .fields import FieldSpec, field_state
 from .span_toolbar import SpanToolbar
 from .widget_data import (
@@ -148,7 +149,8 @@ class TextWidgets:
             - `"lead"`: show only the lead selected document.
             - `"selected"`: show every selected document.
             - `"all"`: show every document from the current store. Documents of a DataFrame that is the
-              child of a DataRelation show only the documents of the selected parent row.
+              child of a DataRelation show only the documents under the selected parent row, or under the
+              nearest selected ancestor when no parent row is selected, e.g. the notes of a patient.
         container_renderer : Callable[[Dict[str, Any], Renderable, Optional[Renderable]], Renderable] | None
             Optional callback used to wrap each rendered document.
             It receives `(row, component, shared_toolbar)` and may also accept
@@ -169,17 +171,10 @@ class TextWidgets:
                 raise ValueError("The spans of a DataFrame text widget must be a DataFrame")
             self.register_dataframe(str(store_spans_key))
         spans_foreign_key = spans_foreign_key or text_primary_key
-        # DataFrame documents of a relation child follow the selected parent row in "all" mode
-        parent_relation = (
-            next((r for r in self.relations if r["child"] == root_text_key), None) if is_dataframe else None
-        )
-        if parent_relation is not None:
-            self.ensure_selected_rows(parent_relation["parent"])
-        parent_selection_store = (
-            self.selected_rows[parent_relation["parent"]]
-            if parent_relation is not None and docs_mode == "all"
-            else create_store({"identities": [], "row": None})
-        )
+        # DataFrame documents of a relation child show the documents under the nearest selected ancestor in "all"
+        # mode, e.g. the notes of the selected stay, or of the selected patient when no stay is selected
+        ancestor_relations = self.ancestor_relations(root_text_key) if is_dataframe and docs_mode == "all" else []
+        ancestor_selection_stores = [self.selected_rows[relation["parent"]] for relation in ancestor_relations]
 
         text_path_parts = store_text_key.split(".")
         store_spans_key = str(store_spans_key) if store_spans_key is not None else None
@@ -306,23 +301,17 @@ class TextWidgets:
             selected_doc_rows_snapshot = use_store_snapshot(selected_doc_rows_store)
             selected_span_rows_snapshot = use_store_snapshot(selected_span_rows_store)
             selected_doc_ids = selected_doc_rows_snapshot["identities"]
-            parent_selection = use_store_snapshot(parent_selection_store)
+            ancestor_selections = []
+            for selection_store in ancestor_selection_stores:
+                ancestor_selections.append(use_store_snapshot(selection_store))
             docs_filter = None
-            if parent_relation is not None and docs_mode == "all":
-                # The parent column is read from the parent row, or from its ID when it is the primary key
-                parent_row = parent_selection["row"]
-                parent_ids = parent_selection["identities"]
-                parent_column = parent_relation["parent_column"]
-                parent_value = None
-                if parent_row:
-                    parent_value = parent_row[parent_column]
-                elif len(parent_ids) and primary_keys.get(parent_relation["parent"]) == parent_column:
-                    parent_value = parent_ids[0]
-                docs_filter = {
+            if len(ancestor_relations):
+                # Without a selected ancestor no document is shown
+                docs_filter = ancestor_filter(ancestor_relations, ancestor_selections, data_store, primary_keys)[1] or {
                     "kind": "predicate",
-                    "column": parent_relation["child_column"],
-                    "operator": "eq",
-                    "value": parent_value,
+                    "column": ancestor_relations[0]["child_column"],
+                    "operator": "in",
+                    "value": [],
                 }
             text_data, text_view = use_selected_rows(
                 text_store,

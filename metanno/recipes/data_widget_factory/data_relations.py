@@ -43,6 +43,81 @@ class DataRelation:
         }
 
 
+def loaded_rows(frame):
+    """
+    Return the rows of a factory table loaded in the browser, the scope rows of a DataFrame or the rows of a Store
+    list, or None while a DataFrame has none. ancestor_filter reads the IDs of the tables in between from them, and
+    DataWidgetFactory.make_select_rows the parent rows of a selected row.
+    """
+    if getattr(frame, "__pret_dataframe__", False):
+        return frame.scope.rows if frame.scope else None
+    return frame
+
+
+def selected_value(relation, selection, primary_keys):
+    """
+    Return the value of the parent column of a relation in the lead selected parent row, read from its row, or from
+    its ID when it is the primary key, as a selection set by ID, such as the first row selected by a recipe, has no row
+    yet. Returns None when no parent row is selected. Table choices show the ancestors with a value, and ancestor_filter
+    follows one of them.
+    """
+    if selection["row"]:
+        return selection["row"][relation["parent_column"]]
+    if len(selection["identities"]) and primary_keys.get(relation["parent"]) == relation["parent_column"]:
+        return selection["identities"][0]
+    return None
+
+
+def ancestor_filter(chain, selections, data_store, primary_keys, start=0, picked=False):
+    """
+    Filter the rows of a related table on the nearest selected ancestor from `start` up, e.g. the notes of the
+    selected stay, or of the selected patient when no stay is selected.
+
+    Parameters
+    ----------
+    chain : List[Dict]
+        Relations from the table up to its root, nearest first, see DataWidgetFactory.ancestor_relations
+    selections : List[Dict]
+        Snapshot of the shared selection of the parent of each relation of `chain`
+    data_store : Store
+        Factory Store, whose loaded rows of the tables in between give the IDs of the next level
+    primary_keys : Dict[str, str]
+        Primary key of each Store key, a selection set by ID has no row yet
+    start : int
+        Index in `chain` of the nearest ancestor to follow, 1 skips the selected stay of a note table
+    picked : bool
+        Whether the user chose `start` above the table, which is then followed even when its row was selected by
+        a click on a row of the table
+
+    Returns
+    -------
+    Tuple[Optional[int], Optional[Dict]]
+        Index in `chain` of the followed ancestor and the `in` predicate on the table column, or None and None
+        when no ancestor is selected. Table widgets and text widgets in "all" mode pass the filter to use_rows.
+    """
+    depth, values = None, None
+    for idx in range(start, len(chain)):
+        # An ancestor row selected by a click in this table is skipped, so clicking a note keeps the notes of the
+        # patient, while the tables in between, e.g. the stays, follow the patient of the clicked note
+        if selections[idx]["selected_from"] == chain[0]["child"] and not (picked and idx == start):
+            continue
+        value = selected_value(chain[idx], selections[idx], primary_keys)
+        if value is not None:
+            depth, values = idx, [value]
+            break
+    # Below the followed ancestor, the loaded rows of each table in between give the values of the next relation,
+    # e.g. the stay IDs of the selected patient
+    level = depth
+    while level is not None and level > 0 and values is not None:
+        rows = loaded_rows(data_store[chain[level]["child"]])
+        column, next_column = chain[level]["child_column"], chain[level - 1]["parent_column"]
+        values = list(set(row[next_column] for row in rows if row[column] in values)) if rows else None
+        level -= 1
+    if values is None:
+        return None, None
+    return depth, {"kind": "predicate", "column": chain[0]["child_column"], "operator": "in", "value": values}
+
+
 def make_dataframe_queries(tables, relations):
     """
     Load the scope of each factory DataFrame in the browser, the rows shown by all its widgets.

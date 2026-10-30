@@ -16,12 +16,13 @@ from pret.hooks import (
 from pret.marshal import marshal_as
 from pret.react import div
 from pret.render import Renderable
-from pret_joy import Button, Checkbox, Stack
+from pret_joy import Button, Stack, ToggleButtonGroup
 from typing_extensions import TypedDict
 
 from metanno import Table
 from metanno.ui import js
 
+from .data_relations import ancestor_filter, selected_value
 from .fields import FieldSpec
 from .widget_data import (
     ErrorBanner,
@@ -160,13 +161,17 @@ class TableWidgets:
         include_unconfigured_columns : bool
             Show columns missing from fields without allowing edits to them.
         follow_parent_selection : bool
-            For the child of a `working_set` DataRelation, start with only the rows of the selected
-            parent row shown. A checkbox above the table turns this filter on or off, it only changes
-            what the table shows, not the rows loaded for other widgets. The child of a `selection`
-            DataRelation always shows only these rows.
+            For the child of a `working_set` DataRelation, start with only the rows under the selected
+            parent row shown, instead of every row. Choices above a related table pick the ancestor to
+            follow among those with a selected row, e.g. All, Patient and Stay for notes under stays under
+            patients, or All and Patient while no stay is selected. Without a selected row of the chosen
+            ancestor, the table follows the nearest selected one above it. An ancestor row selected by
+            clicking a row of this table is only followed once chosen, so the rows shown stay. These choices
+            only change what the table shows, not the rows loaded for other widgets. The child of a
+            `selection` DataRelation always follows an ancestor.
         parent_row_name : str | None
-            Name of one parent row in the checkbox label, e.g. `"note"` gives "Selected note only".
-            Defaults to "Selected row of notes" for a parent table named notes.
+            Name of one row of the parent table, e.g. `"stay"`, in the choices of this table and of the
+            tables below it. Defaults to the Store key of the parent table.
 
         Returns
         -------
@@ -202,26 +207,23 @@ class TableWidgets:
             raise ValueError("A table of Store rows requires a primary_key")
 
         # Factory state captured by the browser component below
-        data_store, handles, relations = self.data, self.handles, self.relations
+        data_store, handles = self.data, self.handles
         deep_get_store, primary_keys = self.deep_get_store, self.primary_keys
         selected_rows_by_store = self.selected_rows
         selected_rows_store = selected_rows_by_store[store_key]
         query_from = self.query_from
-        select_rows, select_store_row_id = self.make_select_rows()
-        # Child tables show the rows of the selected parent row, working set children can show all their rows
-        parent_relation = next((r for r in self.relations if r["child"] == store_key), None)
-        if parent_relation is not None:
-            self.ensure_selected_rows(parent_relation["parent"])
-        parent_selection_store = self.selected_rows[parent_relation["parent"]] if parent_relation else None
-        is_working_set = parent_relation is not None and parent_relation["load"] == "working_set"
-        parent_selection_label = (
-            None
-            if not is_working_set
-            else f"Selected {parent_row_name} only"
-            if parent_row_name
-            else f"Selected row of {parent_relation['parent']}"
-        )
-        follow_parent_selection = follow_parent_selection or (parent_relation is not None and not is_working_set)
+        select_rows, _ = self.make_select_rows()
+        # A related table shows the rows under the selected row of one of its ancestors, chosen above the table
+        # among every ancestor, e.g. a stay or a patient for notes, and every row for the child of a working set
+        ancestor_relations = self.ancestor_relations(store_key)
+        ancestor_selection_stores = [self.selected_rows[relation["parent"]] for relation in ancestor_relations]
+        is_working_set = len(ancestor_relations) > 0 and ancestor_relations[0]["load"] == "working_set"
+        if len(ancestor_relations) and parent_row_name:
+            self.row_names[ancestor_relations[0]["parent"]] = parent_row_name
+        row_names = self.row_names
+        initial_level = 0 if len(ancestor_relations) and (follow_parent_selection or not is_working_set) else None
+        # Choices from the broadest to the nearest ancestor, e.g. All, Patient, Stay, as indices in ancestor_relations
+        levels = ([None] if is_working_set else []) + list(reversed(range(len(ancestor_relations))))
         empty_store = create_store([])
 
         @component
@@ -242,29 +244,28 @@ class TableWidgets:
             table_ref = use_ref()
             if on_mount is not None:
                 use_effect(on_mount, [])
-            follow_parent, set_follow_parent = use_state(follow_parent_selection)
-            parent_selection = use_store_snapshot(parent_selection_store) if parent_selection_store else None
-            # The parent column is read from the parent row, or from its ID when it is the primary key, as a
-            # selection set by ID, such as the first row selected by a recipe, has no row yet
-            parent_value = None
-            if parent_selection is not None and parent_selection["row"]:
-                parent_value = parent_selection["row"][parent_relation["parent_column"]]
-            elif (
-                parent_selection is not None
-                and len(parent_selection["identities"])
-                and primary_keys.get(parent_relation["parent"]) == parent_relation["parent_column"]
-            ):
-                parent_value = parent_selection["identities"][0]
-            parent_filter = (
-                {
-                    "kind": "predicate",
-                    "column": parent_relation["child_column"],
-                    "operator": "eq",
-                    "value": parent_value,
-                }
-                if follow_parent and parent_value is not None
-                else None
+            # Index in ancestor_relations of the nearest ancestor to follow, None for every row, and whether the user
+            # picked it above the table
+            choice, set_choice = use_state({"level": initial_level, "picked": False})
+            ancestor_selections = []
+            for selection_store in ancestor_selection_stores:
+                ancestor_selections.append(use_store_snapshot(selection_store))
+            followed, parent_filter = (
+                ancestor_filter(
+                    ancestor_relations, ancestor_selections, data_store, primary_keys, choice["level"], choice["picked"]
+                )
+                if choice["level"] is not None
+                else (None, None)
             )
+            # Choices of All and of the ancestors with a selected row, e.g. All and Patient while no stay is selected,
+            # with the row name of each, given by the tables created after this one too
+            names = [row_names.get(relation["parent"]) or relation["parent"] for relation in ancestor_relations]
+            options = [
+                option
+                for option in levels
+                if option is None
+                or selected_value(ancestor_relations[option], ancestor_selections[option], primary_keys) is not None
+            ]
             view = use_rows(data, primary_key, {**filters, **related_filters}, parent_filter, sort)
             description = view.description
             source = view.rowSource
@@ -276,6 +277,49 @@ class TableWidgets:
                     select_row_id(source.getCachedRow(0)[primary_key])
 
             use_effect(select_first_row, [source])
+
+            def sync_shared_selection():
+                """
+                Keep this table and the shared selection of its Store key in sync when either changes. The selected
+                rows are highlighted at their positions in the rows shown, e.g. after a filter change or when another
+                widget selected them, like the stay of a clicked note, and the lead one is scrolled to when it was not
+                highlighted. An active header cell stays, so typing in a filter keeps its focus. Edited values of the
+                selected rows refresh the shared selection, and select_rows then follows a changed parent key.
+                """
+                identities = selected_rows_snapshot["identities"]
+                if source is None or primary_key is None or not len(identities):
+                    return
+                controller = __new__(AbortController())  # noqa: F821
+
+                async def sync():
+                    rows = await source.getRowsByKeys(identities, controller.signal)
+                    indices = []
+                    for row in rows:
+                        idx = await source.findRowIndex(row[primary_key], controller.signal)
+                        if idx >= 0:
+                            indices.append(idx)
+                    if controller.signal.aborted:
+                        return
+                    highlighted = [source.getCachedRow(idx) for idx in position["ranges"]]
+                    if str([row[primary_key] if row else None for row in highlighted]) != str(identities):
+                        lead = indices[0] if len(indices) else None
+                        set_position(
+                            lambda current: {
+                                **current,
+                                "ranges": indices,
+                                "row_idx": None if current["row_idx"] is None else lead,
+                            }
+                        )
+                        if lead is not None and table_ref.current:
+                            table_ref.current.scroll_to_row_idx(lead)
+                    previous = selected_rows_snapshot["row"]
+                    if len(rows) and previous and str(rows[0]) != str(previous):
+                        select_rows(store_key, rows, handle, "snapshot")
+
+                sync()
+                return lambda: controller.abort()
+
+            use_effect(sync_shared_selection, [source, view.contentVersion, str(selected_rows_snapshot["identities"])])
 
             def set_filter(column, value):
                 updated = dict(related_filters)
@@ -371,19 +415,12 @@ class TableWidgets:
                 indices = extract_row_indices(ranges)
                 if row_idx is not None and row_idx >= 0 and row_idx not in indices:
                     indices = [row_idx, *indices]
-                # The active cell and the highlighted row positions stay in this table. A click on a header or a
-                # filter selects no row and keeps the highlighted rows, like a click outside the table. Rows found
-                # again after a filter change are highlighted at their new positions and move an active body cell
-                # along, an active header cell stays so typing in a filter keeps its focus
+                # The rows found again by the grid after a source change are highlighted by show_shared_selection
                 if cause == "snapshot":
-                    set_position(
-                        lambda current: {
-                            **current,
-                            "ranges": indices,
-                            "row_idx": None if current["row_idx"] is None else row_idx,
-                        }
-                    )
-                elif len(indices):
+                    return
+                # The active cell and the highlighted row positions stay in this table. A click on a header or a
+                # filter selects no row and keeps the highlighted rows, like a click outside the table
+                if len(indices):
                     set_position({"row_idx": row_idx, "col": col, "mode": mode, "ranges": indices})
                 else:
                     set_position(lambda current: {**current, "row_idx": row_idx, "col": col, "mode": mode})
@@ -436,35 +473,6 @@ class TableWidgets:
                     select_rows(store_key, selected_data, handle, cause)
                 if on_selection_change is not None:
                     on_selection_change(row_id, row_idx, col, mode, cause, ranges)
-
-            def sync_selected_values():
-                """
-                Update selected record values and follow changed parent keys without scrolling unchanged relations
-                """
-                previous = selected_rows_snapshot.get("row")
-                current_source = source or view.previousRowSource
-                indices = position["ranges"]
-                if previous is None or current_source is None or len(indices) == 0 or description is None:
-                    return
-                row = current_source.getCachedRow(indices[0])
-                identity = description.internal_id_col
-                if not row or row[identity] != previous[identity]:
-                    return
-                if not any(row[column.name] != previous[column.name] for column in description.columns):
-                    return
-                selected_rows_store["row"] = row
-                identities = list(selected_rows_store["identities"])
-                for idx, row_position in enumerate(indices):
-                    cached = current_source.getCachedRow(row_position)
-                    if cached:
-                        identities[idx] = cached[primary_key]
-                selected_rows_store["identities"] = identities
-                for relation in relations:
-                    column = relation["child_column"]
-                    if relation["child"] == store_key and row[column] != previous[column]:
-                        select_store_row_id(relation["parent"], row[column])
-
-            use_effect(sync_selected_values, [view.contentVersion])
 
             @use_event_callback
             def handle_mouse_hover_row(row_id, row_idx, modkeys, row=None):
@@ -531,15 +539,31 @@ class TableWidgets:
                     )
                     if source and description.get("row_limit") is not None
                     else None,
-                    Checkbox(
-                        label=parent_selection_label,
-                        checked=follow_parent,
-                        on_change=lambda event: set_follow_parent(event.target.checked),
+                    ToggleButtonGroup(
+                        *[
+                            Button(
+                                "All" if option is None else names[option][:1].upper() + names[option][1:],
+                                value="all" if option is None else str(option),
+                                title=f"Rows of every listed {names[0]}"
+                                if option is None
+                                else f"Rows of the selected {names[option]}",
+                                sx={"textTransform": "none"},
+                            )
+                            for option in options
+                        ],
+                        # The pressed choice is the followed ancestor, e.g. Patient when Stay was chosen and no stay
+                        # is selected
+                        value="all" if followed is None else str(followed),
+                        # A click on the pressed choice gives no value and keeps it
+                        on_change=lambda event, value: set_choice(
+                            {"level": None if value == "all" else int(value), "picked": True}
+                        )
+                        if value
+                        else None,
                         size="sm",
-                        # The label uses the font of the row count beside it
-                        sx={"fontSize": "inherit"},
+                        aria_label="Rows shown",
                     )
-                    if parent_selection_label
+                    if len(options) > 1
                     else None,
                     Button(
                         "Apply source filters" if query_changed else "Query source",
