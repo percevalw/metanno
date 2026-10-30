@@ -4,6 +4,7 @@
 
 ### JupyterLab viewer
 
+- ++ctrl+z++ undoes a change made with a button that loses the focus, such as **Delete** in the span toolbar, and changes made after a click in Safari or Firefox on macOS, which do not focus clicked buttons: the shortcut then goes to the widget clicked last instead of being lost.
 - After the Metanno kernel is restarted from another JupyterLab window or by the server, the sidebar lists its sources again in a few seconds instead of waiting two minutes for the requests sent to the stopped kernel.
 - A table field that no row has yet, for instance a score no one has filled, shows its key as column name instead of an empty header.
 - Views always come from the nearest `metanno-home` above the kernel folder: annotation Stores no longer save its path, so a `.pret` file also reopens on another machine or account, and `view_opener` no longer takes `config_path`.

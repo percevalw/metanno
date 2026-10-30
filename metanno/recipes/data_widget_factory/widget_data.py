@@ -149,16 +149,29 @@ def ErrorBanner(error):
 def StoreWidget(store, content, style=None, read_only=False):
     """
     Handle data history shortcuts inside factory widgets while editors keep native undo, a failed undo is
-    recorded as the Store history error shown by StatusBar
+    recorded as the Store history error shown by StatusBar.
+
+    A shortcut belongs to the widget containing the focused element, or to the widget clicked last when nothing
+    is focused: Safari and Firefox on macOS do not focus a clicked button, and a button that renders again, like
+    the Delete button of a span toolbar, loses the focus, so the key then goes to the page body.
     """
     history = use_store_history(store)
     container = use_ref(None)
+    # Whether the last pointer press of the page was inside this widget
+    clicked_last = use_ref(False)
+
+    @use_event_callback
+    def handle_pointer(event):
+        clicked_last.current = container.current is not None and container.current.contains(event.target)
 
     @use_event_callback
     async def handle_key(event):
         if read_only or not (event.ctrlKey or event.metaKey) or event.key.lower() != "z":
             return
-        if container.current is None or not container.current.contains(event.target):
+        if container.current is None:
+            return
+        unfocused = event.target == document.body or event.target == document.documentElement  # noqa: F821
+        if not (container.current.contains(event.target) or (unfocused and clicked_last.current)):
             return
         if event.target.closest("input, textarea, [contenteditable=true]"):
             return
@@ -175,7 +188,13 @@ def StoreWidget(store, content, style=None, read_only=False):
         # JupyterLab 3 runs its shortcuts, such as the notebook undo, while the key goes down the page,
         # listening on the window first lets the widget undo Store edits before them
         window.addEventListener("keydown", handle_key, True)  # noqa: F821
-        return lambda: window.removeEventListener("keydown", handle_key, True)  # noqa: F821
+        window.addEventListener("pointerdown", handle_pointer, True)  # noqa: F821
+
+        def stop():
+            window.removeEventListener("keydown", handle_key, True)  # noqa: F821
+            window.removeEventListener("pointerdown", handle_pointer, True)  # noqa: F821
+
+        return stop
 
     use_effect(listen, [])
 
