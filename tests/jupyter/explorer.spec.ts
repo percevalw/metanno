@@ -492,7 +492,10 @@ test("missing kernel recovery", async ({ page }) => {
     await context.save();
   });
   await showSidebar(page);
-  await sidebar.getByRole("button", { name: "Open configuration", exact: true }).click();
+  const openConfiguration = sidebar.locator('button[aria-label="Open configuration"]');
+  await openConfiguration.click();
+  // The button hides the sidebar behind the file browser once metanno-home is listed, so we wait for it to finish
+  await expect(openConfiguration).toBeEnabled();
   assert.equal(fs.readFileSync(configurationPath, "utf8"), "[invalid");
   await page.evaluate(async () => {
     const context = window.jupyterapp.shell.currentWidget.context;
