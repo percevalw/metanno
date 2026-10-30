@@ -728,9 +728,9 @@ export class AnnotatedText extends React.Component<TextData & TextMethods> {
     const container = this.containerRef.current;
     if (!container) return;
     this.hoveredElements.forEach((element) => element.classList.remove("hovered"));
-    this.hoveredElements = (this.props.highlighted || []).flatMap((id) => [
-      ...container.querySelectorAll(`[span_key=${JSON.stringify(String(id))}]`),
-    ]);
+    this.hoveredElements = (this.props.highlighted || []).flatMap((id) =>
+      Array.from(container.querySelectorAll(`[span_key=${JSON.stringify(String(id))}]`))
+    );
     this.hoveredElements.forEach((element) => element.classList.add("hovered"));
   }
 
