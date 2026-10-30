@@ -62,7 +62,14 @@ The widgets behave the same way in every view:
   Metanno tab shows the last refusal under the view, add `create_status_bar` to views shown in a notebook or a web
   app
 - the text widget shows the document of the selected row, or with `docs_mode="selected"` every selected document,
-  and with `docs_mode="all"` all the documents of the table
+  and with `docs_mode="all"` all the documents of the table, or those under the selected parent row of a related
+  table
+- a table related to other tables by `DataRelation` shows the rows under the selected row of one of them, chosen
+  above it among those with a selected row, e.g. <span class="ui-button">All</span>,
+  <span class="ui-button">Patient</span> and <span class="ui-button">Stay</span> for notes. While no stay is
+  selected, the notes of the selected patient show. Clicking a note selects and scrolls to its stay and its patient
+  in their tables, which then show the stays of that patient, while the notes stay shown until
+  <span class="ui-button">Stay</span> is clicked
 
 ## Reference
 

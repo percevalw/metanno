@@ -20,7 +20,7 @@ from pret.render import Renderable
 from pret_joy import Stack
 from typing_extensions import Literal, TypedDict
 
-from .data_relations import DataRelation, make_dataframe_queries
+from .data_relations import DataRelation, loaded_rows, make_dataframe_queries
 from .fields import FieldSpec, render_select_field, render_text_field
 from .fields import infer_fields as infer_fields
 from .form_widget import FormWidgetHandle, FormWidgets
@@ -73,6 +73,8 @@ class DataWidgetFactory(TableWidgets, FormWidgets, TextWidgets, PdfWidgets):
         self.handles = {}
         self.primary_keys = {}
         self.selected_rows = {}
+        # Names of one row of a Store key, e.g. "patient" for person, given by the parent_row_name of its child tables
+        self.row_names = {}
         # Browser code reads relations as plain dicts
         self.relations = [relation.as_dict() for relation in relations]
 
@@ -110,17 +112,34 @@ class DataWidgetFactory(TableWidgets, FormWidgets, TextWidgets, PdfWidgets):
         self.register_dataframe(store_key)
         return self.mount_dataframes
 
+    def ancestor_relations(self, store_key):
+        """
+        Return the relations from a Store key up to its root, nearest first, e.g. note to stay then stay to
+        patient, and create the shared selection of each ancestor. Tables and text widgets pass them to
+        ancestor_filter to show the rows under the selected row of an ancestor.
+        """
+        chain = []
+        relation = next((r for r in self.relations if r["child"] == store_key), None)
+        while relation is not None:
+            self.ensure_selected_rows(relation["parent"])
+            chain.append(relation)
+            relation = next((r for r in self.relations if r["child"] == relation["parent"]), None)
+        return chain
+
     def ensure_selected_rows(self, store_key):
         """
         Create the shared selection of a Store key, read and written by every widget showing it.
 
         `identities` holds the primary keys of the selected rows and `row` the values of the lead one.
+        `selected_from` is the Store key of the table whose click selected these rows as the parents of its
+        own row, e.g. note for the stay and the patient of a clicked note, or None. That table keeps
+        showing the rows it showed before the click, while the tables in between follow the new rows.
         Tables keep the positions of these rows themselves, to highlight them.
         """
         if store_key is None:
             return
         if store_key not in self.selected_rows:
-            self.selected_rows[store_key] = create_store({"identities": [], "row": None})
+            self.selected_rows[store_key] = create_store({"identities": [], "row": None, "selected_from": None})
 
     @staticmethod
     def deep_get_store(data_store, path_parts: List[str], parent_ids: Dict[str, Any], primary_keys: Dict[str, str]):
@@ -151,12 +170,63 @@ class DataWidgetFactory(TableWidgets, FormWidgets, TextWidgets, PdfWidgets):
         """
         Build the browser functions that change a shared selection and update the widgets related to it.
 
-        `select_rows` is called by tables with the selected rows, and by forms and
-        annotation widgets when no table shows their rows. `select_row_id` goes through a table of the
-        Store key when there is one, so it scrolls to the row and highlights it.
+        `select_rows` is the only writer of the shared selections of related tables: called by tables with
+        the selected rows, and by forms and annotation widgets when no table shows their rows, it also
+        selects the parent row of the lead row in each table above it and clears the selections under the
+        rows that changed. Tables then highlight and scroll to the selected rows of their Store key once
+        they show them, see show_shared_selection in create_table_widget. `select_row_id` goes through a
+        table of the Store key when there is one, for Store keys without a declared DataRelation.
         """
-        handles, relations = self.handles, self.relations
+        handles, relations, data_store = self.handles, self.relations, self.data
         primary_keys, selected_rows_by_store = self.primary_keys, self.selected_rows
+        parents = {relation["child"]: relation for relation in relations}
+
+        def clear_children(store_key, keep=None):
+            """
+            Clear the selections under a Store key whose selected row changed, except the one of `keep`, e.g. the
+            unit stays of the previous stay when a note of another stay is clicked
+            """
+            for key in selected_rows_by_store.keys():
+                is_child = key.startswith(f"{store_key}.") or any(
+                    relation["parent"] == store_key and relation["child"] == key for relation in relations
+                )
+                if is_child and key != keep and len(selected_rows_by_store[key]["identities"]):
+                    selected_rows_by_store[key]["identities"] = []
+                    selected_rows_by_store[key]["row"] = None
+                    selected_rows_by_store[key]["selected_from"] = None
+
+        def select_ancestors(store_key, lead):
+            """
+            Select the parent row of `lead` in each table above `store_key`, e.g. the stay then the patient of a
+            clicked note, found in the rows loaded for these tables, so a table that does not show the row yet, e.g.
+            the stays of another patient, highlights it once its filter follows the new patient
+            """
+            row, key, relation = lead, store_key, parents.get(store_key)
+            while relation is not None and row is not None:
+                parent, value = relation["parent"], row[relation["child_column"]]
+                parent_row = None
+                for candidate in loaded_rows(data_store[parent]) or []:
+                    if candidate[relation["parent_column"]] == value:
+                        parent_row = candidate
+                        break
+                parent_key = primary_keys.get(parent)
+                # Without a loaded parent row, the value is its ID when the relation joins on its primary key
+                identity = (
+                    parent_row[parent_key]
+                    if parent_row and parent_key
+                    else value
+                    if parent_key == relation["parent_column"]
+                    else None
+                )
+                selection = selected_rows_by_store.get(parent)
+                if identity is None or selection is None:
+                    return
+                if str(selection["identities"]) != str([identity]):
+                    selection["identities"] = [identity]
+                    selection["row"] = parent_row
+                    selection["selected_from"] = store_key
+                    clear_children(parent, key)
+                row, key, relation = parent_row, parent, parents.get(parent)
 
         def filter_related_tables(filter_key, filter_value, source_store_key, source_handle):
             """
@@ -194,13 +264,15 @@ class DataWidgetFactory(TableWidgets, FormWidgets, TextWidgets, PdfWidgets):
             changed = str(selection["identities"]) != str(identities)
             selection["identities"] = identities
             selection["row"] = rows[0] if len(rows) else None
+            # The rows selected in a widget of this Store key are its own, a refresh of the same rows after an edit
+            # keeps their origin
+            if cause != "snapshot":
+                selection["selected_from"] = None
             lead = rows[0] if len(rows) else None
             in_relation = any(store_key in (relation["parent"], relation["child"]) for relation in relations)
             if lead is not None:
                 # Select parent rows from declared relations, or guess parents from their primary key names
-                for relation in relations:
-                    if relation["child"] == store_key:
-                        select_row_id(relation["parent"], lead[relation["child_column"]])
+                select_ancestors(store_key, lead)
                 if not in_relation:
                     for other_key in primary_keys.keys():
                         other_pk = primary_keys[other_key]
@@ -208,13 +280,7 @@ class DataWidgetFactory(TableWidgets, FormWidgets, TextWidgets, PdfWidgets):
                             select_row_id(other_key, lead[other_pk])
             if changed and cause != "relation":
                 # Children of the previous selection no longer apply
-                for key in selected_rows_by_store.keys():
-                    is_child = key.startswith(f"{store_key}.") or any(
-                        relation["parent"] == store_key and relation["child"] == key for relation in relations
-                    )
-                    if is_child and len(selected_rows_by_store[key]["identities"]):
-                        selected_rows_by_store[key]["identities"] = []
-                        selected_rows_by_store[key]["row"] = None
+                clear_children(store_key)
             if lead is not None and primary_key is not None and cause not in {"relation", "snapshot"}:
                 for other in handles.get(store_key, []):
                     if other[0] == source_handle or other[0].current is None:

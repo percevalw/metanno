@@ -75,12 +75,14 @@ application`,
       assert.deepEqual(await ids(), [...ascending].reverse());
       // The tags of a working set can follow the selected todo, without changing what is loaded
       const tags = page.locator(".metanno-table").nth(1);
-      const follow = page.getByRole("checkbox", { name: "Selected row of todos", exact: true });
-      await follow.check();
+      await page.getByRole("button", { name: "Todos", exact: true }).click();
       await todos.locator('[role=gridcell][aria-colindex="1"]').filter({ hasText: /^2$/ }).click();
       await expect(tags.getByRole("gridcell", { name: "First", exact: true })).toHaveCount(0);
       await tags.getByRole("gridcell", { name: "Second", exact: true }).waitFor();
-      await follow.uncheck();
+      // Clicking a tag selects its todo but keeps the tags shown
+      await tags.getByRole("gridcell", { name: "Second", exact: true }).click();
+      await tags.getByRole("gridcell", { name: "Second", exact: true }).waitFor();
+      await page.getByRole("button", { name: "All", exact: true }).click();
       await tags.getByRole("gridcell", { name: "First", exact: true }).waitFor();
       // Clicking a header filter keeps the selected todo and its highlight, like a click outside the table
       const highlighted = () => todos.locator("[role=row][aria-selected=true]").count();
