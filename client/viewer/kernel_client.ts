@@ -76,6 +76,13 @@ export interface CommReply<T = unknown> {
   data: T;
 }
 
+// Rejection of the requests still waiting when their kernel restarted, ExplorerKernelConnection.request sends them again
+export class KernelRestartedError extends Error {
+  constructor() {
+    super("The Metanno kernel restarted");
+  }
+}
+
 export class KernelClient {
   private comm: Kernel.IComm | null = null;
   private pending = new Map<string, PendingRequest>();
@@ -165,9 +172,9 @@ export class KernelClient {
     return requestId;
   }
 
-  dispose(): void {
+  dispose(reason: Error = new Error("Data comm disposed")): void {
     this.generation += 1;
-    this.rejectPending("Data comm disposed");
+    this.rejectPending(reason);
     // Kernel restarts can dispose the comm before its view is released
     if (this.comm && !this.comm.isDisposed && !this.kernel.isDisposed) this.comm.close();
     else this.comm?.dispose();
@@ -184,7 +191,7 @@ export class KernelClient {
           commId: comm.commId,
         });
         this.comm = null;
-        this.rejectPending("Data kernel comm closed");
+        this.rejectPending(new Error("Data kernel comm closed"));
       }
     };
   }
@@ -222,10 +229,10 @@ export class KernelClient {
     pending.resolve({ data: envelope.data });
   }
 
-  private rejectPending(message: string): void {
+  private rejectPending(reason: Error): void {
     for (const request of this.pending.values()) {
       window.clearTimeout(request.timeout);
-      request.reject(new Error(message));
+      request.reject(reason);
     }
     this.pending.clear();
   }
@@ -248,6 +255,8 @@ export class ExplorerKernelConnection {
   readonly context: SessionContext;
   private ready: Promise<void> | null = null;
   private client: Promise<KernelClient> | null = null;
+  // Client once it reached the kernel, a "starting" status after that comes from a new kernel process
+  private connected: KernelClient | null = null;
   private starting: Promise<unknown> | null = null;
   // Listings made by the sidebar, which open recipe forms add to their tables, see RecipeForm, and views saved by a
   // tab, which the sidebar lists again
@@ -278,15 +287,34 @@ export class ExplorerKernelConnection {
   constructor(private services: ServiceManager.IManager) {
     this.context = createSession(services, ".metanno-viewer/data-panel", "Metanno Data Explorer");
     this.context.kernelChanged.connect(() => this.disposeClient());
-    // A kernel restarted by the server, e.g. after its process was killed, lost its comms
+    // A restarted kernel lost its comms: a restart from JupyterLab reports "restarting", one by the server, e.g. from
+    // another tab, or after its process died only reports "starting"
     this.context.statusChanged.connect((_, status) => {
-      if (status === "restarting" || status === "autorestarting") this.disposeClient();
+      if (status === "restarting" || status === "autorestarting" || (status === "starting" && this.connected))
+        this.disposeClient();
     });
   }
 
+  // Send a request to the explorer kernel, starting it unless start is false, and send it again on the new kernel when
+  // a restart lost it, e.g. the sidebar listings sent while the server restarts the kernel
+  async request<T = Record<string, unknown>>(
+    method: string,
+    data: Record<string, unknown>,
+    timeoutMs?: number,
+    start = true
+  ): Promise<CommReply<T>> {
+    try {
+      return await (await this.connect(start)).request<T>(method, data, timeoutMs);
+    } catch (error) {
+      if (!(error instanceof KernelRestartedError)) throw error;
+      return (await this.connect(start)).request<T>(method, data, timeoutMs);
+    }
+  }
+
   private disposeClient(): void {
+    this.connected = null;
     void this.client?.then(
-      (client) => client.dispose(),
+      (client) => client.dispose(new KernelRestartedError()),
       () => {}
     );
     this.client = null;
@@ -336,9 +364,14 @@ export class ExplorerKernelConnection {
         return client;
       })();
       const pending = this.client;
-      pending.catch(() => {
-        if (this.client === pending) this.client = null;
-      });
+      pending.then(
+        (client) => {
+          if (this.client === pending) this.connected = client;
+        },
+        () => {
+          if (this.client === pending) this.client = null;
+        }
+      );
     }
     return this.client;
   }

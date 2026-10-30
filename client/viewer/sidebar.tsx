@@ -238,10 +238,7 @@ function Catalogue({
       explorer.onViewsChanged(
         () =>
           void explorer
-            .connect()
-            .then((manager) =>
-              manager.request<{ views: SavedViewSummary[] }>("list_views", { root: PageConfig.getOption("serverRoot") })
-            )
+            .request<{ views: SavedViewSummary[] }>("list_views", { root: PageConfig.getOption("serverRoot") })
             .then((reply) => setViews(reply.data.views))
             .catch((reason) => setError(String(reason?.message ?? reason)))
       ),
@@ -252,34 +249,31 @@ function Catalogue({
     let disposed = false;
     const update = () => updateEntries((value) => value + 1);
     outputs.changed.connect(update);
-    void explorer
-      .connect()
-      .then(async (manager) => {
-        const [catalogue, listing] = await Promise.all([
-          manager.request<{ sources: SourceSummary[] }>("list_sources", {}),
-          manager.request<{
-            views: SavedViewSummary[];
-            stores: StoreSummary[];
-            home: string;
-            recipes: RecipeSummary[];
-            recipes_error: string | null;
-          }>("list_views", {
-            root: PageConfig.getOption("serverRoot"),
-          }),
-        ]);
-        if (disposed) return;
-        setSources(catalogue.data.sources);
-        setListed({});
-        setOpenDatabases([]);
-        setViews(listing.data.views);
-        setRecipes(listing.data.recipes);
-        setRecipesError(listing.data.recipes_error);
-        setStores(listing.data.stores);
-        setHome(listing.data.home);
-      })
-      .catch((error) => {
-        if (!disposed) setError(String(error));
-      });
+    void (async () => {
+      const [catalogue, listing] = await Promise.all([
+        explorer.request<{ sources: SourceSummary[] }>("list_sources", {}),
+        explorer.request<{
+          views: SavedViewSummary[];
+          stores: StoreSummary[];
+          home: string;
+          recipes: RecipeSummary[];
+          recipes_error: string | null;
+        }>("list_views", {
+          root: PageConfig.getOption("serverRoot"),
+        }),
+      ]);
+      if (disposed) return;
+      setSources(catalogue.data.sources);
+      setListed({});
+      setOpenDatabases([]);
+      setViews(listing.data.views);
+      setRecipes(listing.data.recipes);
+      setRecipesError(listing.data.recipes_error);
+      setStores(listing.data.stores);
+      setHome(listing.data.home);
+    })().catch((error) => {
+      if (!disposed) setError(String(error));
+    });
     return () => {
       disposed = true;
       outputs.changed.disconnect(update);
@@ -300,8 +294,7 @@ function Catalogue({
   function listDatabases(name: string) {
     setListed((current) => ({ ...current, [name]: {} }));
     void explorer
-      .connect()
-      .then((manager) => manager.request<{ sources: SourceSummary[] }>("list_databases", { source: name }))
+      .request<{ sources: SourceSummary[] }>("list_databases", { source: name })
       .then((reply) => {
         setListed((current) => ({ ...current, [name]: reply.data.sources }));
         explorer.reportListing(name, null);
@@ -319,8 +312,7 @@ function Catalogue({
         isToggled: () => name === item.connection,
         execute: () =>
           void explorer
-            .connect()
-            .then((manager) => manager.request("set_source_connection", { source: item.name, connection: name }))
+            .request("set_source_connection", { source: item.name, connection: name })
             .then(() =>
               setSources((current) =>
                 current.map((other) => (other.name === item.name ? { ...other, connection: name } : other))
@@ -340,8 +332,7 @@ function Catalogue({
     setOpenFolders([]);
     if (!source) return;
     void explorer
-      .connect()
-      .then((manager) => manager.request<{ tables: TableSummary[] }>("list_tables", { source }))
+      .request<{ tables: TableSummary[] }>("list_tables", { source })
       .then((reply) => {
         explorer.reportListing(source, reply.data.tables);
         if (!disposed) setTables(reply.data.tables);
@@ -367,8 +358,7 @@ function Catalogue({
     const key = folderKey(sourceName, folder);
     setFolders((current) => ({ ...current, [key]: {} }));
     void explorer
-      .connect()
-      .then((manager) => manager.request<{ tables: TableSummary[] }>("list_tables", { source: sourceName, folder }))
+      .request<{ tables: TableSummary[] }>("list_tables", { source: sourceName, folder })
       .then((reply) => {
         setFolders((current) => ({ ...current, [key]: reply.data.tables }));
         explorer.reportListing(sourceName, reply.data.tables);
@@ -615,8 +605,7 @@ function Catalogue({
             onClick={async () => {
               setConfigurationBusy(true);
               try {
-                const manager = await explorer.connect();
-                await manager.request("reload_configuration", {});
+                await explorer.request("reload_configuration", {});
                 setError(null);
                 setSource(null);
                 setConfigurationRevision((value) => value + 1);

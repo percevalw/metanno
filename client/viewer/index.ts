@@ -70,7 +70,7 @@ const plugin: JupyterFrontEndPlugin<void> = {
         if (!panel) throw new Error("Select a kernel to open this annotation");
         return panel;
       }
-      const panel = await app.commands.execute(OPEN_COMMAND, { resource, newTab: true }) as SourceViewWidget;
+      const panel = (await app.commands.execute(OPEN_COMMAND, { resource, newTab: true })) as SourceViewWidget;
       await panel.renderPromise;
       return panel;
     });
@@ -115,8 +115,7 @@ const plugin: JupyterFrontEndPlugin<void> = {
         // A dataset path opens the tab of its table in the source containing it, the tab keeps the path so a reload
         // finds the table again
         if (data.kind === "path") {
-          const manager = await explorer.connect();
-          const reply = await manager.request<{ source: string; table: string; connection: string }>(
+          const reply = await explorer.request<{ source: string; table: string; connection: string }>(
             "resolve_path",
             { uri: data.uri, ...(data.connection ? { connection: data.connection } : {}) },
             60000
