@@ -22,6 +22,10 @@
 - The **Connection** selector of a tab also switches views with several tables: it offers the connections all their tables can use, e.g. Spark when DuckDB is too slow, and moves every table to the chosen one, since related tables are queried together. **Save view** then keeps that connection.
 - Annotation files show as an `annotations` source, read only: each file is a folder of its tables, e.g. `doc_classif/doctor1/docs`, to compare annotators or show annotations next to database tables. Their rows are copied into `default_connection` when a view opens, so views can relate them with the tables of DuckDB sources, or into an in-memory DuckDB without one.
 
+### Widgets
+
+- ++ctrl+y++ also redoes the last change undone in a view, like ++ctrl+shift+z++.
+
 ## v2.0.0-beta.5 (2026-10-28)
 
 ### JupyterLab viewer

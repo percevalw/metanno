@@ -166,7 +166,8 @@ def StoreWidget(store, content, style=None, read_only=False):
 
     @use_event_callback
     async def handle_key(event):
-        if read_only or not (event.ctrlKey or event.metaKey) or event.key.lower() != "z":
+        key = event.key.lower()
+        if read_only or not (event.ctrlKey or event.metaKey) or (key != "z" and key != "y"):
             return
         if container.current is None:
             return
@@ -177,10 +178,11 @@ def StoreWidget(store, content, style=None, read_only=False):
             return
         event.preventDefault()
         event.stopPropagation()
-        if history.pending or not (history.canRedo if event.shiftKey else history.canUndo):
+        redo = key == "y" or event.shiftKey
+        if history.pending or not (history.canRedo if redo else history.canUndo):
             return
         try:
-            await (history.redo() if event.shiftKey else history.undo())
+            await (history.redo() if redo else history.undo())
         except BaseException:
             pass
 
