@@ -2,7 +2,7 @@
 Table rendering used by DataWidgetFactory
 """
 
-from typing import Any, Callable, Dict, List, Optional, Sequence, Union
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 from pret import component, create_store, use_store_snapshot
 from pret.hooks import (
@@ -81,6 +81,7 @@ class TableWidgets:
         include_unconfigured_columns: bool = False,
         follow_parent_selection: bool = False,
         parent_row_name: Optional[str] = None,
+        default_sort: Optional[Sequence[Union[str, Tuple[str, str]]]] = None,
     ) -> Renderable:
         """
         Create a [`Table`][metanno.ui.Table] widget bound to a store entry.
@@ -172,6 +173,11 @@ class TableWidgets:
         parent_row_name : str | None
             Name of one row of the parent table, e.g. `"stay"`, in the choices of this table and of the
             tables below it. Defaults to the Store key of the parent table.
+        default_sort : Sequence[str | Tuple[str, str]] | None
+            Columns ordering the rows whenever the user has not sorted the table by a column header, when
+            it opens and after Clear sort, e.g. `["note_id", "begin"]` for the entities of each note in text
+            order, or `[("score", "desc")]` for the highest scores of every row shown first. A header sort
+            replaces this order while it is active.
 
         Returns
         -------
@@ -225,6 +231,12 @@ class TableWidgets:
         # Choices from the broadest to the nearest ancestor, e.g. All, Patient, Stay, as indices in ancestor_relations
         levels = ([None] if is_working_set else []) + list(reversed(range(len(ancestor_relations))))
         empty_store = create_store([])
+        default_order = [
+            {"column": order, "direction": "asc"}
+            if isinstance(order, str)
+            else {"column": order[0], "direction": order[1]}
+            for order in default_sort or []
+        ]
 
         @component
         def TableWidget():
@@ -240,7 +252,8 @@ class TableWidgets:
             related_filters, set_related_filters = use_state({})
             highlighted, set_highlighted = use_state([])
             suggestions, set_suggestions = use_state([])
-            sort, set_sort = use_state([])
+            header_sort, set_header_sort = use_state([])
+            sort = header_sort if len(header_sort) else default_order
             table_ref = use_ref()
             if on_mount is not None:
                 use_effect(on_mount, [])
@@ -603,7 +616,7 @@ class TableWidgets:
                         filters=filters,
                         # Capped source previews sort the rows they loaded
                         sort=sort,
-                        on_sort_change=set_sort,
+                        on_sort_change=set_header_sort,
                         highlighted_rows=highlighted,
                         suggestions=suggestions,
                         # Highlight nothing once another widget cleared the shared selection, e.g. a new parent row
