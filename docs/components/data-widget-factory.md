@@ -56,8 +56,8 @@ The widgets behave the same way in every view:
 - a checkbox or a choice is saved as soon as it is clicked, a text field when you press ++enter++ or click
   elsewhere, while ++escape++, or selecting another row, cancels it
 - when several rows are selected, changing a field changes it for all of them, as one edit
-- ++ctrl+z++ undoes the last change made in the view and ++ctrl+shift+z++ redoes it, with ++cmd++ on a Mac, while
-  inside a text field these keys undo the typing
+- ++ctrl+z++ undoes the last change made in the view and ++ctrl+y++ or ++ctrl+shift+z++ redoes it, with ++cmd++ on a
+  Mac, while inside a text field these keys undo the typing
 - when Python refuses an edit, for instance because someone else changed the same cell, the field shows why. A
   Metanno tab shows the last refusal under the view, add `create_status_bar` to views shown in a notebook or a web
   app
