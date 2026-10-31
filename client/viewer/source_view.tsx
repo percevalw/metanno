@@ -11,6 +11,7 @@ import {
   ViewReply,
 } from "./kernel_client";
 import { fullscreenKey, FullscreenViews } from "./fullscreen";
+import { metannoIcon } from "./icons";
 import { RecipeForm } from "./recipe_form";
 
 // Error message of the sidebar and table tabs with clickable links, e.g. a login link, and an optional Retry button
@@ -416,6 +417,7 @@ export class SourceViewWidget extends ReactWidget {
     this.title.label =
       initialResource.title || (initialResource.kind === "table" ? initialResource.table : initialResource.name);
     this.title.closable = true;
+    this.title.icon = metannoIcon;
     this.addClass("metanno-viewer-widget");
     this.fullscreenButton = fullscreen.register(this, () => fullscreenKey(initialResource));
   }

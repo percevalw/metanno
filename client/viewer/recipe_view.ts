@@ -8,6 +8,7 @@ import type { IPretHost, IPretService } from "pret";
 import { ViewerTabs } from "./tabs";
 import { createSession, KernelClient, ViewReply } from "./kernel_client";
 import { fullscreenKey } from "./fullscreen";
+import { metannoIcon } from "./icons";
 
 const TARGET = "metanno.viewer_display";
 export interface AnnotationMetadata {
@@ -76,6 +77,7 @@ export class RecipeViewWidget extends Widget {
     this.id = `metanno-view-${crypto.randomUUID()}`;
     this.title.label = output.title;
     this.title.closable = true;
+    this.title.icon = metannoIcon;
     this.addClass("metanno-viewer__application");
     const toolbar = this.toolbar;
     toolbar.className = "metanno-viewer__status";
