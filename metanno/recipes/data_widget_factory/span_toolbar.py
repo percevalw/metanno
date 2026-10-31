@@ -121,5 +121,5 @@ def SpanToolbar(
         direction="row",
         spacing=1,
         use_flex_gap=True,
-        sx={"alignItems": "flex-end", "flexWrap": "wrap"},
+        sx={"alignItems": "flex-end", "flexWrap": "wrap", "p": 1},
     )

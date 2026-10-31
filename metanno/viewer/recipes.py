@@ -53,7 +53,7 @@ def table_view(store):
             store_key=key,
             primary_key=INTERNAL_ROW_ID,
             fields=[],
-            style={"height": "100%", "overflow": "auto", "padding": "8px", "boxSizing": "border-box"},
+            style={"height": "100%", "overflow": "auto"},
         )
         for key in keys
     ]

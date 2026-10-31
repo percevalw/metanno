@@ -72,7 +72,7 @@ class FormWidgets:
 
             An empty list shows every column of a DataFrame, editable when the DataFrame is
         style : Dict[str, Any] | None
-            Inline style overrides for the wrapping container
+            Inline style overrides for the wrapping container, which has an 8px padding by default
         min_input_width : str | None
             Minimum width applied to each input control
         add_navigation_buttons : bool
@@ -94,6 +94,7 @@ class FormWidgets:
         path_parts = store_key.split(".")
         empty_store = create_store([])
         fields = list(fields)
+        style = {"padding": "8px", "boxSizing": "border-box", **(style or {})}
 
         self.ensure_selected_rows(store_key)
 
