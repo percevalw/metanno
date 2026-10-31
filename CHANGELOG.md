@@ -26,6 +26,7 @@
 
 - ++ctrl+y++ also redoes the last change undone in a view, like ++ctrl+shift+z++.
 - `create_table_widget(default_sort=["note_id", "begin"])` orders the rows by these columns whenever the user has not sorted the table by a column header, e.g. the entities of each note in text order, or `[("score", "desc")]` for the highest scores of every row shown first. A header sort replaces it while active, and Clear sort brings it back.
+- Tables now show more of their column headers.
 
 ## v2.0.0-beta.5 (2026-10-28)
 
