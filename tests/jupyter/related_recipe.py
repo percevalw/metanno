@@ -38,11 +38,11 @@ def main(store: Store, tag_key: str = "tag_id"):
         store_key="tags",
         primary_key=tag_key,
         fields=[
+            {"key": "word", "kind": "text", "editable": True},
             {"key": tag_key, "kind": "text", "editable": False},
             {"key": "todo_id", "kind": "text", "editable": False},
             {"key": "start", "kind": "text", "editable": True},
             {"key": "end", "kind": "text", "editable": True},
-            {"key": "word", "kind": "text", "editable": True},
         ],
         include_unconfigured_columns=True,
         source_requery=True,
