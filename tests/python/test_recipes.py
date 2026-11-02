@@ -180,6 +180,8 @@ def test_source_relations_follow_derived_parent_views_before_paging(tmp_path):
             ),
             load_recipes(tmp_path),
         )
+        # Recipes read the column names without awaiting, the added done column comes last
+        assert store["todos"].columns == ["todo_id", "list_id", "done"]
         parent_filter = {
             "kind": "relation",
             "column": "list_id",
@@ -583,6 +585,7 @@ def test_source_provider_queries_and_materializes_on_the_worker(config_path):
         )
         description = asyncio.run(frame.call_provider("describe"))
         assert description["internal_id_col"] == "__pret_row_id"
+        assert frame.columns == ["id", "name"]
         result = asyncio.run(
             frame.call_provider(
                 "query",

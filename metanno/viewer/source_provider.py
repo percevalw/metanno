@@ -68,6 +68,7 @@ class SourceDataFrameProvider(DataFrameProvider):
         self.dataframes_by_id = {}
         self.last_query = None
         self.last_schema = None
+        self.column_names = None
 
     def get_related_source_table(self, dataframe_id: str) -> IbisTable:
         """
@@ -100,7 +101,9 @@ class SourceDataFrameProvider(DataFrameProvider):
             raise ValueError("Related source queries require a shared Ibis connection, materialize the tables first")
         return parent
 
-    def execute_provider_call(self, method: Literal["describe", "query", "materialize"], options, operation_id):
+    def execute_provider_call(
+        self, method: Literal["columns", "describe", "query", "materialize"], options, operation_id
+    ):
         """
         Get the Ibis table from SourceCatalog and run its provider method with database cancellation
         """
@@ -109,6 +112,8 @@ class SourceDataFrameProvider(DataFrameProvider):
         from pret.dataframe_external import IbisDataFrameProvider
 
         source_table = self.sources.table(self.source, self.table, self.connection)
+        if method == "columns":
+            return list(source_table.columns)
         provider = IbisDataFrameProvider(
             source_table,
             row_limit=self.max_rows,
@@ -149,6 +154,19 @@ class SourceDataFrameProvider(DataFrameProvider):
             table=self.table,
             connection=self.connection or self.sources.source(self.source).connection,
         )
+
+    @property
+    def columns(self) -> list[str]:
+        """
+        Read the source column names on the backend query thread and wait for them, so a recipe can pick its join
+        keys before building its widgets, the names are kept for the next calls
+        """
+        if self.column_names is None:
+            if self.query_worker.on_thread(self.connection or self.sources.source(self.source).connection):
+                self.column_names = self.execute_provider_call("columns", None, uuid.uuid4().hex)
+            else:
+                self.column_names = self.submit("columns").result()
+        return self.column_names
 
     async def describe(self) -> DataFrameDescription:
         """
