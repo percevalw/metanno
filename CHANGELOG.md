@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### JupyterLab viewer
+
+- A recipe can read `store[key].columns` in its `main` to adapt to the tables picked for it, for instance to relate the stays to `person.person_id` in an OMOP database and to `patient.id` in a FHIR one. Each table reads its column names once, on the query thread of its connection.
+
 ## v2.0.0-beta.6 (2026-11-01)
 
 ### JupyterLab viewer
