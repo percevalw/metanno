@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### JupyterLab viewer
+
+- A source table whose rows exceed `preview.max_bytes` before reaching its row limit, for instance 20000 FHIR diagnoses with many text columns, shows the first rows that fit and *limit reached* instead of failing with `Source query page exceeds the byte limit`. Its related tables then follow the rows it shows.
+
 ## v2.0.0-beta.7 (2026-11-02)
 
 ### JupyterLab viewer

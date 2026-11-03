@@ -548,7 +548,7 @@ class TableWidgets:
                 for item in [
                     div(
                         f"{source.rowCount} rows shown"
-                        + (", limit reached" if source.rowCount == description.get("row_limit") else "")
+                        + (", limit reached" if data.scope and data.scope.limit_reached else "")
                     )
                     if source and description.get("row_limit") is not None
                     else None,
