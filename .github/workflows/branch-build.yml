@@ -1,0 +1,80 @@
+name: Branch build
+
+# Builds the wheel of each pushed branch and publishes it on a prerelease named after the branch, eg
+# branch-volume-viewer, with a build.txt giving the wheel name and the commit, so a branch can be installed before
+# its release
+on:
+  push:
+    branches-ignore: ["release/**", "gh-pages"]
+  delete:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: branch-build-${{ github.event_name == 'delete' && github.event.ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Checkout'
+        uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
+
+      - name: 'Set up Node'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      # Metanno's client imports the pret package, provided by a Pret checkout linked into node_modules
+      - name: 'Checkout Pret'
+        uses: actions/checkout@v4
+        with:
+          repository: percevalw/pret
+          ref: main
+          path: _pret
+          submodules: 'recursive'
+
+      - name: 'Link Pret'
+        run: |
+          npm --prefix _pret install
+          yarn install
+          yarn --cwd _pret link
+          yarn link pret
+
+      # A dev version below the current one, eg 2.0.0b6.dev42, so a branch build never passes for a release
+      - name: 'Build wheel distribution'
+        run: |
+          sed -i -E 's/^__version__ = "(.*)"/__version__ = "\1.dev${{ github.run_number }}"/' metanno/version.py
+          pip install build
+          python -m build --wheel --outdir dist/
+          echo "$(cd dist && ls *.whl) $GITHUB_SHA" > dist/build.txt
+
+      - name: 'Publish on the branch prerelease'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="branch-${GITHUB_REF_NAME//\//-}"
+          gh release delete "$tag" --cleanup-tag --yes || true
+          gh release create "$tag" dist/*.whl dist/build.txt --prerelease --target "$GITHUB_SHA" \
+            --title "Branch $GITHUB_REF_NAME" --notes "Wheel of the $GITHUB_REF_NAME branch at $GITHUB_SHA, not a release"
+
+  delete:
+    if: github.event_name == 'delete' && github.event.ref_type == 'branch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Delete the branch prerelease'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          BRANCH: ${{ github.event.ref }}
+        run: gh release delete "branch-${BRANCH//\//-}" --cleanup-tag --yes || true
