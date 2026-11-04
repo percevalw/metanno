@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### JupyterLab viewer
+
+- **Copy code** writes decimal filter values with a wide type, so the copied code no longer fails with `Could not cast value ... to DECIMAL(18,3)` on the 19 digit IDs of a decimal column.
+
 ## v2.0.0-beta.8 (2026-11-03)
 
 ### JupyterLab viewer

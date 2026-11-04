@@ -482,6 +482,7 @@ def test_export_view_code_writes_typed_ibis_filters(tmp_path, monkeypatch):
             "todo_id": [1, 2, 3],
             "due_date": [datetime.date(2026, 1, day) for day in (1, 2, 3)],
             "score": pa.array([Decimal("0.5"), Decimal("1.5"), None], pa.decimal128(4, 2)),
+            "stay_id": pa.array([Decimal(42), Decimal(1234567890123456789), Decimal(43)], pa.decimal128(38, 0)),
             "title": ["One", "Two", "Three"],
         }
     )
@@ -527,6 +528,7 @@ def test_export_view_code_writes_typed_ibis_filters(tmp_path, monkeypatch):
                     "kind": "and",
                     "children": [
                         {"kind": "predicate", "column": "score", "operator": "gt", "value": "1"},
+                        {"kind": "predicate", "column": "stay_id", "operator": "in", "value": ["1234567890123456789"]},
                         {"kind": "not", "child": title_filter},
                         # Bare text in a filter cell ignores case, it matches Two
                         {"kind": "predicate", "column": "title", "operator": "icontains", "value": "tw"},
@@ -538,7 +540,8 @@ def test_export_view_code_writes_typed_ibis_filters(tmp_path, monkeypatch):
     imports, code = export_view_code({"todos": frame}, None, "query").split("\n\n\n", 1)
     # The connections and queries stop before the Store and view opening, which use PRET and Metanno
     query = code[: code.index("# Tables maps")]
-    assert "_['due_date'] >= datetime.date(2026, 1, 3)" in query and "_['score'] > Decimal('1')" in query
+    assert "_['due_date'] >= datetime.date(2026, 1, 3)" in query
+    assert "_['score'] > ibis.literal(Decimal('1'), type='decimal(38, 2)')" in query
     assert "warehouse = connections.enter_context(connect(path=" in query
     assert f"sys.path.insert(0, {str(tmp_path)!r})\nfrom typed_filter_connections import connect\n" in query
     imports = [line for line in imports.splitlines() if "pret" not in line and "metanno" not in line]
