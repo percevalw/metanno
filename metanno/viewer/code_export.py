@@ -153,26 +153,31 @@ def export_view_code(store, view_definition, purpose="annotation"):
             value = coerce_ibis_literal(schema[node["column"]], value, node["operator"])
         if node["operator"] == "icontains":
             column, value = f"{column}.lower()", value.lower()
-        for item in value if isinstance(value, list) else [value]:
-            if isinstance(item, (datetime.date, datetime.datetime)):
-                imports.append("import datetime")
-            if isinstance(item, Decimal):
-                imports.append("from decimal import Decimal")
+        items = value if isinstance(value, list) else [value]
+        literal = repr(value)
+        if any(isinstance(item, (datetime.date, datetime.datetime)) for item in items):
+            imports.append("import datetime")
+        if any(isinstance(item, Decimal) for item in items):
+            imports.extend(["import ibis", "from decimal import Decimal"])
+            # The default precision of a backend is too small for 19 digit IDs, as in compile_predicate of PRET
+            scale = max(0, schema[node["column"]].scale or 0, *(-item.as_tuple().exponent for item in items))
+            literals = [f"ibis.literal({item!r}, type='decimal(38, {scale})')" for item in items]
+            literal = f"[{', '.join(literals)}]" if isinstance(value, list) else literals[0]
         return {
-            "eq": "{} == {!r}",
-            "ne": "{} != {!r}",
-            "lt": "{} < {!r}",
-            "lte": "{} <= {!r}",
-            "gt": "{} > {!r}",
-            "gte": "{} >= {!r}",
-            "icontains": "{}.contains({!r})",
-            "contains": "{}.contains({!r})",
-            "starts_with": "{}.startswith({!r})",
-            "ends_with": "{}.endswith({!r})",
-            "in": "{}.isin({!r})",
+            "eq": "{} == {}",
+            "ne": "{} != {}",
+            "lt": "{} < {}",
+            "lte": "{} <= {}",
+            "gt": "{} > {}",
+            "gte": "{} >= {}",
+            "icontains": "{}.contains({})",
+            "contains": "{}.contains({})",
+            "starts_with": "{}.startswith({})",
+            "ends_with": "{}.endswith({})",
+            "in": "{}.isin({})",
             "is_null": "{}.isnull()",
             "is_not_null": "{}.notnull()",
-        }[node["operator"]].format(column, value)
+        }[node["operator"]].format(column, literal)
 
     def emit_query(key, options):
         """
