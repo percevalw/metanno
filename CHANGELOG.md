@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v2.0.0-beta.9 (2026-11-05)
 
 ### JupyterLab viewer
 
