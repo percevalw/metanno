@@ -15,6 +15,7 @@
 
 ### JupyterLab viewer
 
+- A recipe can declare a table `NotRequired` in the `TypedDict` of its Store, eg `notes: NotRequired[Annotated[DataFrame, RecipeTable("Notes")]]`: its picker is marked optional and offers *None*, and `main` then gets a Store without that key.
 - A recipe file that fails to load no longer blocks the other recipes and views: the sidebar lists them with the error of that file above them, and opening that recipe shows its error.
 
 ## v2.0.0-beta.9 (2026-11-05)

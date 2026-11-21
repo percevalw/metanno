@@ -15,7 +15,7 @@ from pathlib import Path
 from confit import Config, validate_arguments
 from pydantic import TypeAdapter, ValidationError
 from pydantic_core import to_jsonable_python
-from typing_extensions import is_typeddict
+from typing_extensions import NotRequired, is_typeddict
 
 from .config import ViewConfig
 
@@ -104,7 +104,9 @@ class Column:
 class RecipeTable:
     """
     Marker of a table read by a recipe, in the TypedDict that annotates the store parameter of its main, e.g.
-    `notes: Annotated[DataFrame, RecipeTable("Clinical notes", keywords=["note", "doc"], max_rows=50)]`
+    `notes: Annotated[DataFrame, RecipeTable("Clinical notes", keywords=["note", "doc"], max_rows=50)]`. A key
+    declared `NotRequired[Annotated[DataFrame, RecipeTable(...)]]` is optional: its picker can stay empty, and the
+    Store of the recipe then has no such key
 
     Parameters
     ----------
@@ -243,16 +245,27 @@ def recipe_tables(main, namespace):
     Returns
     -------
     dict[str, dict] | None
-        Description, keywords and max_rows of each Store key, None when store is not annotated with a TypedDict
+        Description, keywords, max_rows and whether a table is required for each Store key, None when store is not
+        annotated with a TypedDict
     """
     annotation = typing.get_type_hints(main, include_extras=True).get("store")
     if not is_typeddict(annotation):
         return None
     tables = {}
     for key, hint in typing.get_type_hints(annotation, globalns=namespace, include_extras=True).items():
+        # An optional key keeps its RecipeTable inside, eg NotRequired[Annotated[DataFrame, RecipeTable(...)]], and on
+        # Python 3.10 a typing.TypedDict still lists it in __required_keys__
+        optional = typing.get_origin(hint) is NotRequired
+        if optional:
+            hint = typing.get_args(hint)[0]
         table = next((extra for extra in getattr(hint, "__metadata__", ()) if isinstance(extra, RecipeTable)), None)
         table = table or RecipeTable()
-        tables[key] = {"description": table.description, "keywords": table.keywords, "max_rows": table.max_rows}
+        tables[key] = {
+            "description": table.description,
+            "keywords": table.keywords,
+            "max_rows": table.max_rows,
+            "required": key in annotation.__required_keys__ and not optional,
+        }
     return tables
 
 
@@ -350,7 +363,8 @@ def render_recipe(store, name, parameters, recipes, read_only=False):
                 else f"No recipe {name!r} in the recipes folder, found {', '.join(sorted(recipes))}"
             )
         application = pkgutil.resolve_name(name) if ":" in name else recipes[name]
-        missing = [key for key in getattr(application, "tables", None) or {} if key not in store]
+        tables = getattr(application, "tables", None) or {}
+        missing = [key for key, table in tables.items() if table["required"] and key not in store]
         if missing:
             raise ValueError(
                 f"The {name} recipe reads the tables {', '.join(missing)}, missing from this Store which has "
