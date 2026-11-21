@@ -649,3 +649,61 @@ test("folder tree of a file source", async ({ page }) => {
   await broken.getByRole("button", { name: "Dismiss error", exact: true }).click();
   await expect(broken.getByRole("alert")).toHaveCount(0);
 });
+
+test("optional recipe table", async ({ page }) => {
+  test.setTimeout(180000);
+  const { configurationPath } = await openExplorer(page);
+  // todos is required and lists optional, the view writes the Store keys it was given
+  fs.writeFileSync(
+    path.join(path.dirname(configurationPath), "recipes", "todo_lists.py"),
+    [
+      "from typing import Annotated, TypedDict",
+      "",
+      "from typing_extensions import NotRequired",
+      "from pret import DataFrame",
+      "from pret.react import div",
+      "",
+      "from metanno import RecipeTable",
+      "",
+      "",
+      "class Tables(TypedDict):",
+      '    todos: Annotated[DataFrame, RecipeTable("Todo items", keywords=["todo"])]',
+      '    lists: NotRequired[Annotated[DataFrame, RecipeTable("Lists of the todos", keywords=["list"])]]',
+      "",
+      "",
+      "def main(store: Tables):",
+      '    return div("Store keys: " + ", ".join(key for key in ("todos", "lists") if key in store))',
+      "",
+    ].join("\n")
+  );
+  await page.evaluate(async () => {
+    await window.jupyterapp.commands.execute("metanno-viewer:open-resource");
+  });
+  const sidebar = page.locator("#metanno-viewer-sidebar");
+  await sidebar.getByRole("button", { name: "Reload configuration", exact: true }).click();
+  // Listing the source gives the pickers its tables
+  const fixture = sidebar
+    .locator(".metanno-viewer__group")
+    .filter({ has: page.getByRole("button", { name: "fixture", exact: true }) })
+    .first();
+  await fixture.getByRole("button", { name: "fixture", exact: true }).click();
+  await fixture.getByRole("button", { name: "lists", exact: true }).waitFor({ timeout: 60000 });
+  await sidebar.getByRole("button", { name: "todo_lists", exact: true }).click();
+  const form = page.getByRole("form", { name: "Tables of todo_lists" });
+  await expect(form).toContainText("lists (optional)");
+  const open = form.getByRole("button", { name: "Open view", exact: true });
+  await expect(open).toBeDisabled();
+  // Picking todos fills lists with the table of the same database, which None empties for good
+  const todos = form.locator('input[aria-label="Table for todos"]');
+  const lists = form.locator('input[aria-label="Table for lists"]');
+  await todos.click();
+  await page.getByRole("option", { name: "fixture.todos", exact: true }).click();
+  await expect(lists).toHaveValue("fixture.lists");
+  await lists.click();
+  await page.getByRole("option", { name: "None", exact: true }).click();
+  await expect(lists).toHaveValue("");
+  await page.waitForTimeout(1000);
+  await expect(lists).toHaveValue("");
+  await open.click();
+  await page.getByText("Store keys: todos", { exact: true }).waitFor({ timeout: 60000 });
+});

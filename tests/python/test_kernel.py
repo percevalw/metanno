@@ -254,7 +254,7 @@ def test_table_view_store_key_has_no_dot(tmp_path, monkeypatch):
 def test_recipe_tables_open_a_form_until_each_store_key_has_a_table(tmp_path, monkeypatch):
     """
     A recipe that declares its tables gets table pickers for the missing Store keys, from the sidebar or the recipe
-    selector of a table tab, then opens once every key has a table and can be saved as a view
+    selector of a table tab, then opens once every required key has a table and can be saved as a view
     """
     import yaml
 
@@ -268,11 +268,12 @@ def test_recipe_tables_open_a_form_until_each_store_key_has_a_table(tmp_path, mo
     (tmp_path / "recipes").mkdir()
     (tmp_path / "recipes" / "todo_tags.py").write_text(
         "from typing import Annotated, TypedDict\n\n"
+        "from typing_extensions import NotRequired\n\n"
         "from pret import DataFrame\n\n"
         "from metanno import RecipeTable\n\n\n"
         "class Tables(TypedDict):\n"
         '    todos: Annotated[DataFrame, RecipeTable("Todo items", keywords=["todo"])]\n'
-        '    tags: Annotated[DataFrame, RecipeTable("Tags of the todos")]\n\n\n'
+        '    tags: NotRequired[Annotated[DataFrame, RecipeTable("Tags of the todos")]]\n\n\n'
         "def main(store: Tables, limit: int):\n    return store\n"
     )
     kernel = DataExplorerKernel.__new__(DataExplorerKernel)
@@ -291,8 +292,10 @@ def test_recipe_tables_open_a_form_until_each_store_key_has_a_table(tmp_path, mo
     data = {"source": "planner", "table": "todos", "view_ref": "a", "recipe": "todo_tags"}
     request(kernel, comm, "open_table_view", data)
     form = comm.messages[-1]["data"]["form"]
-    assert form["tables"]["todos"] == {"description": "Todo items", "keywords": ["todo"], "max_rows": None}
-    assert form["tables"]["tags"] == {"description": "Tags of the todos", "keywords": [], "max_rows": None}
+    assert form["tables"] == {
+        "todos": {"description": "Todo items", "keywords": ["todo"], "max_rows": None, "required": True},
+        "tags": {"description": "Tags of the todos", "keywords": [], "max_rows": None, "required": False},
+    }
     assert form["current"] == {"todos": {"source": "planner", "table": "todos", "connection": "local", "paging": False}}
     assert opened == []
     # The sidebar opens the recipe without tables, then with a table for each Store key
@@ -307,9 +310,13 @@ def test_recipe_tables_open_a_form_until_each_store_key_has_a_table(tmp_path, mo
     form = comm.messages[-1]["data"]["form"]
     assert [field["name"] for field in form["parameters"]] == ["limit"] and form["values"] == {"limit": "many"}
     assert form["errors"] == {"limit": "Input should be a valid integer, unable to parse string as an integer"}
+    # The optional tags key can stay without table
+    only_todos = {**data, "tables": {"todos": tables["todos"]}, "parameters": {"limit": 3}, "view_ref": "d"}
+    request(kernel, EventComm(), "open_recipe_view", only_todos)
+    assert list(opened[0].tables) == ["todos"]
     request(kernel, EventComm(), "open_recipe_view", {**data, "parameters": {"limit": 3}})
-    assert list(opened[0].tables) == ["todos", "tags"] and opened[0].recipe == "todo_tags"
-    assert opened[0].parameters == {"limit": 3}
+    assert list(opened[1].tables) == ["todos", "tags"] and opened[1].recipe == "todo_tags"
+    assert opened[1].parameters == {"limit": 3}
     # Once seen, the view is saved with its recipe, tables and parameters to show under Explore
     kernel.dispatch("save_view", {"view_ref": "c", "name": "planner"})
     assert yaml.safe_load((tmp_path / "views" / "planner.yml").read_text()) == {
