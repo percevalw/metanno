@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### JupyterLab viewer
+
+- A recipe can declare a table `NotRequired` in the `TypedDict` of its Store, eg `notes: NotRequired[Annotated[DataFrame, RecipeTable("Notes")]]`: its picker is marked optional and offers *None*, and `main` then gets a Store without that key.
+
 ### Components
 
 - `AnnotatedVolume` shows MRI or CT volumes in panels linked by a shared view, with a crosshair, window and frame controls, and point, polygon and lasso annotations in millimetres whose slabs show as bands in the other planes, and `metanno.volume.serve_volumes` streams the slices of a Python loader to it, compressed and nearest to the cursor first. `metanno.volume.interpolate_contours` fills the slices between the outlines of a lesion and `rasterize_shapes` turns outlines into a voxel mask, both with the `metanno[volume]` extra. `DataWidgetFactory.create_volume_widget` shows the volumes of the row selected in a table, linked unless their `space` differs, eg the right and left views of a mammography, in a grid or as tabs of the dock of the view, draws masks over them as overlays, and, when given a shapes list, saves its shapes as rows, which tables and forms select and edit.

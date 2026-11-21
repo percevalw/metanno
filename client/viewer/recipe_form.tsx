@@ -268,6 +268,8 @@ export function RecipeForm({
   const [picks, setPicks] = useState(() => prefill(form));
   // Keys filled from the database of another pick, emptied when the user picks a table so they follow the new pick
   const [filled, setFilled] = useState(() => new Set<string>());
+  // Optional keys the user set to None, which the filling below leaves empty
+  const [cleared, setCleared] = useState(() => new Set<string>());
   // Field texts of the parameters, and the columns of the picked tables offered by Column parameters
   const [inputs, setInputs] = useState(() =>
     Object.fromEntries(
@@ -374,7 +376,7 @@ export function RecipeForm({
     const next = { ...picks };
     const added: string[] = [];
     for (const [key, declared] of Object.entries(form.tables)) {
-      if (next[key]) continue;
+      if (next[key] || cleared.has(key)) continue;
       const names = [key, ...declared.keywords].map((name) => name.toLowerCase());
       const taken = new Set(Object.values(next).flatMap((pick) => (pick ? [candidateKey(pick)] : [])));
       const match = Object.values(next).flatMap((anchor) =>
@@ -395,7 +397,7 @@ export function RecipeForm({
     if (!added.length) return;
     setPicks(next);
     setFilled((current) => new Set([...current, ...added]));
-  }, [candidates, picks]);
+  }, [candidates, picks, cleared]);
 
   // Candidates of each key from the most to the least likely, null until every first listing has replied
   const ranked = useMemo(() => {
@@ -437,9 +439,10 @@ export function RecipeForm({
       .filter(([, result]) => result.value !== undefined)
       .map(([parameter, result]) => [parameter.name, result.value])
   );
+  // Optional keys can stay empty, but the view needs at least one table
   const complete =
-    Object.keys(form.tables).length > 0 &&
-    Object.keys(form.tables).every((key) => picks[key]) &&
+    Object.values(picks).some((pick) => pick) &&
+    Object.entries(form.tables).every(([key, declared]) => picks[key] || !declared.required) &&
     parsed.every(([parameter, result]) => !result.error && (!parameter.required || result.value !== undefined));
 
   return (
@@ -460,6 +463,7 @@ export function RecipeForm({
           <label key={key} className="metanno-viewer__recipe-field">
             <span>
               <strong>{key}</strong>
+              {!declared.required && " (optional)"}
               {declared.description && (
                 <span className="metanno-viewer__recipe-description">{declared.description}</span>
               )}
@@ -468,11 +472,14 @@ export function RecipeForm({
               label={`Table for ${key}`}
               value={picks[key] ? tableLabel(picks[key]!.source, picks[key]!.table) : ""}
               suggestions={
-                ranked &&
-                ranked[key].map((candidate) => ({
-                  key: candidate.key,
-                  text: tableLabel(candidate.source, candidate.table),
-                }))
+                ranked && [
+                  // An optional key offers None first, which leaves it without table
+                  ...(declared.required ? [] : [{ key: "", text: "None" }]),
+                  ...ranked[key].map((candidate) => ({
+                    key: candidate.key,
+                    text: tableLabel(candidate.source, candidate.table),
+                  })),
+                ]
               }
               placeholder={
                 !ranked
@@ -482,6 +489,11 @@ export function RecipeForm({
                   : "Open sources in the sidebar to list their tables"
               }
               onPick={(pick) => {
+                if (!pick) {
+                  setPicks({ ...picks, [key]: null });
+                  setCleared(new Set([...cleared, key]));
+                  return;
+                }
                 setPicks({
                   ...Object.fromEntries(
                     Object.entries(picks).map(([other, value]) => [other, filled.has(other) ? null : value])
@@ -489,6 +501,7 @@ export function RecipeForm({
                   [key]: { source: candidates[pick].source, table: candidates[pick].table },
                 });
                 setFilled(new Set());
+                setCleared(new Set([...cleared].filter((other) => other !== key)));
               }}
             />
           </label>
@@ -514,7 +527,10 @@ export function RecipeForm({
               className="metanno-viewer__toolbar-button"
               disabled={!complete}
               onClick={() =>
-                onOpen(Object.fromEntries(Object.entries(picks).map(([key, pick]) => [key, pick!])), values)
+                onOpen(
+                  Object.fromEntries(Object.entries(picks).filter(([, pick]) => pick)) as Record<string, TablePick>,
+                  values
+                )
               }
             >
               Open view

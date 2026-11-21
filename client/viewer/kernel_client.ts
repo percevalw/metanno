@@ -38,11 +38,12 @@ export type RecipeParameter = {
 };
 
 // Table pickers and parameter fields sent by the kernel instead of a view when a recipe reads Store keys the view has
-// no table for, or lacks a valid value for one of its parameters: the description and keywords of each key, the
-// tables the view already has, the parameters with their current values, and the errors of those values
+// no table for, or lacks a valid value for one of its parameters: the description and keywords of each key and
+// whether it needs a table, the tables the view already has, the parameters with their current values, and the
+// errors of those values
 export type RecipeFormData = {
   recipe: string;
-  tables: Record<string, { description: string; keywords: string[] }>;
+  tables: Record<string, { description: string; keywords: string[]; required: boolean }>;
   current: Record<string, TablePick>;
   parameters: RecipeParameter[];
   values: Record<string, unknown>;

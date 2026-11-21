@@ -174,7 +174,8 @@ class DataExplorerKernel(IPythonKernel):
                 recipe = recipes.get(definition.recipe)
                 declared = getattr(recipe, "tables", None) or {}
                 errors = check_parameters(recipe.main, definition.parameters) if recipe is not None else {}
-                if not definition.tables or any(key not in definition.tables for key in declared) or errors:
+                missing = [key for key, table in declared.items() if table["required"] and key not in definition.tables]
+                if not definition.tables or missing or errors:
                     # The tab shows a table picker for each Store key of the recipe and a field for each of its
                     # parameters instead of an error, prefilled with the tables and values the view already has, see
                     # RecipeForm
