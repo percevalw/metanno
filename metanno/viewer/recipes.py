@@ -328,15 +328,19 @@ def load_views(path):
 
 def render_recipe(store, name, parameters, recipes, read_only=False):
     """
-    Render a Store with the selected recipe for a source tab or notebook view, with a bar below it showing
-    the rejected edits and undo of the Store
+    Render a Store with the selected recipe for a source tab or notebook view, with a tray showing once each
+    query error of its widgets, and the rejected edits and undo of the Store
     """
+    from pret import create_store
     from pret.react import div
 
     from metanno.recipes.data_widget_factory import VIEW_READ_ONLY
-    from metanno.recipes.data_widget_factory.widget_data import StatusBar
+    from metanno.recipes.data_widget_factory.widget_data import VIEW_STATUS, StatusBar, StatusTray
 
     token = VIEW_READ_ONLY.set(read_only)
+    # The factories of the recipe give this browser Store to their widgets, see StatusTray
+    status = create_store({"errors": {}, "busy": {}, "dismissed": {}})
+    status_token = VIEW_STATUS.set(status)
     try:
         if ":" not in name and name not in recipes:
             error = recipes.errors.get(name)
@@ -358,9 +362,11 @@ def render_recipe(store, name, parameters, recipes, read_only=False):
         view = application(store=store, **parameters)
         return div(
             div(view, style={"flex": "1 1 auto", "minHeight": 0}),
-            # The tab toolbar shows the kernel state, the bar shows only Store errors
-            StatusBar(store=store, synced=store.doc.sync_id is not None, show_connection=False),
-            style={"display": "flex", "flexDirection": "column", "height": "100%"},
+            # The tab toolbar shows the kernel state, so the Store errors only go to the tray
+            StatusBar(store=store, synced=store.doc.sync_id is not None, show_connection=False, view_status=status),
+            StatusTray(status=status),
+            style={"display": "flex", "flexDirection": "column", "height": "100%", "position": "relative"},
         )
     finally:
         VIEW_READ_ONLY.reset(token)
+        VIEW_STATUS.reset(status_token)

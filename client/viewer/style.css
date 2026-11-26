@@ -113,12 +113,77 @@
   gap: 6px;
 }
 
+/* The path takes the free space and is cut first, so the badges of the tray do not wrap the toolbar */
 .metanno-viewer__status > span {
+  flex: 1 1 0;
   min-width: 0;
   margin-right: auto;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* The view statuses that no widget shows itself, see StatusTray in widget_data.py */
+.metanno-viewer__tray {
+  display: flex;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+/* In fullscreen without controls, only the tray shows, over the top right corner of the view */
+.metanno-viewer__status--tray-only {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 5;
+  margin: 0;
+  padding: 0;
+  pointer-events: none;
+}
+
+.metanno-viewer__status.metanno-viewer__status--tray-only > :not(.metanno-viewer__tray) {
+  display: none;
+}
+
+.metanno-viewer__status--tray-only > .metanno-viewer__tray > * {
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+/* The states of the tab look like the StatusBadge chips of the view statuses */
+.metanno-viewer__status > .metanno-viewer__badge {
+  flex: 0 1 auto;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--jp-ui-font-color1);
+  background: var(--jp-layout-color1);
+  box-shadow: var(--joy-shadow-md, 0 2px 8px rgba(0, 0, 0, 0.12));
+}
+
+.metanno-viewer__status > .metanno-viewer__badge--error {
+  color: var(--joy-palette-danger-softColor, var(--jp-error-color1));
+  background: var(--joy-palette-danger-softBg, color-mix(in srgb, var(--jp-error-color1) 12%, var(--jp-layout-color1)));
+}
+
+.metanno-viewer__badge--busy::before {
+  content: "";
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 8px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  vertical-align: -2px;
+  animation: metanno-viewer-spin 0.8s linear infinite;
+}
+
+@keyframes metanno-viewer-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .metanno-viewer__error {

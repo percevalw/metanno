@@ -60,6 +60,8 @@ export class RecipeViewWidget extends Widget {
   private kernelGeneration = 0;
   private content = document.createElement("div");
   private status = document.createElement("span");
+  // The StatusTray of the view renders its badges into this node, see widget_data.py
+  private tray = document.createElement("div");
   private context: ISessionContext;
 
   constructor(
@@ -81,7 +83,8 @@ export class RecipeViewWidget extends Widget {
     this.addClass("metanno-viewer__application");
     const toolbar = this.toolbar;
     toolbar.className = "metanno-viewer__status";
-    toolbar.append(this.status);
+    this.tray.className = "metanno-viewer__tray";
+    toolbar.append(this.status, this.tray);
     const kernel = this.kernelButton;
     kernel.textContent = context.session?.kernel?.name || origin.kernelspec;
     kernel.title = output.path ? "Change kernel" : "This preview uses its notebook kernel";
@@ -241,17 +244,24 @@ export class RecipeViewWidget extends Widget {
     const available = kernel?.connectionStatus === "connected" && !this.lostKernel;
     this.content.inert = !available;
     this.kernelButton.textContent = kernel?.name || this.origin.kernelspec;
-    this.status.textContent = available
-      ? `${this.output.path || this.origin.notebook || "Transient data"}${
-          this.output.read_only ? " · Read only" : ""
-        }`
-      : "Kernel disconnected";
+    if (available)
+      this.setStatus(
+        `${this.output.path || this.origin.notebook || "Transient data"}${this.output.read_only ? " · Read only" : ""}`
+      );
+    else this.setStatus("Kernel disconnected", "error");
     this.fullscreenError.hidden = available;
     this.errorText.textContent = "Kernel disconnected, reconnect or rerun the originating cell";
   }
 
+  // Show the path of the view in the toolbar, or the state of the tab as a badge that looks like the StatusBadge
+  // of the view statuses
+  private setStatus(text: string, kind?: "busy" | "error"): void {
+    this.status.textContent = text;
+    this.status.className = kind ? `metanno-viewer__badge metanno-viewer__badge--${kind}` : "";
+  }
+
   showError(error: unknown): void {
-    this.status.textContent = "Could not open view";
+    this.setStatus("Could not open view", "error");
     this.errorText.textContent = String(error);
     this.fullscreenError.hidden = false;
     this.content.inert = true;
@@ -281,7 +291,7 @@ export class RecipeViewWidget extends Widget {
         ...details,
       });
     this.fullscreenError.hidden = true;
-    this.status.textContent = "Opening view…";
+    this.setStatus("Opening view…", "busy");
     this.host?.dispose();
     try {
       const kernel = this.context.session?.kernel;

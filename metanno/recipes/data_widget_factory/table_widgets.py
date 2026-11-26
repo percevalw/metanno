@@ -25,13 +25,14 @@ from metanno.ui import js
 from .data_relations import ancestor_filter, selected_value
 from .fields import FieldSpec
 from .widget_data import (
-    ErrorBanner,
-    LoadingStatus,
+    VIEW_STATUS,
+    StatusStack,
     StoreWidget,
     edit_rows,
     extract_row_indices,
     get_parent_selection,
     use_rows,
+    use_widget_statuses,
 )
 
 
@@ -237,6 +238,8 @@ class TableWidgets:
             else {"column": order[0], "direction": order[1]}
             for order in default_sort or []
         ]
+
+        status = VIEW_STATUS.get()
 
         @component
         def TableWidget():
@@ -542,7 +545,7 @@ class TableWidgets:
                     source_ast = None
             query_changed = is_dataframe and str(source_ast) != str(data.sourceFilter)
             displayed_source = source or view.previousRowSource
-            error = view.filterError or view.error
+            statuses = use_widget_statuses(status, view.error, view.loading, view.filterError)
             toolbar = [
                 item
                 for item in [
@@ -589,8 +592,6 @@ class TableWidgets:
                     )
                     if source_requery and description and description.capabilities.source_filters
                     else None,
-                    LoadingStatus(label=view.loading) if view.loading else None,
-                    ErrorBanner(error=error) if error else None,
                 ]
                 if item is not None
             ]
@@ -643,7 +644,8 @@ class TableWidgets:
                     )
                     if displayed_source
                     else None,
-                    style={"height": "100%", "minHeight": 0},
+                    StatusStack(statuses=statuses, corner="bottom-right"),
+                    style={"height": "100%", "minHeight": 0, "position": "relative"},
                 ),
                 # Fill the parent, such as a dock panel, unless the given style says otherwise. The width also
                 # keeps a flex parent, such as a documentation snippet, from shrinking the widget to nothing

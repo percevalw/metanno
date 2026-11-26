@@ -9,7 +9,7 @@ from pret.hooks import use_effect, use_ref, use_state
 from pret.react import div, iframe
 from pret.render import Renderable
 
-from .widget_data import ErrorBanner, LoadingStatus, use_selected_rows
+from .widget_data import VIEW_STATUS, StatusStack, use_selected_rows, use_widget_statuses
 
 
 class PdfWidgets:
@@ -48,6 +48,7 @@ class PdfWidgets:
         on_mount = self.register_widget_dataframe(store_key)
         load = server_only(loader)
         style = {"width": "100%", "height": "100%", **(style or {})}
+        status = VIEW_STATUS.get()
 
         @component
         def PdfWidget():
@@ -82,12 +83,14 @@ class PdfWidgets:
 
             use_effect(load_selected, [row_id])
             use_effect(revoke, [url])
-            if error or view.error:
-                return div(ErrorBanner(error=error or view.error), style=style)
-            if row_id is None:
-                return div("No document selected", style={**style, "padding": "1em", "boxSizing": "border-box"})
-            if url is None:
-                return div(LoadingStatus(label="Loading the PDF"), style=style)
-            return iframe(src=url, title="PDF", style={**style, "border": 0})
+            loading = row_id is not None and url is None and not error
+            statuses = use_widget_statuses(status, view.error, "Loading the PDF" if loading else None, error)
+            return div(
+                iframe(src=url, title="PDF", style={"width": "100%", "height": "100%", "border": 0})
+                if url
+                else div("No document selected" if row_id is None else None, style={"padding": "1em"}),
+                StatusStack(statuses=statuses, corner="top-right"),
+                style={**style, "position": "relative"},
+            )
 
         return PdfWidget()

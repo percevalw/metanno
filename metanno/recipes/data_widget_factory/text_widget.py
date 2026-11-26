@@ -16,14 +16,16 @@ from .data_relations import ancestor_filter
 from .fields import FieldSpec, field_state
 from .span_toolbar import SpanToolbar
 from .widget_data import (
-    LoadingStatus,
+    VIEW_STATUS,
     Ref,
+    StatusStack,
     StoreWidget,
     edit_rows,
     get_first_selected_row_idx,
     get_parent_selection,
     normalize_row_indices,
     use_selected_rows,
+    use_widget_statuses,
 )
 
 
@@ -271,6 +273,8 @@ class TextWidgets:
                 on_toggle_move=lambda event=None: toolbar_actions.current["move"](),
                 key=str([span[spans_primary_key] for span in selected_spans]),
             )
+
+        status = VIEW_STATUS.get()
 
         @component
         def TextWidget():
@@ -1047,14 +1051,14 @@ class TextWidgets:
                     set_selected_span_rows([])
                 set_doc_selected_ranges(doc_id_str, ranges)
 
-            if len(text_data) == 0 and (text_view.error or span_view.error or text_view.loading or span_view.loading):
-                error = text_view.error or span_view.error
-                return div(
-                    error or LoadingStatus(label=text_view.loading or span_view.loading),
-                    role="alert" if error else "status",
-                    class_name="metanno-error" if error else None,
-                    style={"margin": "8px"},
-                )
+            # The loading of the spans after an edit shows nothing over the text
+            statuses = use_widget_statuses(
+                status,
+                text_view.error or span_view.error,
+                (text_view.loading or span_view.loading) if len(text_data) == 0 else None,
+            )
+            if len(text_data) == 0 and len(statuses):
+                return StatusStack(statuses=statuses, corner="top-right")
             if len(visible_doc_indices) == 0:
                 return [div("No document selected", key="no-document-selected", style={"padding": "8px"})]
 
@@ -1118,6 +1122,11 @@ class TextWidgets:
             store=data_store,
             read_only=read_only,
             content=TextWidget(),
-            style={"height": "100%", "minHeight": 0, **({"overflow": "auto"} if docs_mode != "lead" else {})},
+            style={
+                "height": "100%",
+                "minHeight": 0,
+                "position": "relative",
+                **({"overflow": "auto"} if docs_mode != "lead" else {}),
+            },
         )
         return text_view, toolbar_view

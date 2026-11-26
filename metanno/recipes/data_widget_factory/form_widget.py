@@ -12,7 +12,15 @@ from pret_joy import Button, Stack
 from typing_extensions import TypedDict
 
 from .fields import FieldSpec, field_state, render_field
-from .widget_data import ErrorBanner, LoadingStatus, StoreWidget, edit_rows, get_parent_selection, use_selected_rows
+from .widget_data import (
+    VIEW_STATUS,
+    StatusStack,
+    StoreWidget,
+    edit_rows,
+    get_parent_selection,
+    use_selected_rows,
+    use_widget_statuses,
+)
 
 
 class FormWidgetHandle(TypedDict):
@@ -114,6 +122,8 @@ class FormWidgets:
         select_rows, _ = self.make_select_rows()
         on_mount = self.register_widget_dataframe(store_key)
 
+        status = VIEW_STATUS.get()
+
         @component
         def FormWidget():
             parent_ids = get_parent_selection(path_parts, selected_rows_by_store, use_store_snapshot)
@@ -122,6 +132,7 @@ class FormWidgets:
                 use_effect(on_mount, [])
             selected_rows_snapshot = use_store_snapshot(selected_rows_store)
             rows, view = use_selected_rows(data, primary_key, selected_rows_snapshot["identities"])
+            statuses = use_widget_statuses(status, view.error, view.loading)
             current_row = rows[0] if len(rows) else None
 
             def get_table_handle():
@@ -203,10 +214,9 @@ class FormWidgets:
 
             if not current_row:
                 return div(
-                    (view.error or LoadingStatus(label=view.loading))
-                    if view.error or view.loading
-                    else "No data selected",
-                    style=style,
+                    "No data selected",
+                    StatusStack(statuses=statuses, corner="top-right"),
+                    style={"position": "relative", **(style or {})},
                 )
 
             navigation_controls = None
@@ -237,7 +247,7 @@ class FormWidgets:
                 read_only=read_only,
                 content=Stack(
                     navigation_controls,
-                    ErrorBanner(error=view.error) if view.error else None,
+                    StatusStack(statuses=statuses, corner="top-right"),
                     *[
                         render_form_field(f)
                         for f in (
@@ -266,7 +276,7 @@ class FormWidgets:
                     direction="column",
                     spacing=1,
                     use_flex_gap=True,
-                    style=style,
+                    style={"position": "relative", **(style or {})},
                     key=str([row[primary_key] for row in rows]),
                 ),
             )
