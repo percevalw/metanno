@@ -63,7 +63,7 @@ The widgets behave the same way in every view:
 - ++ctrl+z++ undoes the last change made in the view and ++ctrl+y++ or ++ctrl+shift+z++ redoes it, with ++cmd++ on a
   Mac, while inside a text field these keys undo the typing
 - when Python refuses an edit, for instance because someone else changed the same cell, the field shows why. A
-  Metanno tab shows the last refusal under the view, add `create_status_bar` to views shown in a notebook or a web
+  Metanno tab shows the last refusal in its toolbar, add `create_status_bar` to views shown in a notebook or a web
   app
 - the text widget shows the document of the selected row, or with `docs_mode="selected"` every selected document,
   and with `docs_mode="all"` all the documents of the table, or those under the selected parent row of a related

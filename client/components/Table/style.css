@@ -264,22 +264,3 @@ body[data-jp-theme-light="false"] .metanno-table > div.rdg {
   margin: 4px 8px;
   padding: 4px 8px;
 }
-
-.metanno-error:has(> .metanno-error-dismiss) {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-}
-
-.metanno-error > span {
-  flex: 1;
-}
-
-.metanno-error-dismiss {
-  border: none;
-  background: none;
-  color: inherit;
-  font-size: 14px;
-  line-height: 1;
-  cursor: pointer;
-}

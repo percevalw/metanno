@@ -340,8 +340,8 @@ class DataWidgetFactory(TableWidgets, FormWidgets, TextWidgets, PdfWidgets):
             parent_ids = get_parent_selection(path_parts, selected_rows_by_store, use_store_snapshot)
             data = deep_get_store(data_store, path_parts, parent_ids, primary_keys) or empty_store
             selected = use_store_snapshot(selected_rows_store)
-            rows, view = use_selected_rows(data, primary_key, selected["identities"][:1])
-            return view.error or view.loading or (rows[0].get(shown_key, fallback) if len(rows) else fallback)
+            rows, _ = use_selected_rows(data, primary_key, selected["identities"][:1])
+            return rows[0].get(shown_key, fallback) if len(rows) else fallback
 
         return SelectedFieldView()
 

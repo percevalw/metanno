@@ -2,6 +2,7 @@
 Row access, edits and history shared by factory widgets
 """
 
+from contextvars import ContextVar
 from typing import Any, List, Optional, Sequence
 
 from pret import component
@@ -16,9 +17,19 @@ from pret.hooks import (
     use_store_snapshot,
 )
 from pret.marshal import marshal_as
-from pret.react import button, div, span
+from pret.react import Portal, div, span
 from pret.store import transact
-from pret_joy import Box, CircularProgress, Stack, Typography
+from pret_joy import (
+    Box,
+    CircularProgress,
+    Dropdown,
+    IconButton,
+    Menu,
+    MenuButton,
+    MenuItem,
+    Tooltip,
+    Typography,
+)
 
 from metanno.ui import js
 
@@ -123,26 +134,219 @@ async def edit_rows(data, primary_key, rows=(), values=None, remove=False, inser
                     data[idx][key] = value
 
 
-@component
-def ErrorBanner(error):
+# Browser Store of the statuses of the view rendered by render_recipe, `{"errors": {}, "busy": {}, "dismissed": {}}`,
+# where the widgets of the view write their query errors and StatusTray shows each message once. None elsewhere,
+# so each widget shows its query error itself
+VIEW_STATUS = ContextVar("metanno_view_status", default=None)
+
+
+def use_status_report(status, error=None, busy=None):
     """
-    Show an error above a factory widget, its button hides it until another error appears
+    Write the error and the work in progress of a widget to the status of its view, under a key of its own, and clear
+    them when the widget goes away, for StatusTray. Does nothing outside render_recipe, where status is None
     """
+    key = use_ref("".join(crypto.randomUUID().split("-"))).current  # noqa: F821
+    # The browser Store refuses writes while it loads, and reading it suspends the widget until then. Its small
+    # dismissed part is read, so that a new message does not render every widget again
+    if status is not None:
+        use_store_snapshot(status["dismissed"])
+
+    def report():
+        if status is not None:
+            status["errors"][key] = error or ""
+            status["busy"][key] = busy or ""
+
+            def clear():
+                status["errors"][key] = ""
+                status["busy"][key] = ""
+
+            return clear
+
+    use_effect(report, [error, busy])
+
+
+def use_widget_statuses(status, error=None, busy=None, local_error=None):
+    """
+    Report the query `error` of a widget to the status of its view, and return the statuses that the widget shows
+    itself with StatusStack: its work in progress `busy`, its `local_error` (eg a header filter that does not
+    parse) and, outside render_recipe, its query error. A dismissed error shows again once its message changes
+    """
+    use_status_report(status, error)
     dismissed, set_dismissed = use_state(None)
-    if not error or error == dismissed:
-        return None
-    return div(
-        span(error),
-        button(
-            "×",
-            class_name="metanno-error-dismiss",
-            title="Dismiss",
-            aria_label="Dismiss error",
-            on_click=lambda event: set_dismissed(error),
+    statuses = [{"kind": "busy", "label": busy, "on_dismiss": None}] if busy else []
+    for message in [local_error, error if status is None else None]:
+        if message and message != dismissed:
+            statuses.append(
+                {"kind": "error", "label": message, "on_dismiss": lambda event, message=message: set_dismissed(message)}
+            )
+    return statuses
+
+
+# Look of the pills of StatusBadge and of the "+N" button of StatusStack
+PILL_SX = {
+    "display": "flex",
+    "alignItems": "center",
+    "gap": 1,
+    "minWidth": 0,
+    "maxWidth": 320,
+    "px": 1.5,
+    "py": 0.75,
+    "borderRadius": "lg",
+    "boxShadow": "md",
+    "fontSize": "sm",
+    "whiteSpace": "nowrap",
+    "pointerEvents": "auto",
+}
+
+
+@component
+def StatusBadge(label, kind="busy", on_dismiss=None):
+    """
+    Show a status as a pill, with a spinner for a work in progress (`kind` "busy") or in red for an "error". A long
+    label is cut, and shown whole on hover
+    """
+    error = kind == "error"
+    return Tooltip(
+        Box(
+            CircularProgress(size="sm", color="neutral", sx={"--CircularProgress-size": "16px"}) if not error else None,
+            span(label, style={"overflow": "hidden", "textOverflow": "ellipsis"}),
+            IconButton(
+                "×",
+                size="sm",
+                variant="plain",
+                color="danger",
+                on_click=on_dismiss,
+                aria_label="Dismiss error",
+                sx={"minWidth": 20, "minHeight": 20, "my": -0.5, "mr": -0.75, "fontSize": "lg"},
+            )
+            if on_dismiss
+            else None,
+            role="alert" if error else "status",
+            sx={
+                **PILL_SX,
+                "bgcolor": "danger.softBg" if error else "background.surface",
+                "color": "danger.softColor" if error else "text.primary",
+            },
         ),
-        role="alert",
-        class_name="metanno-error",
+        title=label,
+        size="sm",
+        placement="bottom-end",
+        sx={"maxWidth": 480, "overflowWrap": "anywhere"},
     )
+
+
+# Position of a StatusStack in the corner of its widget, its first status being the closest to the corner
+STACK_CORNERS = {
+    "top-right": {"top": 16, "right": 16, "flexDirection": "column"},
+    "bottom-right": {"bottom": 16, "right": 16, "flexDirection": "column-reverse"},
+}
+
+
+@component
+def StatusStack(statuses, corner=None):
+    """
+    Show statuses as StatusBadge, at most two, and then a "+N" badge that lists the others in a menu. The badges
+    stack over a `corner` of the positioned parent, "top-right" or "bottom-right", or line up in a row without one,
+    as in the toolbar of a Metanno tab. `statuses` holds `{"kind", "label", "on_dismiss"}` dicts
+    """
+    if not len(statuses):
+        return None
+    shown = statuses if len(statuses) <= 2 else statuses[:1]
+    badges = [
+        StatusBadge(label=status["label"], kind=status["kind"], on_dismiss=status["on_dismiss"], key=status["label"])
+        for status in shown
+    ]
+    if len(statuses) > 2:
+        badges.append(
+            Dropdown(
+                MenuButton(
+                    f"+{len(statuses) - 1}",
+                    variant="plain",
+                    color="neutral",
+                    aria_label=f"{len(statuses) - 1} more statuses",
+                    sx={**PILL_SX, "minHeight": 0, "bgcolor": "background.surface"},
+                ),
+                Menu(
+                    *[
+                        MenuItem(
+                            StatusBadge(label=status["label"], kind=status["kind"], on_dismiss=status["on_dismiss"]),
+                            key=status["label"],
+                        )
+                        for status in statuses[1:]
+                    ],
+                    size="sm",
+                    placement="bottom-end",
+                ),
+                key="more",
+            )
+        )
+    return Box(
+        *badges,
+        class_name="metanno-status-stack",
+        sx={
+            "display": "flex",
+            "gap": 1,
+            "minWidth": 0,
+            **(
+                {
+                    "position": "absolute",
+                    "zIndex": 4,
+                    "alignItems": "flex-end",
+                    "maxWidth": "calc(100% - 32px)",
+                    # Only the badges take clicks, the widget under the stack keeps the others
+                    "pointerEvents": "none",
+                    **STACK_CORNERS[corner],
+                }
+                if corner
+                else {"alignItems": "center"}
+            ),
+        },
+    )
+
+
+@component
+def StatusTray(status):
+    """
+    Show each work in progress and each error reported to the status of a view once, eg the failed query of a
+    related group read by a table, a form and a text widget. In a Metanno tab, the badges go into the
+    `.metanno-viewer__tray` node of its toolbar, elsewhere they stack over the top right corner of the view
+    """
+    tracked = use_store_snapshot(status)
+    anchor = use_ref(None)
+    slot, set_slot = use_state(None)
+
+    def find_slot():
+        view = anchor.current.closest(".metanno-viewer__view")
+        set_slot(view.querySelector(".metanno-viewer__tray") if view else None)
+
+    use_effect(find_slot, [])
+
+    def dismiss(message):
+        status["dismissed"][message] = True
+
+    reported, statuses = {}, []
+    for _, label in tracked["busy"].items():
+        if label and label not in reported:
+            reported[label] = True
+            statuses.append({"kind": "busy", "label": label, "on_dismiss": None})
+    for _, message in tracked["errors"].items():
+        if message and message not in reported:
+            reported[message] = True
+            if not tracked["dismissed"][message]:
+                statuses.append(
+                    {"kind": "error", "label": message, "on_dismiss": lambda event, message=message: dismiss(message)}
+                )
+
+    # A dismissed error shows again if it comes back after no widget reported it, eg a new query that fails again
+    def forget_dismissals():
+        for message, dismissed in tracked["dismissed"].items():
+            if dismissed and message not in reported:
+                status["dismissed"][message] = False
+
+    use_effect(forget_dismissals)
+
+    stack = StatusStack(statuses=statuses, corner=None if slot else "top-right")
+    return span(Portal(stack, container=slot) if slot else stack, ref=anchor, style={"display": "contents"})
 
 
 @component
@@ -205,22 +409,6 @@ def StoreWidget(store, content, style=None, read_only=False):
         ref=container,
         tab_index=0,
         style=style,
-    )
-
-
-@component
-def LoadingStatus(label):
-    """
-    Show query progress beside its label in factory widgets
-    """
-    return Stack(
-        CircularProgress(size="sm", color="neutral", sx={"--CircularProgress-size": "16px"}),
-        label,
-        direction="row",
-        spacing=1,
-        role="status",
-        use_flex_gap=True,
-        sx={"alignItems": "center"},
     )
 
 
@@ -294,15 +482,15 @@ def get_parent_selection(path_parts, selected_rows_by_store, read=lambda store: 
 
 
 @component
-def StatusBar(store, synced, show_connection=True):
+def StatusBar(store, synced, show_connection=True, view_status=None):
     """
     Show the last rejected edit or undo of a Store and, with show_connection, its connection to Python, below
-    the widgets of an app. The Metanno viewer shows only the error since its toolbar shows the kernel state
+    the widgets of an app. With the `view_status` of render_recipe, the error goes to the StatusTray of the view
     """
-    error = use_store_history(store).error
+    statuses = use_widget_statuses(view_status, use_store_history(store).error)
     status = use_connection_status()
     if not show_connection:
-        return ErrorBanner(error=error)
+        return StatusStack(statuses=statuses)
     if status["connected"]:
         connected, color = "Connected", "success"
     elif synced:
@@ -340,7 +528,7 @@ def StatusBar(store, synced, show_connection=True):
             }
         )
     return Box(
-        ErrorBanner(error=error),
+        StatusStack(statuses=statuses),
         Typography(f"Connection status: {connected}", level="body-sm", color=color),
         class_name="metanno-status-bar",
         sx=sx,

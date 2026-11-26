@@ -142,7 +142,8 @@ export class FullscreenViews {
     if (this.active === widget) return;
     this.exit(undefined, false);
     const content = widget.node.firstElementChild as HTMLElement;
-    content.querySelector<HTMLElement>(".metanno-viewer__status")!.hidden = !controls;
+    // Without controls, the toolbar keeps only the tray of the view statuses
+    content.querySelector(".metanno-viewer__status")!.classList.toggle("metanno-viewer__status--tray-only", !controls);
     this.host = document.createElement("div");
     this.host.className = "metanno-viewer__fullscreen";
     this.host.append(content);
@@ -168,7 +169,7 @@ export class FullscreenViews {
   exit(widget?: Widget, updateUrl = true): void {
     if (!this.active || (widget && this.active !== widget)) return;
     const content = this.host!.firstElementChild as HTMLElement;
-    content.querySelector<HTMLElement>(".metanno-viewer__status")!.hidden = false;
+    content.querySelector(".metanno-viewer__status")!.classList.remove("metanno-viewer__status--tray-only");
     this.active.node.append(content);
     setButton(this.entries.get(this.active)!.button, expandIcon, "Enter fullscreen");
     this.host!.remove();
