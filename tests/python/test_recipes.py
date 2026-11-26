@@ -749,3 +749,26 @@ def test_recipe_parameters_describe_fields_and_check_values():
         "mode": "Required",
         "limit": "Input should be a valid integer, unable to parse string as an integer",
     }
+
+
+def test_string_list_columns_edit_as_tags():
+    from metanno.recipes.data_widget_factory.fields import column_kind, infer_fields
+
+    kinds = {
+        "list<item: string>": "multi-text",
+        "!array<!string>": "multi-text",
+        "large_list<item: large_string>": "multi-text",
+        "List<Utf8>": "multi-text",
+        "list<item: int64>": "text",
+        "list<item: struct<name: string>>": "text",
+        "bool": "boolean",
+        "string": "text",
+    }
+    assert {column_type: column_kind(column_type) for column_type in kinds} == kinds
+    rows = [{"id": 1, "labels": ["urgent", "later"]}, {"id": 2, "labels": []}]
+    # A list of categorical strings chooses several of the strings found in the rows
+    assert [(f["kind"], f["options"]) for f in infer_fields(rows, categorical_keys=["labels"])] == [
+        ("text", None),
+        ("multi-radio", ["urgent", "later"]),
+    ]
+    assert infer_fields(rows, hidden_keys=["id"])[0]["kind"] == "multi-text"

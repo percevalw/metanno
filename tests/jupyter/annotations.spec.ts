@@ -437,3 +437,60 @@ test("AnnotatedImage draws shapes and edits their style", async ({ page }) => {
   await page.mouse.click(box.x + 100, box.y + 18);
   await page.waitForFunction(() => window.konvaStyles?.[0] === "secondary");
 });
+
+for (const kind of ["dataframe", "collection"]) {
+  test(`${kind} label lists edit from the table and the form`, async ({ page }) => {
+    const errors = [];
+    page.on("pageerror", (error) => errors.push(error.stack));
+    await openNotebook(
+      page,
+      "labels.ipynb",
+      [`from annotation_app import make_label_editing\nmake_label_editing(${JSON.stringify(kind)})`],
+      { run: true }
+    );
+    await page.waitForFunction(() => window.factory);
+    const labels = async (id) => (await page.evaluate(() => readRows("todos"))).find((row) => row.id === id).labels;
+    const table = page.locator(".metanno-table");
+    await table.getByRole("gridcell", { name: "1", exact: true }).click();
+    await page.waitForFunction(() => String(factory.selected.todos.identities) === "1");
+
+    // Each form field shows and edits the same list
+    const field = (name) => page.locator(".MuiFormControl-root").filter({ has: page.getByText(name, { exact: true }) });
+    await page.getByRole("checkbox", { name: "later", exact: true }).click();
+    await expect.poll(() => labels(1)).toEqual(["urgent", "later"]);
+    await field("Select").getByRole("combobox").click();
+    await page.getByRole("option", { name: "home" }).click();
+    await page.keyboard.press("Escape");
+    await expect.poll(() => labels(1)).toEqual(["urgent", "later", "home"]);
+    await field("Autocomplete").locator(".MuiChip-root", { hasText: "urgent" }).locator("button").click();
+    await expect.poll(() => labels(1)).toEqual(["later", "home"]);
+    await field("Tags").locator("input").fill("custom");
+    await field("Tags").locator("input").press("Enter");
+    await expect.poll(() => labels(1)).toEqual(["later", "home", "custom"]);
+    await expect(table.getByRole("row").nth(1)).toContainText("custom");
+
+    // The table cell edits the list as tags
+    await table.getByRole("row").nth(2).getByRole("gridcell").nth(1).dblclick();
+    await page.keyboard.type("home");
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Enter");
+    await expect.poll(() => labels(2)).toEqual(["home"]);
+
+    // A text filter on the labels keeps the rows where one of the labels matches
+    const filter = table.locator(".metanno-table-filter").nth(1);
+    await filter.fill("cus");
+    await expect(table.getByRole("gridcell", { name: "2", exact: true })).toHaveCount(0);
+    await expect(table.getByRole("gridcell", { name: "1", exact: true })).toHaveCount(1);
+    await filter.fill("");
+    await table.getByRole("gridcell", { name: "2", exact: true }).click();
+
+    // Rows holding other lists show a mixed value, and one choice gives both rows the same list
+    await table.getByRole("gridcell", { name: "1", exact: true }).click({ modifiers: ["Shift"] });
+    await page.waitForFunction(() => factory.selected.todos.identities.length === 2);
+    await expect(page.getByText("Checkboxes (Multiple values)")).toBeVisible();
+    await page.getByRole("checkbox", { name: "later", exact: true }).click();
+    await expect.poll(async () => [await labels(1), await labels(2)]).toEqual([["later"], ["later"]]);
+    await expect(page.getByText("Checkboxes", { exact: true })).toBeVisible();
+    assert.deepEqual(errors, []);
+  });
+}

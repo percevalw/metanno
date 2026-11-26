@@ -325,7 +325,7 @@ export const Table = function Table({
         return {
           editor: readonly ? null : TableCellEditor,
           formatter: (propsInner: any) => (
-            <InputTag autocontain readOnly {...propsInner} value={propsInner.row[propsInner.column.key]} />
+            <InputTag autocontain readOnly {...propsInner} value={propsInner.row[propsInner.column.key] ?? []} />
           ),
         };
       case "boolean":

@@ -32,13 +32,15 @@ export const TableCellEditor = forwardRef(
   ({ row, rowIdx, column, onRowChange, onClose }: EditorProps<RowData, RowData>, ref: any) => {
     const state = React.useContext(TableEditorContext);
     const config = state.columns.find((config) => config.key === column.key)!;
-    const Input = config.kind.startsWith("multi-") ? MultiInputSuggest : SingleInputSuggest;
+    const multi = config.kind.startsWith("multi-");
+    const Input = multi ? MultiInputSuggest : SingleInputSuggest;
     return (
       <Input
         ref={ref}
         row_id={state.getRowIndex(rowIdx)}
         inputRef={state.inputRef}
-        value={row[column.key]}
+        // A null list, eg a row without labels, edits as no tag
+        value={multi ? row[column.key] ?? [] : row[column.key]}
         column={column.key}
         inputValue={state.inputValue}
         onInputChange={state.inputChanged(rowIdx, column)}

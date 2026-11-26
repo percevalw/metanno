@@ -19,7 +19,7 @@ from metanno import DataRelation, DataWidgetFactory
         window.calls = [];
         for (const key of ["todos", "tags"]) {
             const frame = state.store[key];
-            if (!frame.query) continue;
+            if (!frame?.query) continue;
             const query = frame.query;
             frame.query = options => { window.calls.push({key, offset: options.offset ?? 0}); return query(options); };
         }
@@ -253,3 +253,47 @@ def make_grouped_text():
             "selection": selection,
         }
     )
+
+
+def make_label_editing(kind):
+    """
+    Edit the labels of each todo, a list of strings, from a table and from the form fields that choose several options
+    """
+    todos = [
+        {"id": 1, "labels": ["urgent"]},
+        {"id": 2, "labels": []},
+    ]
+    store = create_store(
+        {"todos": DataFrame(todos) if kind == "dataframe" else todos},
+        sync=True,
+        dataframe_sync="full",
+        dataframe_max_bytes=1024 * 1024,
+    )
+    factory = DataWidgetFactory(store)
+    options = ["urgent", "later", "home"]
+    table = factory.create_table_widget(
+        store_key="todos",
+        primary_key="id",
+        # Without configured fields, the labels column of a DataFrame shows and edits as tags
+        fields=[]
+        if kind == "dataframe"
+        else [
+            {"key": "id", "name": "id", "kind": "text"},
+            {"key": "labels", "name": "labels", "kind": "multi-select", "options": options, "editable": True},
+        ],
+        style={"height": "150px"},
+    )
+    form = factory.create_form_widget(
+        store_key="todos",
+        primary_key="id",
+        fields=[
+            {"key": "labels", "name": name, "kind": field_kind, "options": options, "editable": True}
+            for name, field_kind in [
+                ("Select", "multi-select"),
+                ("Checkboxes", "multi-radio"),
+                ("Autocomplete", "multi-autocomplete"),
+                ("Tags", "multi-text"),
+            ]
+        ],
+    )
+    return Application(state={"view": div(table, form), "store": store, "selected": factory.selected_rows})

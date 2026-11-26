@@ -23,7 +23,7 @@ from metanno import Table
 from metanno.ui import js
 
 from .data_relations import ancestor_filter, selected_value
-from .fields import FieldSpec
+from .fields import FieldSpec, column_kind
 from .widget_data import (
     VIEW_STATUS,
     StatusStack,
@@ -125,6 +125,9 @@ class TableWidgets:
                 - `"boolean"`: Boolean values.
                 - `"hyperlink"`: Clickable hyperlink.
                 - `"select"/"radio"/"autocomplete"`: Multi choice selection.
+                - `"multi-text"`: List of strings edited as tags, the options are suggested while typing.
+                  `"multi-select"/"multi-radio"/"multi-autocomplete"` edit the same way, and a DataFrame column
+                  of string lists, such as `list<item: string>`, shows as `"multi-text"` when no field sets it.
 
             - `options`: If present, a dropdown/autocomplete will be used
                 with the provided options (can also be a function that takes the
@@ -206,12 +209,15 @@ class TableWidgets:
         store_key = str(store_key)
         path_parts = store_key.split(".")
 
-        # Table only support a subset of kinds for editing/viewing values
+        # Table only support a subset of kinds for editing/viewing values, lists of strings edit as tags
         KIND_MAP = {
             "radio": "text",
             "checkbox": "boolean",
             "select": "text",
             "autocomplete": "text",
+            "multi-radio": "multi-text",
+            "multi-select": "multi-text",
+            "multi-autocomplete": "multi-text",
         }
         columns = [
             {**c, "kind": KIND_MAP.get(c["kind"], c["kind"]), "editable": bool(c.get("editable") and not read_only)}
@@ -492,14 +498,12 @@ class TableWidgets:
 
             @use_event_callback
             def handle_input_change(row_id, row_idx, col, value, cause):
-                # Suggest the configured options of the edited column while typing
+                # Suggest the configured options of the edited column, the cell editor filters them as the user types
                 options = next((c for c in columns if c["key"] == col), {}).get("options")
                 if cause == "unmount" or options is None:
                     set_suggestions(None)
                 elif cause == "mount":
                     set_suggestions(options)
-                elif cause == "type":
-                    set_suggestions([c for c in options if (value or "").lower() in c.lower()])
 
             async def query_source(event=None):
                 set_related_filters({})
@@ -542,7 +546,7 @@ class TableWidgets:
                     {
                         "key": c["name"],
                         "name": c["name"],
-                        "kind": "boolean" if "bool" in c.type.lower() else "text",
+                        "kind": column_kind(c.type),
                         "editable": description.capabilities.edit,
                         "filterable": not c.normalized and c.source_filter is not False,
                         "placeholder": filter_placeholder(c.type),

@@ -49,6 +49,8 @@ function describeRows(rows: RowData[], primaryKey: string): DataFrameDescription
             : "double"
           : typeof value === "string"
           ? "string"
+          : Array.isArray(value) && value.every((item) => typeof item === "string")
+          ? "list<item: string>"
           : "json"
       );
     }
@@ -80,16 +82,17 @@ function matches(node: FilterNode, row: RowData): boolean {
       return value !== target;
   }
   if (value == null) return false;
-  // Only icontains ignores case, as in PRET's SQL
+  // Only icontains ignores case, and a list matches when one of its items does, as in PRET's SQL
+  const texts = Array.isArray(value) ? value.map(String) : [String(value)];
   switch (node.operator) {
     case "icontains":
-      return String(value).toLowerCase().includes(String(target).toLowerCase());
+      return texts.some((text) => text.toLowerCase().includes(String(target).toLowerCase()));
     case "contains":
-      return String(value).includes(target);
+      return texts.some((text) => text.includes(target));
     case "starts_with":
-      return String(value).startsWith(target);
+      return texts.some((text) => text.startsWith(target));
     case "ends_with":
-      return String(value).endsWith(target);
+      return texts.some((text) => text.endsWith(target));
     case "lt":
       return value < target;
     case "lte":

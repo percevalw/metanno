@@ -490,9 +490,12 @@ export class MultiInputSuggest<
   onSuggestionsClearRequested = () => {};
 
   private getFilteredSuggestions(): T[] {
-    const allSuggestions: T[] = Array.isArray(this.props.suggestions)
-      ? this.props.suggestions
-      : (this.props.suggestions as (value: string) => T[])(this.lastTypedValue);
+    const allSuggestions: T[] =
+      this.props.suggestions instanceof Function
+        ? (this.props.suggestions as (value: string) => T[])(
+            this.lastTypedValue
+          )
+        : this.props.suggestions || [];
     if (!this.lastTypedValue) {
       return allSuggestions;
     }

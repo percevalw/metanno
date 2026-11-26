@@ -16,6 +16,7 @@ from pret_joy import (
     Radio,
     RadioGroup,
     Select,
+    Stack,
     Textarea,
 )
 from typing_extensions import Literal, NotRequired, TypedDict
@@ -98,10 +99,35 @@ def TextField(key_name, label, value, editable, on_change, is_mixed, style):
 class FieldSpec(TypedDict):
     key: str
     name: NotRequired[str]
-    kind: Literal["text", "boolean", "hyperlink", "select", "radio", "autocomplete"]
+    kind: Literal[
+        "text",
+        "boolean",
+        "hyperlink",
+        "select",
+        "radio",
+        "autocomplete",
+        "multi-text",
+        "multi-select",
+        "multi-radio",
+        "multi-autocomplete",
+    ]
     editable: NotRequired[bool]
     filterable: NotRequired[bool]
     options: Optional[Union[Sequence[Any], Callable[[Any], Sequence[Any]]]]
+
+
+def column_kind(column_type):
+    """
+    Pick the field kind of a DataFrame column from its type, used by tables and forms without configured fields,
+    eg "multi-text" for a `list<item: string>` column from Arrow or an `array<string>` column from Ibis
+    """
+    column_type = column_type.lower().replace("!", "")
+    # Browser tables name the same type List<Utf8>
+    parts = column_type.replace(">", "").split("<")
+    item_type = parts[1].split(":").pop().strip() if len(parts) == 2 else None
+    if parts[0] in ("list", "large_list", "array") and item_type in ("string", "large_string", "utf8"):
+        return "multi-text"
+    return "boolean" if "bool" in column_type else "text"
 
 
 def infer_fields(
@@ -172,7 +198,12 @@ def infer_fields(
     visible_keys = [k for k in ordered_keys if k not in hidden_keys]
 
     def non_null_values(key):
-        return list(dict.fromkeys(val for row in rows if (val := row.get(key)) is not None))
+        values = [val for row in rows if (val := row.get(key)) is not None]
+        # The strings held by lists, eg the labels of a row, are the values of their key
+        is_list = len(values) > 0 and all(isinstance(val, list) for val in values)
+        if is_list:
+            values = [item for val in values for item in val]
+        return list(dict.fromkeys(values)), is_list
 
     def infer_scalar_type(values):
         if not values:
@@ -189,10 +220,13 @@ def infer_fields(
 
     columns = []
     for key in visible_keys:
-        values = categories[key] if key in categories else non_null_values(key)
+        values, is_list = non_null_values(key)
+        values = categories.get(key, values)
         s_type = infer_scalar_type(values)
 
-        if s_type == "bool":
+        if is_list and s_type == "string":
+            metanno_type = "multi-text"
+        elif s_type == "bool":
             metanno_type = "boolean"
         elif key in id_keys:
             metanno_type = "hyperlink"
@@ -202,13 +236,15 @@ def infer_fields(
         options = None
         if key in categorical_keys:
             options = list(dict.fromkeys(values))
-            if metanno_type == "text":
+            if metanno_type in ("text", "multi-text"):
+                # A list of strings picks several options, eg "multi-select" rather than "select"
+                prefix = "multi-" if is_list else ""
                 if len(options) < 4:
-                    metanno_type = "radio"
+                    metanno_type = prefix + "radio"
                 elif len(options) < 15:
-                    metanno_type = "select"
+                    metanno_type = prefix + "select"
                 else:
-                    metanno_type = "autocomplete"
+                    metanno_type = prefix + "autocomplete"
 
         columns.append(
             {
@@ -232,7 +268,9 @@ def field_state(rows, key):
     if not len(rows):
         return {"value": None, "is_mixed": False}
     value = rows[0].get(key)
-    return {"value": value, "is_mixed": any(row.get(key) != value for row in rows[1:])}
+    # Lists compare by their JSON text, since two equal lists are different objects in the browser
+    text = JSON.stringify(value)  # noqa: F821
+    return {"value": value, "is_mixed": any(JSON.stringify(row.get(key)) != text for row in rows[1:])}  # noqa: F821
 
 
 def make_field_label(
@@ -265,10 +303,67 @@ def render_select_field(
     if callable(options):
         options = options(data)
     select_options = list(options)
-    if len(select_options) == 0:
+    if len(select_options) == 0 and kind != "multi-text":
         return
+    # Multi kinds edit a list of strings, mixed lists show as no choice and a choice replaces the list of every row
+    selected = [] if is_mixed or value is None or not kind.startswith("multi-") else list(value)
 
-    if kind == "autocomplete":
+    if kind in ("multi-autocomplete", "multi-text"):
+        # The options of a multi-text field are only suggestions, Enter adds the typed text as a new tag
+        return FormControl(
+            FormLabel(field_label),
+            Autocomplete(
+                options=select_options,
+                value=selected,
+                on_change=lambda event, val: on_field_change(key, list(val)),
+                multiple=True,
+                free_solo=kind == "multi-text",
+                disabled=not editable,
+                placeholder=MIXED_VALUES_LABEL if is_mixed else None,
+                size="sm",
+                sx={"flex": 1},
+            ),
+            sx={"minWidth": min_input_width or 0, "alignSelf": align_self, "gridArea": key, "flex": 1},
+        )
+    elif kind == "multi-select":
+        return FormControl(
+            FormLabel(field_label),
+            Select(
+                *(Option(str(c), value=c) for c in select_options),
+                value=selected,
+                on_change=lambda event, val: on_field_change(key, list(val)),
+                multiple=True,
+                disabled=not editable,
+                placeholder=MIXED_VALUES_LABEL if is_mixed else None,
+                size="sm",
+                sx={"flex": 1},
+            ),
+            sx={"minWidth": min_input_width, "alignSelf": align_self, "gridArea": key, "flex": 1},
+        )
+    elif kind == "multi-radio":
+        # One checkbox per option, unchecking keeps the other strings of the list in their order
+        def toggle(option, checked):
+            others = [c for c in selected if c != option]
+            on_field_change(key, [*others, option] if checked else others)
+
+        # A FormControl would give its id to every checkbox, so the group is a Stack
+        return Stack(
+            FormLabel(field_label),
+            *(
+                Checkbox(
+                    label=str(c),
+                    checked=c in selected,
+                    on_change=lambda event, option=c: toggle(option, event.target.checked),
+                    disabled=not editable,
+                    size="sm",
+                )
+                for c in select_options
+            ),
+            role="group",
+            spacing=0.5,
+            sx={"gridArea": key, "alignSelf": align_self},
+        )
+    elif kind == "autocomplete":
         if all_label is not None:
             select_options = [all_label, *select_options]
             value = all_label if value in (None, "") else value
@@ -412,7 +507,8 @@ def render_field(
     label = col.get("name", key)
     kind = col.get("kind", "text")
 
-    if kind in ("select", "radio", "autocomplete") and options is not None:
+    choice_kinds = ("select", "radio", "autocomplete", "multi-select", "multi-radio", "multi-autocomplete")
+    if (kind in choice_kinds and options is not None) or kind == "multi-text":
         return render_select_field(
             key,
             label,
@@ -420,7 +516,7 @@ def render_field(
             value,
             current_row,
             editable,
-            options,
+            options or [],
             on_field_change,
             min_input_width,
             align_self,
