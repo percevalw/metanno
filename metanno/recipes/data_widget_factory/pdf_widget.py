@@ -55,8 +55,8 @@ class PdfWidgets:
         def PdfWidget():
             if on_mount is not None:
                 use_effect(on_mount, [])
-            identities = use_store_snapshot(selected_rows)["identities"]
-            rows, view = use_selected_rows(data, primary_key, identities[:1])
+            selected = use_store_snapshot(selected_rows)
+            rows, view = use_selected_rows(data, primary_key, selected["identities"][:1], None, selected)
             row_id = rows[0][primary_key] if len(rows) else None
             url, set_url = use_state(None)
             error, set_error = use_state(None)
@@ -85,11 +85,13 @@ class PdfWidgets:
             use_effect(load_selected, [row_id])
             use_effect(revoke, [url])
             loading = row_id is not None and url is None and not error
-            statuses = use_widget_statuses(status, view.error, "Loading the PDF" if loading else None, error)
+            statuses = use_widget_statuses(status, view.error, "Loading the PDF" if loading else view.loading, error)
             return div(
                 iframe(src=url, title="PDF", style={"width": "100%", "height": "100%", "border": 0})
                 if url
-                else div("No document selected" if row_id is None else None, style={"padding": "1em"}),
+                else div(
+                    "No document selected" if row_id is None and not view.loading else None, style={"padding": "1em"}
+                ),
                 StatusStack(statuses=statuses, corner="top-right"),
                 style={**style, "position": "relative"},
             )

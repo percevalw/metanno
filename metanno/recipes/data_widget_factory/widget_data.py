@@ -56,7 +56,7 @@ def with_filter_error(view, filter_error):
 
 
 @marshal_as(js="return useSelectedRows", globals={"useSelectedRows": js.Metanno.useSelectedRows})
-def use_view_selected_rows(data, view, primary_key, identities, filter):
+def use_view_selected_rows(data, view, primary_key, identities, filter, selection):
     """
     Read the rows of a row view by primary key or filter, or all rows, see client/rows.ts
     """
@@ -82,16 +82,24 @@ def use_rows(data, primary_key, filters=None, filter=None, sort=None):
     return use_list_rows(data, use_store_snapshot(data), primary_key, filters, filter, sort or [])
 
 
-def use_selected_rows(data, primary_key, identities=None, filter=None):
+def use_selected_rows(data, primary_key, identities=None, filter=None, selection=None):
     """
     Read rows of a DataFrame or a Store list by primary key or filter, or all rows, for forms and annotations
+
+    Parameters
+    ----------
+    selection
+        Snapshot of the shared selection the identities come from: its lead `row`, eg the document clicked in a table,
+        shows at once while the rows of a DataFrame load, and while a table is `awaiting_first_row` the previous rows
+        stay, marked stale
 
     Returns
     -------
     Tuple[List[Any], Any]
-        The rows, loaded after mounting for a DataFrame, and the row view reporting loading and errors
+        The rows, loaded after mounting for a DataFrame, and the row view reporting loading, errors and `stale` rows
     """
-    return use_view_selected_rows(data, use_rows(data, primary_key, None, filter), primary_key, identities, filter)
+    view = use_rows(data, primary_key, None, filter)
+    return use_view_selected_rows(data, view, primary_key, identities, filter, selection)
 
 
 async def edit_rows(data, primary_key, rows=(), values=None, remove=False, insert=None, read_only=False):

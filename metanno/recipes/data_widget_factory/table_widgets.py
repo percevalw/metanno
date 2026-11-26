@@ -252,6 +252,7 @@ class TableWidgets:
                     if relation["parent"] == current:
                         pending.append(relation["child"])
             return False
+
         selected_rows_by_store = self.selected_rows
         selected_rows_store = selected_rows_by_store[store_key]
         query_from = self.query_from
@@ -323,15 +324,32 @@ class TableWidgets:
             source = view.rowSource
             selection_request = use_ref(None)
 
+            # Forms and texts show the lead selected row, so Store lists open on their first row, and so do the
+            # DataFrame tables whose lead row a widget needs, once they show the rows of a selected parent, eg the
+            # first patient at opening, then the first note of this patient in a text widget
+            waits_parent = len(ancestor_relations) and followed is None
+            opens_first_row = not is_dataframe or (shows_lead_row(store_key) and not waits_parent)
+            # Until then the widgets showing the lead row keep the previous one, eg the note of the previous patient,
+            # see useSelectedRows in client/rows.ts
+            awaiting_first_row = bool(
+                opens_first_row
+                and not len(selected_rows_snapshot["identities"])
+                and not view.error
+                and (not source or source.rowCount > 0)
+            )
+
+            def report_awaiting_first_row():
+                if selected_rows_snapshot["awaiting_first_row"] != awaiting_first_row:
+                    selected_rows_store["awaiting_first_row"] = awaiting_first_row
+
+            def clear_awaiting_first_row():
+                selected_rows_store["awaiting_first_row"] = False
+
+            use_effect(report_awaiting_first_row, [awaiting_first_row, selected_rows_snapshot["awaiting_first_row"]])
+            use_effect(lambda: clear_awaiting_first_row, [])
+
             def select_first_row():
-                # Forms and texts show the lead selected row, so Store lists open on their first row, and so do the
-                # DataFrame tables whose lead row a widget needs, once they show the rows of a selected parent, eg
-                # the first patient at opening, then the first note of this patient in a text widget
-                waits_parent = len(ancestor_relations) and followed is None
-                opens_first_row = not is_dataframe or (shows_lead_row(store_key) and not waits_parent)
-                if not opens_first_row or len(selected_rows_store["identities"]):
-                    return
-                if not source or not source.rowCount:
+                if not opens_first_row or len(selected_rows_store["identities"]) or not source or not source.rowCount:
                     return
                 controller = __new__(AbortController())  # noqa: F821
 
@@ -339,7 +357,7 @@ class TableWidgets:
                     # The first page of a DataFrame may not be loaded yet
                     rows = await source.getRows(0, 1, controller.signal)
                     if len(rows) and not len(selected_rows_store["identities"]) and not controller.signal.aborted:
-                        await select_row_id(rows[0][primary_key], "first_row")
+                        select_row_at(0, rows[0], "first_row")
 
                 select()
                 return lambda: controller.abort()
@@ -403,11 +421,24 @@ class TableWidgets:
 
             use_effect(lambda: cancel_selection, [source])
 
+            def select_row_at(idx, row, cause):
+                """
+                Highlight `row` at its position `idx` among the rows shown, None when it is not shown, and share it as
+                the selection. `cause` is "relation" when it follows the selection of a related widget, which already
+                updated the widgets depending on it, and "first_row" when the table opens on its first row, which
+                leaves the parent rows unselected
+                """
+                set_position(
+                    {"row_idx": idx, "col": None, "mode": "SELECT", "ranges": [idx] if idx is not None else []}
+                )
+                ranges = [{"row_idx": idx}] if idx is not None else []
+                handle_position_change(row[primary_key], idx, None, "SELECT", cause, ranges, row, [row])
+                if idx is not None:
+                    table_ref.current.scroll_to_row_idx(idx)
+
             async def select_row_id(row_id, cause="select"):
                 """
-                Select a row by its primary key, `cause` is "relation" when it follows the selection of a related
-                widget, which already updated the widgets depending on it, and "first_row" when the table opens on
-                its first row, which leaves the parent rows unselected
+                Select a row by its primary key, looked up among the rows of the table, see select_row_at
                 """
                 if source is None:
                     return
@@ -417,28 +448,8 @@ class TableWidgets:
                 rows = await source.getRowsByKeys([row_id], controller.signal)
                 if len(rows) and not controller.signal.aborted:
                     idx = await source.findRowIndex(row_id, controller.signal)
-                    if controller.signal.aborted:
-                        return
-                    set_position(
-                        {
-                            "row_idx": idx if idx >= 0 else None,
-                            "col": None,
-                            "mode": "SELECT",
-                            "ranges": [idx] if idx >= 0 else [],
-                        }
-                    )
-                    handle_position_change(
-                        row_id,
-                        idx if idx >= 0 else None,
-                        None,
-                        "SELECT",
-                        cause,
-                        [{"row_idx": idx}] if idx >= 0 else [],
-                        rows[0],
-                        rows,
-                    )
-                    if idx >= 0:
-                        table_ref.current.scroll_to_row_idx(idx)
+                    if not controller.signal.aborted:
+                        select_row_at(idx if idx >= 0 else None, rows[0], cause)
 
             async def adjacent_row_idx(idx, delta):
                 if source is None or not source.rowCount:

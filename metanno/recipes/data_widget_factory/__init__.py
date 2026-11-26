@@ -137,12 +137,16 @@ class DataWidgetFactory(TableWidgets, FormWidgets, TextWidgets, PdfWidgets):
         `selected_from` is the Store key of the table whose click selected these rows as the parents of its
         own row, e.g. note for the stay and the patient of a clicked note, or None. That table keeps
         showing the rows it showed before the click, while the tables in between follow the new rows.
+        `awaiting_first_row` is True while a table is about to select its first row, e.g. the first note of a newly
+        selected patient, and the widgets showing the lead row meanwhile keep the previous one.
         Tables keep the positions of these rows themselves, to highlight them.
         """
         if store_key is None:
             return
         if store_key not in self.selected_rows:
-            self.selected_rows[store_key] = create_store({"identities": [], "row": None, "selected_from": None})
+            self.selected_rows[store_key] = create_store(
+                {"identities": [], "row": None, "selected_from": None, "awaiting_first_row": False}
+            )
 
     @staticmethod
     def deep_get_store(data_store, path_parts: List[str], parent_ids: Dict[str, Any], primary_keys: Dict[str, str]):
@@ -194,6 +198,12 @@ class DataWidgetFactory(TableWidgets, FormWidgets, TextWidgets, PdfWidgets):
                     relation["parent"] == store_key and relation["child"] == key for relation in relations
                 )
                 if is_child and key != keep and len(selected_rows_by_store[key]["identities"]):
+                    # A table of this key may select its first row, and the widgets showing the lead row keep the
+                    # previous one until it does. We set the flag before the identities so that no widget renders the
+                    # empty selection without it, and the table corrects the flag once it renders
+                    selected_rows_by_store[key]["awaiting_first_row"] = any(
+                        item[1] == "table" for item in handles.get(key, [])
+                    )
                     selected_rows_by_store[key]["identities"] = []
                     selected_rows_by_store[key]["row"] = None
                     selected_rows_by_store[key]["selected_from"] = None
@@ -345,7 +355,7 @@ class DataWidgetFactory(TableWidgets, FormWidgets, TextWidgets, PdfWidgets):
             parent_ids = get_parent_selection(path_parts, selected_rows_by_store, use_store_snapshot)
             data = deep_get_store(data_store, path_parts, parent_ids, primary_keys) or empty_store
             selected = use_store_snapshot(selected_rows_store)
-            rows, _ = use_selected_rows(data, primary_key, selected["identities"][:1])
+            rows, _ = use_selected_rows(data, primary_key, selected["identities"][:1], None, selected)
             return rows[0].get(shown_key, fallback) if len(rows) else fallback
 
         return SelectedFieldView()

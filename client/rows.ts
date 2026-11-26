@@ -19,6 +19,8 @@ export type RowsView = {
   description: DataFrameDescription | null;
   loading: string | null;
   error: string | null;
+  // The rows of useSelectedRows are the previous ones, shown read only until the new ones load
+  stale?: boolean;
 };
 
 // Compare two sort values for Store lists and rows tables, missing values go last in both directions
@@ -220,15 +222,16 @@ export function withFilterError(view: RowsView, filterError: string | null): Row
  * Read the rows shown by forms and annotation widgets, by primary key or by filter, or all rows.
  *
  * `view` is the row view of `data` from use_rows in widget_data.py, built with the same filter. Store list rows
- * are returned during the first render. DataFrame rows are fetched after mounting, the view then reports loading
- * and errors.
+ * are returned during the first render. DataFrame rows are fetched after mounting: meanwhile the lead `row` of the
+ * shared `selection` shows, eg the document clicked in a table, and without it the view reports loading.
  */
 export function useSelectedRows(
   data: any,
   view: RowsView,
   primaryKey: string,
   identities: unknown[] | null = null,
-  filter: FilterNode | null = null
+  filter: FilterNode | null = null,
+  selection: { row: RowData | null; awaiting_first_row?: boolean } | null = null
 ): [RowData[], RowsView] {
   const identityKey = JSON.stringify(identities);
   const listRows = useMemo(() => {
@@ -259,6 +262,21 @@ export function useSelectedRows(
       });
     return () => controller.abort();
   }, [view.rowSource, view.contentVersion, identityKey]);
-  if (listRows) return [listRows, view];
-  return [loaded && loaded.data === data && loaded.identityKey === identityKey ? loaded.rows : [], view];
+  const lead = selection?.row;
+  const rows =
+    listRows ??
+    (loaded && loaded.data === data && loaded.identityKey === identityKey
+      ? loaded.rows
+      : lead && identities?.length === 1 && lead[primaryKey] === identities[0]
+      ? [lead]
+      : null);
+  // While the selection is empty and about to change, the last rows shown stay as stale rows, eg the note of the
+  // previous patient while the table of the notes of the new one loads and selects its first row
+  const shown = useRef<RowData[]>([]);
+  if (rows?.length) shown.current = rows;
+  if (identities?.length === 0 && (view.loading || selection?.awaiting_first_row))
+    return [shown.current, { ...view, loading: view.loading ?? "Loading data", stale: shown.current.length > 0 }];
+  if (rows) return [rows, view];
+  if (identities?.length === 0 || view.error) return [[], view];
+  return [[], { ...view, loading: view.loading ?? "Loading data" }];
 }

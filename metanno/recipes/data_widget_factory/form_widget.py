@@ -136,7 +136,9 @@ class FormWidgets:
             if on_mount is not None:
                 use_effect(on_mount, [])
             selected_rows_snapshot = use_store_snapshot(selected_rows_store)
-            rows, view = use_selected_rows(data, primary_key, selected_rows_snapshot["identities"])
+            rows, view = use_selected_rows(
+                data, primary_key, selected_rows_snapshot["identities"], None, selected_rows_snapshot
+            )
             statuses = use_widget_statuses(status, view.error, view.loading)
             current_row = rows[0] if len(rows) else None
 
@@ -205,6 +207,7 @@ class FormWidgets:
                         **field,
                         "editable": bool(
                             not read_only
+                            and not view.stale
                             and field.get("editable")
                             and view.description
                             and view.description.capabilities.edit
@@ -219,7 +222,7 @@ class FormWidgets:
 
             if not current_row:
                 return div(
-                    "No data selected",
+                    None if view.loading else "No data selected",
                     StatusStack(statuses=statuses, corner="top-right"),
                     style={"position": "relative", **(style or {})},
                 )
@@ -274,7 +277,7 @@ class FormWidgets:
                         f"Delete {len(rows)} selected",
                         on_click=delete_selected,
                         color="danger",
-                        disabled=not rows,
+                        disabled=not rows or view.stale,
                     )
                     if allow_delete and not read_only and view.description.capabilities.edit
                     else None,
