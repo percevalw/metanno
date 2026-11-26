@@ -56,6 +56,10 @@ The widgets behave the same way in every view:
 - a checkbox or a choice is saved as soon as it is clicked, a text field when you press ++enter++ or click
   elsewhere, while ++escape++, or selecting another row, cancels it
 - when several rows are selected, changing a field changes it for all of them, as one edit
+- a form field whose `options` is a function of the selected row hides for the rows where this function returns an
+  empty list, None or False, whatever the field kind, for instance
+  `lambda row: [True] if row and row["show_details"] else []` shows a text field only when the `show_details`
+  checkbox of the row is ticked
 - ++ctrl+z++ undoes the last change made in the view and ++ctrl+y++ or ++ctrl+shift+z++ redoes it, with ++cmd++ on a
   Mac, while inside a text field these keys undo the typing
 - when Python refuses an edit, for instance because someone else changed the same cell, the field shows why. A

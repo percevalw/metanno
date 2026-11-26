@@ -402,6 +402,12 @@ def render_field(
     if not use_explicit_value:
         value = current_row.get(key) if current_row is not None else None
     options = col.get("options")
+    if callable(options):
+        options = options(current_row)
+        # [] is truthy once pret runs this in the browser, hence the len check
+        if not options or len(options) == 0:
+            return None
+        options = list(options)
     editable = col.get("editable", False)
     label = col.get("name", key)
     kind = col.get("kind", "text")

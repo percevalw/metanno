@@ -68,7 +68,10 @@ class FormWidgets:
                 - `"boolean"`: checkbox input
 
             - `editable`: If False, the field will be read-only
-            - `options`: If present, a dropdown/autocomplete/radio will be used
+            - `options`: If present, a dropdown/autocomplete/radio will be used. It can
+              also be a function of the selected row, and the field is then hidden, whatever
+              its kind, for rows where it returns an empty list, None or False, e.g.
+              `lambda row: [True] if row and row["show_details"] else []` for a text field
 
             An empty list shows every column of a DataFrame, editable when the DataFrame is
         style : Dict[str, Any] | None
