@@ -70,9 +70,7 @@ const plugin: JupyterFrontEndPlugin<void> = {
         if (!panel) throw new Error("Select a kernel to open this annotation");
         return panel;
       }
-      const panel = (await app.commands.execute(OPEN_COMMAND, { resource, newTab: true })) as SourceViewWidget;
-      await panel.renderPromise;
-      return panel;
+      return (await app.commands.execute(OPEN_COMMAND, { resource, newTab: true })) as SourceViewWidget;
     });
     const tabs = new ViewerTabs(app, tracker, fullscreen);
     app.commands.addCommand("metanno-viewer:restore", {

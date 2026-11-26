@@ -182,7 +182,8 @@ def use_widget_statuses(status, error=None, busy=None, local_error=None):
     return statuses
 
 
-# Look of the pills of StatusBadge and of the "+N" button of StatusStack
+# Look of the pills of StatusBadge and of the "+N" button of StatusStack, 30px high like the buttons of the tab toolbar
+# so that a pill in its tray does not change its height
 PILL_SX = {
     "display": "flex",
     "alignItems": "center",
@@ -190,10 +191,11 @@ PILL_SX = {
     "minWidth": 0,
     "maxWidth": 320,
     "px": 1.5,
-    "py": 0.75,
+    "py": "5px",
     "borderRadius": "lg",
     "boxShadow": "md",
     "fontSize": "sm",
+    "lineHeight": "20px",
     "whiteSpace": "nowrap",
     "pointerEvents": "auto",
 }
@@ -202,13 +204,14 @@ PILL_SX = {
 @component
 def StatusBadge(label, kind="busy", on_dismiss=None):
     """
-    Show a status as a pill, with a spinner for a work in progress (`kind` "busy") or in red for an "error". A long
-    label is cut, and shown whole on hover
+    Show a status as a pill, in blue with a spinner for a work in progress (`kind` "busy") or in red for an "error". A
+    long label is cut, and shown whole on hover, and over several lines after a click on an error
     """
     error = kind == "error"
+    expanded, set_expanded = use_state(False)
     return Tooltip(
         Box(
-            CircularProgress(size="sm", color="neutral", sx={"--CircularProgress-size": "16px"}) if not error else None,
+            CircularProgress(size="sm", color="primary", sx={"--CircularProgress-size": "16px"}) if not error else None,
             span(label, style={"overflow": "hidden", "textOverflow": "ellipsis"}),
             IconButton(
                 "×",
@@ -222,13 +225,17 @@ def StatusBadge(label, kind="busy", on_dismiss=None):
             if on_dismiss
             else None,
             role="alert" if error else "status",
+            on_click=(lambda event: set_expanded(not expanded)) if error else None,
             sx={
                 **PILL_SX,
-                "bgcolor": "danger.softBg" if error else "background.surface",
-                "color": "danger.softColor" if error else "text.primary",
+                **({"whiteSpace": "normal", "maxWidth": 640, "overflowWrap": "anywhere"} if expanded else {}),
+                "cursor": "pointer" if error else None,
+                # A work in progress looks like the soft buttons of the forms, so it shows that a click was taken
+                "bgcolor": "danger.softBg" if error else "primary.softBg",
+                "color": "danger.softColor" if error else "primary.softColor",
             },
         ),
-        title=label,
+        title="" if expanded else label,
         size="sm",
         placement="bottom-end",
         sx={"maxWidth": 480, "overflowWrap": "anywhere"},

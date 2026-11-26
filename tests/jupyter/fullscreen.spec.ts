@@ -156,6 +156,9 @@ test("fullscreen links", async ({ page }) => {
     assert.equal(shared.searchParams.get("metanno-fullscreen"), key);
     await fullscreen.getByRole("button", { name: "Refresh", exact: true }).click();
     await fullscreen.getByRole("gridcell", { name: "todos source row", exact: true }).waitFor();
+    // The toolbar controls still get their clicks in fullscreen, eg Save view asks for a name
+    await fullscreen.getByRole("button", { name: "Save view", exact: true }).click();
+    await page.locator(".jp-Dialog").getByRole("button", { name: "Cancel", exact: true }).click();
     await fullscreen.getByRole("button", { name: "Exit fullscreen", exact: true }).click();
     await explorer.getByRole("gridcell", { name: "todos source row", exact: true }).waitFor();
     const direct = await page.context().newPage();

@@ -161,7 +161,11 @@ application`,
       await page.locator(".pret-view").getByRole("alert").filter({ hasText: "Boolean filters require" }).waitFor();
       assert.ok(await active.isVisible());
       assert.ok(await active.evaluate((node) => document.activeElement === node));
-      // Errors above a widget can be dismissed while their cause remains
+      // A click shows the whole error over several lines, and errors above a widget can be dismissed while their
+      // cause remains
+      const alert = page.locator(".pret-view").getByRole("alert").filter({ hasText: "Boolean filters require" });
+      await alert.click();
+      await expect(alert).toHaveCSS("white-space", "normal");
       await page.locator(".pret-view").getByRole("button", { name: "Dismiss error" }).click();
       assert.equal(await page.locator(".pret-view").getByRole("alert").count(), 0);
       await active.fill("= false");

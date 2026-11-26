@@ -114,7 +114,7 @@ export class FullscreenViews {
   // Attach the shared control to a panel toolbar and keep its current resource reference
   register(widget: Widget, key: () => string): HTMLButtonElement {
     const button = document.createElement("button");
-    button.className = "metanno-viewer__toolbar-button";
+    button.className = "metanno-viewer__toolbar-button metanno-viewer__icon-button";
     setButton(button, expandIcon, "Enter fullscreen");
     button.onclick = () => {
       if (widget === this.active) this.exit(widget);

@@ -114,7 +114,7 @@
 }
 
 /* The path takes the free space and is cut first, so the badges of the tray do not wrap the toolbar */
-.metanno-viewer__status > span {
+.metanno-viewer__status-text {
   flex: 1 1 0;
   min-width: 0;
   margin-right: auto;
@@ -150,10 +150,15 @@
   align-items: flex-end;
 }
 
-/* The states of the tab look like the StatusBadge chips of the view statuses */
+/* The states of the tab look like the StatusBadge chips of the view statuses, 30px high like the toolbar buttons so
+   that the toolbar keeps its height when the state changes */
 .metanno-viewer__status > .metanno-viewer__badge {
   flex: 0 1 auto;
-  padding: 6px 12px;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 5px 12px;
   border-radius: 8px;
   font-size: 14px;
   line-height: 20px;
@@ -162,9 +167,22 @@
   box-shadow: var(--joy-shadow-md, 0 2px 8px rgba(0, 0, 0, 0.12));
 }
 
+/* A work in progress looks like the soft primary buttons of the views, eg Previous and Next in a form */
+.metanno-viewer__status > .metanno-viewer__badge--busy {
+  color: var(--joy-palette-primary-softColor, var(--jp-brand-color1));
+  background: var(--joy-palette-primary-softBg, color-mix(in srgb, var(--jp-brand-color1) 12%, var(--jp-layout-color1)));
+}
+
 .metanno-viewer__status > .metanno-viewer__badge--error {
+  cursor: pointer;
   color: var(--joy-palette-danger-softColor, var(--jp-error-color1));
   background: var(--joy-palette-danger-softBg, color-mix(in srgb, var(--jp-error-color1) 12%, var(--jp-layout-color1)));
+}
+
+.metanno-viewer__status > .metanno-viewer__badge--expanded {
+  max-width: none;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .metanno-viewer__badge--busy::before {
@@ -194,37 +212,9 @@
   background: color-mix(in srgb, var(--jp-error-color1) 10%, var(--jp-layout-color1));
 }
 
-.metanno-viewer__error:has(> .metanno-viewer__dismiss) {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-}
-
-.metanno-viewer__error > span {
-  flex: 1;
-  min-width: 0;
-  /* A long link, e.g. a login link, wraps instead of widening the panel */
-  overflow-wrap: anywhere;
-}
-
-.metanno-viewer__dismiss {
-  border: none;
-  background: none;
-  color: inherit;
-  font-size: 16px;
-  line-height: 1;
-  cursor: pointer;
-}
-
 /* Toolbar controls wrap to a new line in narrow tabs instead of overflowing under neighboring tabs */
 .metanno-viewer__view > .metanno-viewer__status {
   flex-wrap: wrap;
-}
-
-.metanno-viewer__status > .metanno-viewer__error {
-  flex-basis: 100%;
-  white-space: normal;
-  overflow-wrap: anywhere;
 }
 
 .metanno-viewer__application,
@@ -241,7 +231,7 @@
   min-height: 0;
 }
 
-.metanno-viewer__view > .metanno-viewer__status > button {
+.metanno-viewer__icon-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -274,9 +264,7 @@ body.metanno-viewer-fullscreen > #main {
 
 .metanno-viewer__status > .metanno-viewer__fullscreen-button {
   display: flex;
-  flex-shrink: 0;
-  margin-right: 0;
-  overflow: visible;
+  flex: none;
 }
 
 .metanno-viewer__copy-menu {
@@ -493,7 +481,7 @@ button.metanno-viewer__connection:hover {
 .metanno-viewer__sidebar-error-actions > button:hover {
   background: color-mix(in srgb, var(--jp-error-color1) 12%, var(--jp-layout-color1));
 }
-.metanno-viewer__error a { color: inherit; text-decoration: underline; }
+.metanno-viewer__badge--error a { color: inherit; text-decoration: underline; }
 
 .metanno-viewer__sidebar-top {
   flex: 0 0 auto;
