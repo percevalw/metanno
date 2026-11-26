@@ -370,6 +370,7 @@ export const Table = function Table({
           sortable: true,
           editable: !!editor,
           filterable: column.filterable,
+          placeholder: column.placeholder,
           headerCellClass: columns.some((col) => col.filterable) ? "metanno-table-header-filter" : undefined,
           headerRenderer: TableHeader,
           editorOptions: {
@@ -385,7 +386,16 @@ export const Table = function Table({
     return effectiveColumnsOrder.map((name) => nameToCol[name]);
     // Rebuild only when column settings change, new formatter types would remount every cell and drop focus
   }, [
-    JSON.stringify(columns.map(({ key, name, kind, editable, filterable }) => [key, name, kind, editable, filterable])),
+    JSON.stringify(
+      columns.map(({ key, name, kind, editable, filterable, placeholder }) => [
+        key,
+        name,
+        kind,
+        editable,
+        filterable,
+        placeholder,
+      ])
+    ),
     effectiveColumnsOrder,
     primaryKey,
   ]);
