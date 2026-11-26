@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { InputDialog, ReactWidget } from "@jupyterlab/apputils";
+import ReactDOM from "react-dom";
+import { InputDialog } from "@jupyterlab/apputils";
+import { Widget } from "@lumino/widgets";
 import type { IPretHost, IPretService } from "pret";
 
 import {
@@ -13,49 +15,12 @@ import {
 import { fullscreenKey, FullscreenViews } from "./fullscreen";
 import { metannoIcon } from "./icons";
 import { RecipeForm } from "./recipe_form";
+import { TabStatus, ViewToolbar } from "./view_toolbar";
 
-// Error message of the sidebar and table tabs with clickable links, e.g. a login link, and an optional Retry button
 // Name of a table with its source, joined with / when the source name is a path, eg hdfs:///user/me/runs/notes,
 // and with . otherwise, eg cohort.notes, for tab titles, query statuses and the sidebar
 export function tableLabel(source: string, table: string) {
   return `${source}${source.endsWith("/") ? "" : source.includes("/") ? "/" : "."}${table}`;
-}
-
-// The text of an error with its links clickable, eg the login link of a Trino error, for ErrorBanner and the sidebar
-export function errorText(text: string) {
-  return text.split(/(https?:\/\/[^\s"')]+)/).map((part, index) =>
-    index % 2 ? (
-      <a key={index} href={part} target="_blank" rel="noreferrer">
-        {part}
-      </a>
-    ) : (
-      part
-    )
-  );
-}
-
-export function ErrorBanner({
-  text,
-  onRetry,
-  onDismiss,
-}: {
-  text: string;
-  onRetry?: () => void;
-  onDismiss: () => void;
-}) {
-  return (
-    <div className="metanno-viewer__error">
-      <span>{errorText(text)}</span>
-      {onRetry && (
-        <button className="metanno-viewer__toolbar-button" onClick={onRetry}>
-          Retry
-        </button>
-      )}
-      <button className="metanno-viewer__dismiss" aria-label="Dismiss error" title="Dismiss" onClick={onDismiss}>
-        ×
-      </button>
-    </div>
-  );
 }
 
 interface SourceViewProps {
@@ -78,8 +43,12 @@ function SourceView({ explorer, pretService, initialResource, fullscreenButton }
     (initialResource.kind === "table"
       ? tableLabel(initialResource.source, initialResource.table)
       : initialResource.name);
-  const [status, setStatus] = useState("Connecting to the Metanno data explorer kernel");
-  const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<TabStatus>({
+    text: "Connecting to the Metanno data explorer kernel",
+    kind: "busy",
+  });
+  // An error of the tab shows as an error pill of the toolbar until the next status replaces it
+  const setError = (reason: any) => setStatus({ text: String(reason?.message ?? reason), kind: "error" });
   const [kernelGeneration, setKernelGeneration] = useState(0);
   const [ready, setReady] = useState(false);
   // Recipe chosen in the selector, the selection recipe until then
@@ -109,7 +78,7 @@ function SourceView({ explorer, pretService, initialResource, fullscreenButton }
       if (!hostNodeRef.current) return;
       if (!hostRef.current) hostRef.current = pretService.createHost(explorer.context, hostNodeRef.current);
       const started = performance.now();
-      setStatus(`Loading display for ${label}`);
+      setStatus({ text: `Loading display for ${label}`, kind: "busy" });
       // Check the data comm separately when PRET loading stalls after the view reply
       const loadingTimer = window.setTimeout(() => {
         console.warn("[Metanno] PRET display still loading", {
@@ -121,7 +90,7 @@ function SourceView({ explorer, pretService, initialResource, fullscreenButton }
         const host = hostRef.current;
         await host.render(reply.data);
         if (host !== hostRef.current) return;
-        setStatus(label);
+        setStatus({ text: label });
       } finally {
         window.clearTimeout(loadingTimer);
       }
@@ -152,23 +121,22 @@ function SourceView({ explorer, pretService, initialResource, fullscreenButton }
           const operationId = String(data.operation_id || "");
           const queryTable = tableLabel(String(data.source), String(data.table));
           if (data.phase === "queued") {
-            setStatus(`Waiting for query worker, ${queryTable}`);
+            setStatus({ text: `Waiting for query worker, ${queryTable}`, kind: "busy" });
           } else if (data.phase === "running") {
             activeQueryRef.current = operationId;
-            setStatus(`Querying ${queryTable}`);
+            setStatus({ text: `Querying ${queryTable}`, kind: "busy" });
           } else if (data.phase === "completed") {
             if (activeQueryRef.current === operationId) activeQueryRef.current = null;
-            setStatus(data.rows == null ? queryTable : `${queryTable}, ${data.rows} rows`);
+            setStatus({ text: data.rows == null ? queryTable : `${queryTable}, ${data.rows} rows` });
           } else if (data.phase === "failed") {
             if (activeQueryRef.current === operationId) activeQueryRef.current = null;
-            setStatus(`Query failed for ${queryTable}`);
+            setStatus({ text: `Query failed for ${queryTable}` });
           }
         });
         setReady(true);
       } catch (reason: any) {
         if (!disposed) {
-          setError(String(reason?.message ?? reason));
-          setStatus("Metanno is unavailable");
+          setError(reason);
         }
       }
     })();
@@ -188,8 +156,7 @@ function SourceView({ explorer, pretService, initialResource, fullscreenButton }
     if (!ready || !manager) return;
     let disposed = false;
     let openedRef: string | null = null;
-    setError(null);
-    setStatus(`Opening ${label}`);
+    setStatus({ text: `Opening ${label}`, kind: "busy" });
     const id = crypto.randomUUID();
     viewRef.current = id;
     const method = picked
@@ -219,7 +186,7 @@ function SourceView({ explorer, pretService, initialResource, fullscreenButton }
           if (disposed) return;
           setForm(reply.data.form);
           setShown({ view: reply.data.view, choices: [...new Set([reply.data.view, ...reply.data.choices])] });
-          setStatus(`${reply.data.form.recipe} recipe`);
+          setStatus({ text: `${reply.data.form.recipe} recipe` });
           return;
         }
         openedRef = reply.data.view_ref;
@@ -242,8 +209,7 @@ function SourceView({ explorer, pretService, initialResource, fullscreenButton }
             selection: initialResource,
             reason,
           });
-          setError(String(reason?.message ?? reason));
-          setStatus("Could not open table");
+          setError(reason);
         }
       });
     return () => {
@@ -256,159 +222,157 @@ function SourceView({ explorer, pretService, initialResource, fullscreenButton }
   }, [initialResource, recipe, picked, connection, ready, kernelGeneration, renderPretView]);
 
   return (
-    <div className="metanno-viewer">
-      <main className="metanno-viewer__content">
-        <div className="metanno-viewer__status">
-          <span>{status}</span>
+    <main className="metanno-viewer__content metanno-viewer__view">
+      <ViewToolbar status={status} fullscreenButton={fullscreenButton}>
+        <label className="metanno-viewer__toolbar-label">
+          Recipe:
+          <select
+            className="metanno-viewer__recipe"
+            aria-label="View recipe"
+            value={shown?.view ?? ""}
+            disabled={!shown || shown.choices.length < 2}
+            onChange={(event) => {
+              // The selector keeps a recipe that fails to render, so choosing the previous one renders it again
+              const recipe = event.target.value;
+              if (picked) setPicked({ ...picked, recipe, parameters: {} });
+              else setRecipe(recipe);
+              setShown((current) => current && { ...current, view: recipe });
+            }}
+          >
+            {(shown?.choices ?? []).map((choice) => (
+              <option key={choice} value={choice}>
+                {choice}
+              </option>
+            ))}
+          </select>
+        </label>
+        {shown?.connections && shown.connections.length > 0 && (
           <label className="metanno-viewer__toolbar-label">
-            Recipe:
-            <select
-              className="metanno-viewer__recipe"
-              aria-label="View recipe"
-              value={shown?.view ?? ""}
-              disabled={!shown || shown.choices.length < 2}
-              onChange={(event) => {
-                // The selector keeps a recipe that fails to render, so choosing the previous one renders it again
-                const recipe = event.target.value;
-                if (picked) setPicked({ ...picked, recipe, parameters: {} });
-                else setRecipe(recipe);
-                setShown((current) => current && { ...current, view: recipe });
-              }}
-            >
-              {(shown?.choices ?? []).map((choice) => (
-                <option key={choice} value={choice}>
-                  {choice}
-                </option>
-              ))}
-            </select>
+            Connection:
+            {shown.connections.length > 1 || !shown.connection ? (
+              <select
+                className="metanno-viewer__recipe"
+                aria-label="Connection"
+                value={shown.connection ?? ""}
+                onChange={(event) => {
+                  const chosen = event.target.value;
+                  setConnection(chosen);
+                  setShown((current) => current && { ...current, connection: chosen });
+                }}
+              >
+                {/* When the tables of a view use different connections, choosing one moves them all to it */}
+                {!shown.connection && (
+                  <option value="" disabled>
+                    Mixed
+                  </option>
+                )}
+                {shown.connections.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span>{shown.connection}</span>
+            )}
           </label>
-          {shown?.connections && shown.connections.length > 0 && (
-            <label className="metanno-viewer__toolbar-label">
-              Connection:
-              {shown.connections.length > 1 || !shown.connection ? (
-                <select
-                  className="metanno-viewer__recipe"
-                  aria-label="Connection"
-                  value={shown.connection ?? ""}
-                  onChange={(event) => {
-                    const chosen = event.target.value;
-                    setConnection(chosen);
-                    setShown((current) => current && { ...current, connection: chosen });
+        )}
+        {viewRef.current && (
+          <details className="metanno-viewer__copy-menu">
+            <summary className="metanno-viewer__toolbar-button">Copy code</summary>
+            <div>
+              {[
+                ["annotation", "Prepare annotation"],
+                ["query", "Customize query"],
+              ].map(([purpose, label]) => (
+                <button
+                  key={purpose}
+                  className="metanno-viewer__toolbar-button"
+                  onClick={(event) => {
+                    event.currentTarget.closest<HTMLDetailsElement>("details")!.open = false;
+                    void managerRef
+                      .current!.request<{ code: string }>("export_view_code", {
+                        view_ref: viewRef.current,
+                        purpose,
+                      })
+                      .then((reply) => navigator.clipboard.writeText(reply.data.code))
+                      .catch(setError);
                   }}
                 >
-                  {/* When the tables of a view use different connections, choosing one moves them all to it */}
-                  {!shown.connection && (
-                    <option value="" disabled>
-                      Mixed
-                    </option>
-                  )}
-                  {shown.connections.map((name) => (
-                    <option key={name} value={name}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <span>{shown.connection}</span>
-              )}
-            </label>
-          )}
-          {viewRef.current && (
-            <details className="metanno-viewer__copy-menu">
-              <summary className="metanno-viewer__toolbar-button">Copy code</summary>
-              <div>
-                {[
-                  ["annotation", "Prepare annotation"],
-                  ["query", "Customize query"],
-                ].map(([purpose, label]) => (
-                  <button
-                    key={purpose}
-                    className="metanno-viewer__toolbar-button"
-                    onClick={(event) => {
-                      event.currentTarget.closest<HTMLDetailsElement>("details")!.open = false;
-                      void managerRef
-                        .current!.request<{ code: string }>("export_view_code", {
-                          view_ref: viewRef.current,
-                          purpose,
-                        })
-                        .then((reply) => navigator.clipboard.writeText(reply.data.code))
-                        .catch((reason) => setError(String(reason)));
-                    }}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </details>
-          )}
-          {viewRef.current && !form && (
-            <button
-              className="metanno-viewer__toolbar-button"
-              onClick={async () => {
-                // The open view with its recipe, tables and parameters becomes a file of metanno-home/views
-                const result = await InputDialog.getText({
-                  title: "Save view",
-                  label: "Name of the view, saved in metanno-home/views and shown under Explore",
-                  text: shown?.view ?? "",
-                });
-                if (!result.button.accept || !result.value) return;
-                try {
-                  await managerRef.current!.request("save_view", { view_ref: viewRef.current, name: result.value });
-                  setStatus(`Saved as view ${result.value}`);
-                  explorer.reportViewsChanged();
-                } catch (reason: any) {
-                  setError(String(reason?.message ?? reason));
-                }
-              }}
-            >
-              Save view
-            </button>
-          )}
-          <button
-            className="metanno-viewer__toolbar-button"
-            onClick={() => {
-              startRef.current = true;
-              setKernelGeneration((value) => value + 1);
-            }}
-          >
-            Refresh
-          </button>
-          <button
-            className="metanno-viewer__toolbar-button"
-            disabled={!activeQueryRef.current}
-            onClick={() => {
-              const operationId = activeQueryRef.current;
-              if (!operationId) return;
-              setStatus("Cancelling query");
-              void managerRef.current?.request("cancel", { request_id: operationId }, 5000);
-            }}
-          >
-            Cancel query
-          </button>
-          <span className="metanno-viewer__fullscreen-button" ref={(node) => node?.append(fullscreenButton)} />
-        </div>
-        {error && <ErrorBanner text={error} onDismiss={() => setError(null)} />}
-        {form && managerRef.current && (
-          <RecipeForm
-            key={JSON.stringify(form)}
-            explorer={explorer}
-            manager={managerRef.current}
-            form={form}
-            onOpen={(tables, parameters) => setPicked({ recipe: form.recipe, tables, parameters })}
-          />
+                  {label}
+                </button>
+              ))}
+            </div>
+          </details>
         )}
-        <div className="metanno-viewer__pret-host" ref={hostNodeRef} hidden={Boolean(form)} />
-      </main>
-    </div>
+        {viewRef.current && !form && (
+          <button
+            className="metanno-viewer__toolbar-button"
+            onClick={async () => {
+              // The open view with its recipe, tables and parameters becomes a file of metanno-home/views
+              const result = await InputDialog.getText({
+                title: "Save view",
+                label: "Name of the view, saved in metanno-home/views and shown under Explore",
+                text: shown?.view ?? "",
+              });
+              if (!result.button.accept || !result.value) return;
+              try {
+                await managerRef.current!.request("save_view", { view_ref: viewRef.current, name: result.value });
+                setStatus({ text: `Saved as view ${result.value}` });
+                explorer.reportViewsChanged();
+              } catch (reason: any) {
+                setError(reason);
+              }
+            }}
+          >
+            Save view
+          </button>
+        )}
+        <button
+          className="metanno-viewer__toolbar-button"
+          onClick={() => {
+            startRef.current = true;
+            setKernelGeneration((value) => value + 1);
+          }}
+        >
+          Refresh
+        </button>
+        <button
+          className="metanno-viewer__toolbar-button"
+          disabled={!activeQueryRef.current}
+          onClick={() => {
+            const operationId = activeQueryRef.current;
+            if (!operationId) return;
+            setStatus({ text: "Cancelling query", kind: "busy" });
+            void managerRef.current?.request("cancel", { request_id: operationId }, 5000);
+          }}
+        >
+          Cancel query
+        </button>
+      </ViewToolbar>
+      {form && managerRef.current && (
+        <RecipeForm
+          key={JSON.stringify(form)}
+          explorer={explorer}
+          manager={managerRef.current}
+          form={form}
+          onOpen={(tables, parameters) => setPicked({ recipe: form.recipe, tables, parameters })}
+        />
+      )}
+      <div className="metanno-viewer__pret-host" ref={hostNodeRef} hidden={Boolean(form)} />
+    </main>
   );
 }
 
-export class SourceViewWidget extends ReactWidget {
-  private fullscreenButton: HTMLButtonElement;
+export class SourceViewWidget extends Widget {
+  // React listens to the clicks on this node, which FullscreenViews moves with the toolbar, so the controls keep
+  // working in fullscreen
+  private frame = document.createElement("div");
+
   constructor(
-    private explorer: ExplorerKernelConnection,
-    private pretService: IPretService,
-    private initialResource: SourceSelection,
+    explorer: ExplorerKernelConnection,
+    pretService: IPretService,
+    initialResource: SourceSelection,
     private fullscreen: FullscreenViews
   ) {
     super();
@@ -419,17 +383,23 @@ export class SourceViewWidget extends ReactWidget {
     this.title.closable = true;
     this.title.icon = metannoIcon;
     this.addClass("metanno-viewer-widget");
-    this.fullscreenButton = fullscreen.register(this, () => fullscreenKey(initialResource));
-  }
-
-  render(): JSX.Element {
-    return <SourceView explorer={this.explorer} pretService={this.pretService}
-      initialResource={this.initialResource} fullscreenButton={this.fullscreenButton} />;
+    this.frame.className = "metanno-viewer";
+    this.node.append(this.frame);
+    ReactDOM.render(
+      <SourceView
+        explorer={explorer}
+        pretService={pretService}
+        initialResource={initialResource}
+        fullscreenButton={fullscreen.register(this, () => fullscreenKey(initialResource))}
+      />,
+      this.frame
+    );
   }
 
   dispose(): void {
     if (this.isDisposed) return;
     this.fullscreen.exit(this);
+    ReactDOM.unmountComponentAtNode(this.frame);
     super.dispose();
   }
 

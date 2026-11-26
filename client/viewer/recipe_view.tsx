@@ -4,11 +4,14 @@ import { INotebookTracker, NotebookPanel } from "@jupyterlab/notebook";
 import { notebookIcon, refreshIcon } from "@jupyterlab/ui-components";
 import { Widget } from "@lumino/widgets";
 import { toArray } from "@lumino/algorithm";
+import React from "react";
+import ReactDOM from "react-dom";
 import type { IPretHost, IPretService } from "pret";
 import { ViewerTabs } from "./tabs";
 import { createSession, KernelClient, ViewReply } from "./kernel_client";
 import { fullscreenKey } from "./fullscreen";
 import { metannoIcon } from "./icons";
+import { TabStatus, ViewToolbar } from "./view_toolbar";
 
 const TARGET = "metanno.viewer_display";
 export interface AnnotationMetadata {
@@ -51,17 +54,13 @@ export class RecipeViewWidget extends Widget {
   private viewRef: string | null = null;
   private lostKernel = false;
   private opening = false;
-  private kernelButton = document.createElement("button");
-  private viewSelect = document.createElement("select");
-  private reloadButton = document.createElement("button");
-  private toolbar = document.createElement("div");
-  private fullscreenError = document.createElement("div");
-  private errorText = document.createElement("span");
   private kernelGeneration = 0;
-  private content = document.createElement("div");
-  private status = document.createElement("span");
-  // The StatusTray of the view renders its badges into this node, see widget_data.py
-  private tray = document.createElement("div");
+  private status: TabStatus = { text: "" };
+  private choices: string[];
+  private fullscreenButton: HTMLButtonElement;
+  // The toolbar and the PRET host node, rendered by renderToolbar into the node that FullscreenViews moves
+  private frame = document.createElement("div");
+  private content!: HTMLDivElement;
   private context: ISessionContext;
 
   constructor(
@@ -81,67 +80,8 @@ export class RecipeViewWidget extends Widget {
     this.title.closable = true;
     this.title.icon = metannoIcon;
     this.addClass("metanno-viewer__application");
-    const toolbar = this.toolbar;
-    toolbar.className = "metanno-viewer__status";
-    this.tray.className = "metanno-viewer__tray";
-    toolbar.append(this.status, this.tray);
-    const kernel = this.kernelButton;
-    kernel.textContent = context.session?.kernel?.name || origin.kernelspec;
-    kernel.title = output.path ? "Change kernel" : "This preview uses its notebook kernel";
-    kernel.setAttribute("aria-label", "Change kernel");
-    kernel.className = "metanno-viewer__toolbar-button";
-    kernel.disabled = !output.path;
-    kernel.onclick = () => void this.changeKernel().catch((error) => this.showError(error));
-    // Choosing a view renders it again, Annotations also save it with its recipe in the Store metadata
-    const select = this.viewSelect;
-    select.className = "metanno-viewer__recipe";
-    select.setAttribute("aria-label", "View recipe");
-    select.title = output.path && !output.read_only ? "View recipe, saved with the Annotation" : "View recipe";
-    this.setChoices(output.choices);
-    select.onchange = () => void this.changeView(select.value).catch((error) => this.showError(error));
-    // Text labels before the kernel button and the recipe selector
-    const label = (text: string, control: HTMLElement) => {
-      const node = document.createElement("label");
-      node.className = "metanno-viewer__toolbar-label";
-      node.append(text, control);
-      return node;
-    };
-    toolbar.append(label("Kernel:", kernel), label("Recipe:", select));
-    if (output.path) {
-      const recover = this.reloadButton;
-      refreshIcon.element({ container: recover, width: "16px", height: "16px" });
-      recover.setAttribute("aria-label", "Reload view");
-      recover.title = "Reload the saved Store and rerun its view recipe in the selected kernel";
-      recover.className = "metanno-viewer__toolbar-button";
-      recover.onclick = () => void this.renderView(true).catch((error) => this.showError(error));
-      toolbar.append(recover);
-    }
-    if (origin.notebook) {
-      const source = document.createElement("button");
-      notebookIcon.element({ container: source, width: "16px", height: "16px" });
-      source.setAttribute("aria-label", "Open notebook");
-      source.className = "metanno-viewer__toolbar-button";
-      source.title = `Open originating notebook, ${origin.notebook}`;
-      source.onclick = () =>
-        void (async () => {
-          this.tabs.fullscreen.exit(this);
-          const panel = (await app.commands.execute("docmanager:open", {
-            path: origin.notebook,
-          })) as NotebookPanel;
-          await panel.context.ready;
-          const index = panel.content.widgets.findIndex((cell) => cell.model.id === origin.cell);
-          app.shell.activateById(panel.id);
-          if (index >= 0) panel.content.activeCellIndex = index;
-          else if (origin.cell)
-            await showErrorMessage(
-              "Originating cell not found",
-              `The saved Store points to ${origin.notebook}, but its originating cell is no longer present. ` +
-                "The notebook may have changed or been replaced since the Store was saved."
-            );
-        })().catch((error) => showErrorMessage("Cannot open originating notebook", error));
-      toolbar.append(source);
-    }
-    toolbar.append(tabs.fullscreen.register(this, () =>
+    this.choices = output.choices;
+    this.fullscreenButton = tabs.fullscreen.register(this, () =>
       fullscreenKey(
         output.path && !output.read_only
           ? {
@@ -155,23 +95,97 @@ export class RecipeViewWidget extends Widget {
             }
           : { kind: "preview", args: this.restoreData().args }
       )
-    ));
-    this.content.className = "metanno-viewer__pret-host";
-    this.fullscreenError.className = "metanno-viewer__error";
-    this.fullscreenError.setAttribute("role", "alert");
-    this.fullscreenError.hidden = true;
-    const dismiss = document.createElement("button");
-    dismiss.className = "metanno-viewer__dismiss";
-    dismiss.textContent = "×";
-    dismiss.title = "Dismiss";
-    dismiss.setAttribute("aria-label", "Dismiss error");
-    dismiss.onclick = () => (this.fullscreenError.hidden = true);
-    this.fullscreenError.append(this.errorText, dismiss);
-    const viewNode = document.createElement("div");
-    viewNode.className = "metanno-viewer__view";
-    viewNode.append(toolbar, this.fullscreenError, this.content);
-    this.node.append(viewNode);
+    );
+    this.frame.className = "metanno-viewer__view";
+    this.node.append(this.frame);
     this.setContext(context, owned);
+    this.renderToolbar();
+  }
+
+  // Render the toolbar with the current state of the tab, and the PRET host node on the first call. React listens to
+  // the clicks on `frame`, which FullscreenViews moves with the toolbar, so the controls keep working in fullscreen
+  private renderToolbar(): void {
+    const { output, origin } = this;
+    // The views of the recipe selector, the current view first when the kernel did not list it
+    const views = [...new Set([this.view, ...this.choices])];
+    ReactDOM.render(
+      <>
+        <ViewToolbar status={this.status} fullscreenButton={this.fullscreenButton}>
+          <label className="metanno-viewer__toolbar-label">
+            Kernel:
+            <button
+              className="metanno-viewer__toolbar-button"
+              aria-label="Change kernel"
+              title={output.path ? "Change kernel" : "This preview uses its notebook kernel"}
+              disabled={this.opening || !output.path}
+              onClick={() => void this.changeKernel().catch((error) => this.showError(error))}
+            >
+              {this.context.session?.kernel?.name || origin.kernelspec}
+            </button>
+          </label>
+          <label className="metanno-viewer__toolbar-label">
+            Recipe:
+            {/* Choosing a view renders it again, Annotations also save it with its recipe in the Store metadata */}
+            <select
+              className="metanno-viewer__recipe"
+              aria-label="View recipe"
+              title={output.path && !output.read_only ? "View recipe, saved with the Annotation" : "View recipe"}
+              value={this.view}
+              disabled={this.opening || views.length < 2}
+              onChange={(event) => void this.changeView(event.target.value).catch((error) => this.showError(error))}
+            >
+              {views.map((view) => (
+                <option key={view} value={view}>
+                  {view}
+                </option>
+              ))}
+            </select>
+          </label>
+          {output.path && (
+            <button
+              className="metanno-viewer__toolbar-button metanno-viewer__icon-button"
+              aria-label="Reload view"
+              title="Reload the saved Store and rerun its view recipe in the selected kernel"
+              disabled={this.opening}
+              onClick={() => void this.renderView(true).catch((error) => this.showError(error))}
+            >
+              <refreshIcon.react tag="span" width="16px" height="16px" />
+            </button>
+          )}
+          {origin.notebook && (
+            <button
+              className="metanno-viewer__toolbar-button metanno-viewer__icon-button"
+              aria-label="Open notebook"
+              title={`Open originating notebook, ${origin.notebook}`}
+              onClick={() =>
+                void this.openNotebook().catch((error) => showErrorMessage("Cannot open originating notebook", error))
+              }
+            >
+              <notebookIcon.react tag="span" width="16px" height="16px" />
+            </button>
+          )}
+        </ViewToolbar>
+        <div className="metanno-viewer__pret-host" ref={(node) => node && (this.content = node)} />
+      </>,
+      this.frame
+    );
+  }
+
+  // Leave fullscreen and show the originating cell of the view in its notebook
+  private async openNotebook(): Promise<void> {
+    const { notebook, cell } = this.origin;
+    this.tabs.fullscreen.exit(this);
+    const panel = (await this.app.commands.execute("docmanager:open", { path: notebook })) as NotebookPanel;
+    await panel.context.ready;
+    const index = panel.content.widgets.findIndex((widget) => widget.model.id === cell);
+    this.app.shell.activateById(panel.id);
+    if (index >= 0) panel.content.activeCellIndex = index;
+    else if (cell)
+      await showErrorMessage(
+        "Originating cell not found",
+        `The saved Store points to ${notebook}, but its originating cell is no longer present. ` +
+          "The notebook may have changed or been replaced since the Store was saved."
+      );
   }
 
   // Find the existing comm connection before attaching another Annotation to its kernel
@@ -243,37 +257,33 @@ export class RecipeViewWidget extends Widget {
     const kernel = this.context.session?.kernel;
     const available = kernel?.connectionStatus === "connected" && !this.lostKernel;
     this.content.inert = !available;
-    this.kernelButton.textContent = kernel?.name || this.origin.kernelspec;
-    if (available)
-      this.setStatus(
-        `${this.output.path || this.origin.notebook || "Transient data"}${this.output.read_only ? " · Read only" : ""}`
-      );
-    else this.setStatus("Kernel disconnected", "error");
-    this.fullscreenError.hidden = available;
-    this.errorText.textContent = "Kernel disconnected, reconnect or rerun the originating cell";
+    // The path of the view, or the lost kernel with what to do on hover
+    this.setStatus(
+      available
+        ? {
+            text: `${this.output.path || this.origin.notebook || "Transient data"}${
+              this.output.read_only ? " · Read only" : ""
+            }`,
+          }
+        : { text: "Kernel disconnected", kind: "error", title: "Reconnect the kernel or rerun the originating cell" }
+    );
   }
 
-  // Show the path of the view in the toolbar, or the state of the tab as a badge that looks like the StatusBadge
-  // of the view statuses
-  private setStatus(text: string, kind?: "busy" | "error"): void {
-    this.status.textContent = text;
-    this.status.className = kind ? `metanno-viewer__badge metanno-viewer__badge--${kind}` : "";
+  private setStatus(status: TabStatus): void {
+    this.status = status;
+    this.renderToolbar();
   }
 
   showError(error: unknown): void {
-    this.setStatus("Could not open view", "error");
-    this.errorText.textContent = String(error);
-    this.fullscreenError.hidden = false;
+    this.setStatus({ text: String((error as Error)?.message ?? error), kind: "error" });
     this.content.inert = true;
   }
 
   // Serialize kernel changes and reopening while keeping navigation actions available
   private setOpening(opening: boolean): void {
     this.opening = opening;
-    this.kernelButton.disabled = opening || !this.output.path;
-    this.viewSelect.disabled = opening || this.viewSelect.options.length < 2;
-    this.reloadButton.disabled = opening;
     if (opening) this.content.inert = true;
+    this.renderToolbar();
   }
 
   // Reopened Annotations render the view saved in their Store unless `view` asks for another one
@@ -290,8 +300,7 @@ export class RecipeViewWidget extends Widget {
         at: Math.round(performance.now()),
         ...details,
       });
-    this.fullscreenError.hidden = true;
-    this.setStatus("Opening view…", "busy");
+    this.setStatus({ text: "Opening view…", kind: "busy" });
     this.host?.dispose();
     try {
       const kernel = this.context.session?.kernel;
@@ -350,12 +359,9 @@ export class RecipeViewWidget extends Widget {
     }
   }
 
-  // List the views of the recipe selector, keeping the current view first when the kernel did not list it
   private setChoices(choices: string[] = []): void {
-    const views = [...new Set([this.view, ...choices])];
-    this.viewSelect.replaceChildren(...views.map((view) => new Option(view, view)));
-    this.viewSelect.value = this.view;
-    this.viewSelect.disabled = this.opening || views.length < 2;
+    this.choices = choices;
+    this.renderToolbar();
   }
 
   // Render another view of the same data in this tab, a preview is then found under the key of that view.
@@ -448,6 +454,7 @@ export class RecipeViewWidget extends Widget {
         .finally(() => manager.dispose());
     } else if (!this.opening) manager?.dispose();
     this.releaseContext();
+    ReactDOM.unmountComponentAtNode(this.frame);
     super.dispose();
   }
 }

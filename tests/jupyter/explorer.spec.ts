@@ -194,6 +194,12 @@ test("notebook and source view lifecycle", async ({ page }) => {
     (id) => document.getElementById(id).querySelector(".metanno-viewer__pret-host").inert,
     annotationId
   );
+  // The lost kernel shows as a pill of the toolbar, with what to do on hover
+  const kernelBadge = annotation.locator(".metanno-viewer__badge--error");
+  await expect(kernelBadge).toHaveText("Kernel disconnected");
+  await expect(kernelBadge).toHaveAttribute("title", "Reconnect the kernel or rerun the originating cell");
+  await kernelBadge.click();
+  await expect(kernelBadge).toHaveCSS("white-space", "normal");
   await annotation.getByRole("button", { name: "Reload view", exact: true }).click();
   await annotation.getByText("Updated todo", { exact: true }).waitFor({ timeout: 120000 });
   await page.waitForFunction(
@@ -388,6 +394,12 @@ test("notebook and source view lifecycle", async ({ page }) => {
   await todosEntry.getByRole("button", { name: "todos", exact: true }).click();
   let sourceView = page.locator(".metanno-viewer-widget:visible");
   await sourceView.getByRole("gridcell", { name: "todos source row", exact: true }).waitFor({ timeout: 60000 });
+  // The toolbar has a tray for the shared view statuses, and its buttons end at its right edge
+  const toolbar = sourceView.locator(".metanno-viewer__status");
+  assert.equal(await toolbar.locator(".metanno-viewer__tray").count(), 1);
+  const toolbarBox = (await toolbar.boundingBox())!;
+  const fullscreenBox = (await toolbar.getByRole("button", { name: "Enter fullscreen" }).boundingBox())!;
+  assert.ok(toolbarBox.x + toolbarBox.width - (fullscreenBox.x + fullscreenBox.width) < 4);
   // The recipe selector shows the tables of the saved view with the table view, then with its own recipe again
   const sourceRecipe = sourceView.getByRole("combobox", { name: "View recipe" });
   await expect(sourceRecipe).toHaveValue("review");
@@ -397,7 +409,7 @@ test("notebook and source view lifecycle", async ({ page }) => {
   await page.waitForFunction(() =>
     [...document.querySelectorAll(".metanno-viewer-widget input, .metanno-viewer-widget textarea")].some((input) => input.value === "todos source row")
   );
-  assert.equal(await sourceView.locator(".metanno-viewer__error").count(), 0);
+  assert.equal(await sourceView.locator(".metanno-viewer__badge--error").count(), 0);
   await sourceRecipe.selectOption("review");
   await expect(sourceRecipe).toHaveValue("review");
   await sourceView.getByRole("gridcell", { name: "todos source row", exact: true }).waitFor();
@@ -409,11 +421,11 @@ test("notebook and source view lifecycle", async ({ page }) => {
   await expect(sourceRecipe).toHaveValue("table");
   // A recipe that cannot show this table reports why and stays selected, so the table view can be chosen again
   await sourceRecipe.selectOption("todo_tags");
-  await sourceView.locator(".metanno-viewer__error").waitFor();
+  await sourceView.locator(".metanno-viewer__badge--error").waitFor();
   await expect(sourceRecipe).toHaveValue("todo_tags");
   await sourceRecipe.selectOption("table");
   await sourceView.getByRole("gridcell", { name: "lists source row", exact: true }).waitFor();
-  assert.equal(await sourceView.locator(".metanno-viewer__error").count(), 0);
+  assert.equal(await sourceView.locator(".metanno-viewer__badge--error").count(), 0);
   // The default view of a source table shows the fields of the selected rows in a form beside the table
   await sourceView.getByRole("gridcell", { name: "lists source row", exact: true }).click();
   await page.waitForFunction(() =>

@@ -77,6 +77,7 @@ export class NotebookOutputs {
         button.textContent = "Open with Metanno";
         button.className = "metanno-viewer__toolbar-button";
         const status = document.createElement("span");
+        status.className = "metanno-viewer__status-text";
         const launch = (replace?: Widget) =>
           void (async () => {
             const cell = this.notebook.content.widgets.find((cell) =>

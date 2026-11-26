@@ -14,7 +14,8 @@ import { ServerConnection } from "@jupyterlab/services";
 import { PageConfig } from "@jupyterlab/coreutils";
 import { settingsIcon } from "@jupyterlab/ui-components";
 import { metannoSidebarIcon } from "./icons";
-import { errorText, tableLabel } from "./source_view";
+import { tableLabel } from "./source_view";
+import { errorText } from "./view_toolbar";
 
 interface SourceSummary {
   name: string;

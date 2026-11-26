@@ -168,7 +168,7 @@ test("saved sessions", async ({ page, browserName }) => {
   await page.evaluate(() => window.jupyterapp.restored);
   assert.deepEqual(await dockLayout(page), before);
   await annotation
-    .getByText("Error: Choose a running kernel to reload this saved Annotation", { exact: true })
+    .getByText("Choose a running kernel to reload this saved Annotation", { exact: true })
     .waitFor();
   assert.equal(await annotation.getAttribute("id"), annotationId);
   if (browserName === "chromium") assert.ok(!sourceMaps.some((url) => url.includes("__main__.map")));

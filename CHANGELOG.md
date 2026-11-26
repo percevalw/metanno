@@ -17,6 +17,8 @@
 
 - A recipe can declare a table `NotRequired` in the `TypedDict` of its Store, eg `notes: NotRequired[Annotated[DataFrame, RecipeTable("Notes")]]`: its picker is marked optional and offers *None*, and `main` then gets a Store without that key.
 - A recipe file that fails to load no longer blocks the other recipes and views: the sidebar lists them with the error of that file above them, and opening that recipe shows its error.
+- A Metanno tab, whether it shows an Annotation, a notebook preview or a table opened from the explorer, shows a lost kernel and a view or a table that fails to open as a pill in its toolbar, like the other statuses of the view, with the whole message on hover, instead of a red banner under the toolbar. A click on an error pill, in the toolbar or over a widget, shows its whole message over several lines.
+- The toolbar buttons of a table opened from the explorer, such as Refresh or Save view, now also work in fullscreen.
 
 ## v2.0.0-beta.9 (2026-11-05)
 
