@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### JupyterLab viewer
+
+- A recipe file that fails to load no longer blocks the other recipes and views: the sidebar lists them with the error of that file above them, and opening that recipe shows its error.
+
 ## v2.0.0-beta.9 (2026-11-05)
 
 ### JupyterLab viewer

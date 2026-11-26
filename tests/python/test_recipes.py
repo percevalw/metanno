@@ -112,8 +112,25 @@ def test_confit_recipe_and_saved_view_discovery(tmp_path):
     ]
     # A recipe entrypoint receives the Store
     (tmp_path / "recipes" / "related.py").write_text("def main(table):\n    return table\n", encoding="utf-8")
-    with pytest.raises(ValueError, match="main.store"):
-        load_recipes(tmp_path)
+    assert "main(store" in load_recipes(tmp_path).errors["related"]
+
+
+def test_recipe_failing_to_load_keeps_the_others(tmp_path):
+    """
+    A recipe needing a module of another version only loses that recipe, and opening it gives the reason
+    """
+    from pret import create_store
+
+    from metanno.viewer.recipes import render_recipe
+
+    (tmp_path / "recipes").mkdir()
+    (tmp_path / "recipes" / "broken.py").write_text("import not_installed\n", encoding="utf-8")
+    (tmp_path / "recipes" / "working.py").write_text("def main(store):\n    return store\n", encoding="utf-8")
+    recipes = load_recipes(tmp_path)
+    assert sorted(recipes) == ["table", "working"]
+    assert recipes.errors == {"broken": "broken.py: No module named 'not_installed'"}
+    with pytest.raises(ValueError, match="broken recipe failed to load, broken.py: No module named"):
+        render_recipe(create_store({}), "broken", {}, recipes)
 
 
 def test_recipe_max_rows_bound_tables_without_their_own(tmp_path):
