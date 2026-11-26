@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Annotation widgets
+
+- Any form field, and not only a choice field, is now hidden when its `options` is a function of the selected row that returns an empty list, None or False, so a text field or a checkbox can show only for some rows, e.g. the details of an event once its `show_details` checkbox is ticked.
+
 ### JupyterLab viewer
 
 - A recipe file that fails to load no longer blocks the other recipes and views: the sidebar lists them with the error of that file above them, and opening that recipe shows its error.
