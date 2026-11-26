@@ -7,6 +7,7 @@
 - Any form field, and not only a choice field, is now hidden when its `options` is a function of the selected row that returns an empty list, None or False, so a text field or a checkbox can show only for some rows, e.g. the details of an event once its `show_details` checkbox is ticked.
 - An edit in an annotation form or table, for instance ticking a checkbox, now updates the shown rows in place instead of querying the edited table and its related tables again, unless a filter, a sort or a relation of these tables uses the edited column.
 - The text widget shows its scrollbars only when the text overflows, so it no longer draws empty scrollbar tracks on its right and bottom edges.
+- Table widgets no longer freeze the whole JupyterLab page, for instance a few seconds after selecting a document and then ticking a checkbox in the form. This happened when a table asked for rows of a query that had been replaced in the meantime: it got no rows back and kept asking for them.
 
 ### JupyterLab viewer
 
