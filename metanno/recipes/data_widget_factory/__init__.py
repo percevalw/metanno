@@ -270,7 +270,9 @@ class DataWidgetFactory(TableWidgets, FormWidgets, TextWidgets, PdfWidgets):
                 selection["selected_from"] = None
             lead = rows[0] if len(rows) else None
             in_relation = any(store_key in (relation["parent"], relation["child"]) for relation in relations)
-            if lead is not None:
+            # A table opening on its first row leaves the parents unselected, so the stays and the diagnoses still
+            # show those of the selected patient rather than of the stay of its first note
+            if lead is not None and cause != "first_row":
                 # Select parent rows from declared relations, or guess parents from their primary key names
                 select_ancestors(store_key, lead)
                 if not in_relation:

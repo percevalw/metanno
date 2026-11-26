@@ -197,7 +197,7 @@ def make_application(kind):
 
 def make_grouped_text():
     """
-    Show the todos of the selected group in a DataFrame text widget and record its text selection
+    Show the todos of the selected group in a table and a DataFrame text widget and record its text selection
     """
     store = create_store(
         {
@@ -238,7 +238,18 @@ def make_grouped_text():
         fields=[{"key": "id", "name": "id", "kind": "text"}],
         style={"height": "120px"},
     )
+    todos = factory.create_table_widget(
+        store_key="todos",
+        primary_key="id",
+        fields=[{"key": "text", "name": "text", "kind": "text"}],
+        style={"height": "120px"},
+    )
     factory.selected_rows["groups"]["identities"] = [1]
     return Application(
-        state={"view": div(groups, text), "store": store, "selected": factory.selected_rows, "selection": selection}
+        state={
+            "view": div(groups, todos, text),
+            "store": store,
+            "selected": factory.selected_rows,
+            "selection": selection,
+        }
     )

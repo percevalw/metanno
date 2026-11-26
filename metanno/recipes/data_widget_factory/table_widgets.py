@@ -288,9 +288,25 @@ class TableWidgets:
             selection_request = use_ref(None)
 
             def select_first_row():
-                # Store lists open on their first row, as forms and annotations show the lead selected row
-                if not is_dataframe and len(selected_rows_store["identities"]) == 0 and source and source.rowCount:
-                    select_row_id(source.getCachedRow(0)[primary_key])
+                # Forms and texts show the lead selected row, so Store lists open on their first row, and so do the
+                # DataFrame tables shown by a text widget once they show the rows of a selected parent, eg the first
+                # note of a newly selected patient
+                shown_as_text = any(item[1] == "text" for item in handles.get(store_key, []))
+                waits_parent = len(ancestor_relations) and followed is None
+                if (is_dataframe and (not shown_as_text or waits_parent)) or len(selected_rows_store["identities"]):
+                    return
+                if not source or not source.rowCount:
+                    return
+                controller = __new__(AbortController())  # noqa: F821
+
+                async def select():
+                    # The first page of a DataFrame may not be loaded yet
+                    rows = await source.getRows(0, 1, controller.signal)
+                    if len(rows) and not len(selected_rows_store["identities"]) and not controller.signal.aborted:
+                        await select_row_id(rows[0][primary_key], "first_row")
+
+                select()
+                return lambda: controller.abort()
 
             use_effect(select_first_row, [source])
 
@@ -354,7 +370,8 @@ class TableWidgets:
             async def select_row_id(row_id, cause="select"):
                 """
                 Select a row by its primary key, `cause` is "relation" when it follows the selection of a related
-                widget, which already updated the widgets depending on it
+                widget, which already updated the widgets depending on it, and "first_row" when the table opens on
+                its first row, which leaves the parent rows unselected
                 """
                 if source is None:
                     return
