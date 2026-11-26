@@ -403,11 +403,21 @@ test("DataFrame text widget shows the documents of the selected parent and repor
   await page.waitForFunction(() => String(factory.selected.groups.identities) === "1");
   await page.waitForFunction(() => String(factory.selected.todos.identities) === "1");
   await page.waitForFunction(() => String(factory.selected.scans.identities) === "1");
+  // While the scans of the new group load, the PDF of the previous scan stays under a loading pill
+  await page.evaluate(() => {
+    window.shown = new Set();
+    new MutationObserver(() => {
+      if (document.body.innerText.includes("No document selected")) window.shown.add("No document selected");
+      for (const pill of document.querySelectorAll(".metanno-status-stack [role=status]")) window.shown.add(pill.innerText);
+    }).observe(document.body, { childList: true, subtree: true, characterData: true });
+  });
   await page.locator(".metanno-table").first().getByRole("gridcell", { name: "2", exact: true }).click();
   await expect(texts).toContainText(["Second group todo", "Other todo"]);
   await expect(texts).toHaveCount(2);
   await page.waitForFunction(() => String(factory.selected.todos.identities) === "2");
   await page.waitForFunction(() => String(factory.selected.scans.identities) === "2");
+  const shown = await page.evaluate(() => [...window.shown]);
+  assert.ok(shown.includes("Loading data") && !shown.includes("No document selected"), String(shown));
   assert.equal(await page.evaluate(() => String(factory.selected.groups.identities)), "2");
   await page.evaluate(() => {
     const view = [...document.querySelectorAll(".metanno-text-view")].find((node) => node.textContent.includes("Other todo"));

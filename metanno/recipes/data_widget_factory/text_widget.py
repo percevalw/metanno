@@ -318,22 +318,20 @@ class TextWidgets:
                     "operator": "in",
                     "value": [],
                 }
+            doc_ids = None if docs_mode == "all" else selected_doc_ids[:1] if docs_mode == "lead" else selected_doc_ids
             text_data, text_view = use_selected_rows(
-                text_store,
-                text_primary_key,
-                None if docs_mode == "all" else selected_doc_ids[:1] if docs_mode == "lead" else selected_doc_ids,
-                docs_filter,
+                text_store, text_primary_key, doc_ids, docs_filter, selected_doc_rows_snapshot
+            )
+            # The spans of the selected documents load with them rather than after them, and the stale documents
+            # kept while the next ones load keep their spans
+            span_doc_ids = (
+                doc_ids if doc_ids is not None and len(doc_ids) else [row[text_primary_key] for row in text_data]
             )
             span_data, span_view = use_selected_rows(
                 spans_store,
                 spans_primary_key,
                 None,
-                {
-                    "kind": "predicate",
-                    "column": spans_foreign_key,
-                    "operator": "in",
-                    "value": [row[text_primary_key] for row in text_data],
-                }
+                {"kind": "predicate", "column": spans_foreign_key, "operator": "in", "value": span_doc_ids}
                 if filter_spans
                 else None,
             )
@@ -886,7 +884,12 @@ class TextWidgets:
 
             use_effect(flush_pending_span_scroll)
 
-            can_edit_spans = not read_only and span_view.description and span_view.description.capabilities.edit
+            can_edit_spans = (
+                not read_only
+                and not text_view.stale
+                and span_view.description
+                and span_view.description.capabilities.edit
+            )
 
             @use_event_callback
             async def handle_add_span(label):
@@ -1052,11 +1055,12 @@ class TextWidgets:
                     set_selected_span_rows([])
                 set_doc_selected_ranges(doc_id_str, ranges)
 
-            # The loading of the spans after an edit shows nothing over the text
+            # The loading of the spans after an edit shows nothing over the text, unlike the loading of the documents
+            # that replace stale ones
             statuses = use_widget_statuses(
                 status,
                 text_view.error or span_view.error,
-                (text_view.loading or span_view.loading) if len(text_data) == 0 else None,
+                (text_view.loading or span_view.loading) if len(text_data) == 0 or text_view.stale else None,
             )
             if len(text_data) == 0 and len(statuses):
                 return StatusStack(statuses=statuses, corner="top-right")
@@ -1114,6 +1118,8 @@ class TextWidgets:
                 rendered_docs.append(
                     wrapped_component,
                 )
+            if len(statuses):
+                rendered_docs.append(StatusStack(statuses=statuses, corner="top-right", key="statuses"))
             return rendered_docs
 
         toolbar_view = StoreWidget(store=data_store, read_only=read_only, content=ToolbarWidget())
