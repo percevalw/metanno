@@ -75,6 +75,9 @@ class DataWidgetFactory(TableWidgets, FormWidgets, TextWidgets, PdfWidgets):
         self.selected_rows = {}
         # Names of one row of a Store key, e.g. "patient" for person, given by the parent_row_name of its child tables
         self.row_names = {}
+        # Store keys whose lead selected row a widget shows, eg the note of a text widget, the PDF of a PDF widget or
+        # the patient of a form, so that their DataFrame tables open on their first row
+        self.lead_row_keys = {}
         # Browser code reads relations as plain dicts
         self.relations = [relation.as_dict() for relation in relations]
 

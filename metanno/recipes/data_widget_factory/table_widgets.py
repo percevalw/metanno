@@ -237,8 +237,21 @@ class TableWidgets:
             raise ValueError("A table of Store rows requires a primary_key")
 
         # Factory state captured by the browser component below
-        data_store, handles = self.data, self.handles
+        data_store, handles, lead_row_keys, relations = self.data, self.handles, self.lead_row_keys, self.relations
         deep_get_store, primary_keys = self.deep_get_store, self.primary_keys
+
+        def shows_lead_row(key):
+            # A widget shows the lead row of this key or of a key below it, eg a text widget on the notes of the
+            # selected patient, which needs a selected patient first
+            pending = [key]
+            while len(pending):
+                current = pending.pop()
+                if lead_row_keys.get(current) or any(other.startswith(f"{current}.") for other in lead_row_keys.keys()):
+                    return True
+                for relation in relations:
+                    if relation["parent"] == current:
+                        pending.append(relation["child"])
+            return False
         selected_rows_by_store = self.selected_rows
         selected_rows_store = selected_rows_by_store[store_key]
         query_from = self.query_from
@@ -312,11 +325,11 @@ class TableWidgets:
 
             def select_first_row():
                 # Forms and texts show the lead selected row, so Store lists open on their first row, and so do the
-                # DataFrame tables shown by a text widget once they show the rows of a selected parent, eg the first
-                # note of a newly selected patient
-                shown_as_text = any(item[1] == "text" for item in handles.get(store_key, []))
+                # DataFrame tables whose lead row a widget needs, once they show the rows of a selected parent, eg
+                # the first patient at opening, then the first note of this patient in a text widget
                 waits_parent = len(ancestor_relations) and followed is None
-                if (is_dataframe and (not shown_as_text or waits_parent)) or len(selected_rows_store["identities"]):
+                opens_first_row = not is_dataframe or (shows_lead_row(store_key) and not waits_parent)
+                if not opens_first_row or len(selected_rows_store["identities"]):
                     return
                 if not source or not source.rowCount:
                     return

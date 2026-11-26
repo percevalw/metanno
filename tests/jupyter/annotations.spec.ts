@@ -394,12 +394,16 @@ test("DataFrame text widget shows the documents of the selected parent and repor
   const texts = page.locator(".metanno-text-view");
   await expect(texts).toContainText(["First group todo"]);
   await expect(texts).toHaveCount(1);
-  // A DataFrame table shown by a text widget selects its first row, again for each selected group
+  // The groups table opens on its first group, which the text and PDF widgets below it need, then the tables they
+  // show select their first row, again for each selected group
+  await page.waitForFunction(() => String(factory.selected.groups.identities) === "1");
   await page.waitForFunction(() => String(factory.selected.todos.identities) === "1");
-  await page.getByRole("gridcell", { name: "2", exact: true }).click();
+  await page.waitForFunction(() => String(factory.selected.scans.identities) === "1");
+  await page.locator(".metanno-table").first().getByRole("gridcell", { name: "2", exact: true }).click();
   await expect(texts).toContainText(["Second group todo", "Other todo"]);
   await expect(texts).toHaveCount(2);
   await page.waitForFunction(() => String(factory.selected.todos.identities) === "2");
+  await page.waitForFunction(() => String(factory.selected.scans.identities) === "2");
   assert.equal(await page.evaluate(() => String(factory.selected.groups.identities)), "2");
   await page.evaluate(() => {
     const view = [...document.querySelectorAll(".metanno-text-view")].find((node) => node.textContent.includes("Other todo"));

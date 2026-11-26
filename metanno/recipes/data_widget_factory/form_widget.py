@@ -112,6 +112,7 @@ class FormWidgets:
         style = {"padding": "8px", "boxSizing": "border-box", **(style or {})}
 
         self.ensure_selected_rows(store_key)
+        self.lead_row_keys[store_key] = True
 
         # Register the handle so other widgets can move this form to their selected row
         handle = handle or use_ref()

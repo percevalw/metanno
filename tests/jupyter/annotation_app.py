@@ -197,7 +197,8 @@ def make_application(kind):
 
 def make_grouped_text():
     """
-    Show the todos of the selected group in a table and a DataFrame text widget and record its text selection
+    Show the todos of the selected group in a table and a DataFrame text widget and record its text selection, and
+    its scans in a table and a PDF widget
     """
     store = create_store(
         {
@@ -210,12 +211,19 @@ def make_grouped_text():
                 ]
             ),
             "tags": DataFrame([{"id": "a", "todo_id": 1, "begin": 0, "end": 5, "label": "First"}]),
+            "scans": DataFrame([{"id": 1, "group_id": 1}, {"id": 2, "group_id": 2}, {"id": 3, "group_id": 2}]),
         },
         sync=True,
         dataframe_sync="full",
         dataframe_max_bytes=1024 * 1024,
     )
-    factory = DataWidgetFactory(store, relations=[DataRelation("groups", "todos", on={"id": "group_id"})])
+    factory = DataWidgetFactory(
+        store,
+        relations=[
+            DataRelation("groups", "todos", on={"id": "group_id"}),
+            DataRelation("groups", "scans", on={"id": "group_id"}),
+        ],
+    )
     selection = create_store({"current": None})
 
     def record_selection(doc_id, ranges, text):
@@ -244,10 +252,17 @@ def make_grouped_text():
         fields=[{"key": "text", "name": "text", "kind": "text"}],
         style={"height": "120px"},
     )
-    factory.selected_rows["groups"]["identities"] = [1]
+    # A table of the scans shown by a PDF widget also opens on its first row
+    scans = factory.create_table_widget(
+        store_key="scans",
+        primary_key="id",
+        fields=[{"key": "id", "name": "id", "kind": "text"}],
+        style={"height": "120px"},
+    )
+    pdf = factory.create_pdf_widget(store_key="scans", primary_key="id", loader=lambda row: b"%PDF-1.4")
     return Application(
         state={
-            "view": div(groups, todos, text),
+            "view": div(groups, todos, text, scans, pdf),
             "store": store,
             "selected": factory.selected_rows,
             "selection": selection,
