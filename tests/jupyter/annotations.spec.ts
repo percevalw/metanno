@@ -42,6 +42,8 @@ application`,
     await page.waitForFunction(() => window.factory && window.historyState);
     await page.evaluate(() => historyState.ready);
     await page.waitForFunction(() => !historyState.getSnapshot().pending);
+    // Header filters name the kind of value they take, eg a number for the todo IDs
+    await expect(page.locator(".metanno-table-filter").first()).toHaveAttribute("placeholder", "number");
     if (kind === "readonly") {
       await page.getByRole("gridcell", { name: "pending", exact: true }).first().click();
       await page.waitForFunction(() => factory.selected.todos.identities.length > 0);

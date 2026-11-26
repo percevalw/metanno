@@ -10,6 +10,7 @@
 - The text widget shows its scrollbars only when the text overflows, so it no longer draws empty scrollbar tracks on its right and bottom edges.
 - Table widgets no longer freeze the whole JupyterLab page, for instance a few seconds after selecting a document and then ticking a checkbox in the form. This happened when a table asked for rows of a query that had been replaced in the meantime: it got no rows back and kept asking for them.
 - A table of DataFrame rows that a text widget also shows now selects its first row when no row is selected, as a table of Store rows already did, so selecting a patient shows the text of its first note instead of "No document selected". When the table follows a parent table, it waits for a selected parent row. The first row selected this way leaves the parents of that row unselected, so the stays and the diagnoses of the selected patient stay shown rather than only those of the stay of its first note.
+- Table header filters now show the kind of value they take as placeholder, "text", "number", "date" or "true / false", so a user knows to type `> 3` in a number column or `>= 2020-01-01` in a date column.
 
 ### JupyterLab viewer
 

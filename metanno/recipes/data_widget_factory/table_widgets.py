@@ -43,6 +43,23 @@ def parse_table_filters(description, filters):
     """
 
 
+def filter_placeholder(column_type):
+    """
+    Name the kind of value the header filter of a column takes, as parseLiteral of dataframeFilters.ts reads
+    it, eg "number" for an int64 column filtered with `> 3`, and "date" for a timestamp filtered with `>= 2020-01-01`
+    """
+    column_type = column_type.lower()
+    if "bool" in column_type:
+        return "true / false"
+    if "date" in column_type or "time" in column_type:
+        return "date"
+    if "int" in column_type or "float" in column_type or "double" in column_type or "decimal" in column_type:
+        return "number"
+    if "string" in column_type or "utf8" in column_type:
+        return "text"
+    return None
+
+
 class TableWidgetHandle(TypedDict):
     """
     Imperative handle for interacting with a table widget.
@@ -528,6 +545,7 @@ class TableWidgets:
                         "kind": "boolean" if "bool" in c.type.lower() else "text",
                         "editable": description.capabilities.edit,
                         "filterable": not c.normalized and c.source_filter is not False,
+                        "placeholder": filter_placeholder(c.type),
                     }
                     for c in description.columns
                 ]
