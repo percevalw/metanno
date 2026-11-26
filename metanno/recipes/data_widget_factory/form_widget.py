@@ -11,7 +11,7 @@ from pret.render import Renderable
 from pret_joy import Button, Stack
 from typing_extensions import TypedDict
 
-from .fields import FieldSpec, field_state, render_field
+from .fields import FieldSpec, column_kind, field_state, render_field
 from .widget_data import (
     VIEW_STATUS,
     StatusStack,
@@ -74,6 +74,10 @@ class FormWidgets:
                 - `"autocomplete"`: autocomplete text input
                 - `"radio"`: radio button group
                 - `"boolean"`: checkbox input
+                - `"multi-select"`, `"multi-autocomplete"`: the same inputs choosing several options, for a column
+                  holding a list of strings
+                - `"multi-radio"`: one checkbox per option, checking several of them
+                - `"multi-text"`: tags input where Enter adds the typed text, with the options as suggestions
 
             - `editable`: If False, the field will be read-only
             - `options`: If present, a dropdown/autocomplete/radio will be used. It can
@@ -258,7 +262,7 @@ class FormWidgets:
                                 {
                                     "key": c["name"],
                                     "name": c["name"],
-                                    "kind": "boolean" if "bool" in c.type.lower() else "text",
+                                    "kind": column_kind(c.type),
                                     "editable": True,
                                 }
                                 for c in view.description.columns
