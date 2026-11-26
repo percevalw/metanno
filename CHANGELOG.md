@@ -6,6 +6,7 @@
 
 - Any form field, and not only a choice field, is now hidden when its `options` is a function of the selected row that returns an empty list, None or False, so a text field or a checkbox can show only for some rows, e.g. the details of an event once its `show_details` checkbox is ticked.
 - An edit in an annotation form or table, for instance ticking a checkbox, now updates the shown rows in place instead of querying the edited table and its related tables again, unless a filter, a sort or a relation of these tables uses the edited column.
+- The text widget shows its scrollbars only when the text overflows, so it no longer draws empty scrollbar tracks on its right and bottom edges.
 
 ### JupyterLab viewer
 
