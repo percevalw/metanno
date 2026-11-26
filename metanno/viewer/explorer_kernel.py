@@ -315,16 +315,10 @@ class DataExplorerKernel(IPythonKernel):
             home = "" if directory == root else directory.relative_to(root).as_posix()
             views = [view.model_dump() for view in load_views(view_path)]
             # The Recipes section of the sidebar opens each recipe with table pickers for the Store keys it declares,
-            # and if a recipe file fails to load, we show its error there rather than failing the whole sidebar
-            try:
-                recipes = [
-                    {"name": name, "tables": recipe.tables}
-                    for name, recipe in load_recipes(self.sources.config.directory).items()
-                    if name != "table"
-                ]
-                recipes_error = None
-            except Exception as error:
-                recipes, recipes_error = [], str(error)
+            # and shows the errors of the recipe files that failed to load above the other recipes
+            loaded = load_recipes(self.sources.config.directory)
+            recipes = [{"name": name, "tables": recipe.tables} for name, recipe in loaded.items() if name != "table"]
+            recipes_error = "\n".join(loaded.errors.values()) or None
             return {"views": views, "stores": stores, "home": home, "recipes": recipes, "recipes_error": recipes_error}
         if method == "resolve_path":
             source, table, connection = self.sources.resolve_path(data["uri"], data.get("connection"))

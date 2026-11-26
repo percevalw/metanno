@@ -256,31 +256,47 @@ def recipe_tables(main, namespace):
     return tables
 
 
+class Recipes(dict):
+    """
+    The Recipes dict maps each recipe name to its recipe, and its `errors` attribute maps the name of each recipe
+    file that failed to load to its error message, which the sidebar and render_recipe show
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.errors = {}
+
+
 def load_recipes(directory):
     """
     Load the recipe entry points of the recipes folder of a config folder, after the built in table view
 
     Since a metanno-home made before the recipes folder existed keeps its recipes in views, we load those too, but a
-    recipe of the recipes folder replaces one of the same name there
+    recipe of the recipes folder replaces one of the same name there. If a file fails to load, we skip its recipe
+    and keep its error in `errors`
     """
-    recipes = {"table": table_view}
+    recipes = Recipes(table=table_view)
     for file in [*sorted(Path(directory, "views").glob("*.py")), *sorted(Path(directory, "recipes").glob("*.py"))]:
-        spec = importlib.util.spec_from_file_location(f"metanno.viewer_recipe_{file.stem}", file)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        main = getattr(module, "main", None)
-        if not callable(main):
-            raise ValueError(f"Recipe {file} must define a callable main")
-        if "store" not in inspect.signature(main).parameters:
-            raise ValueError(f"Recipe {file} must define main(store, ...)")
-        tables = recipe_tables(main, vars(module))
-        # pydantic would check the Store against the TypedDict of its tables, so the validated call leaves it unchecked
-        main.__annotations__.pop("store", None)
-        recipe = validate_arguments(main)
-        recipe.annotation_setup_code = getattr(module, "annotation_setup_code", None)
-        recipe.tables = tables
-        recipe.main = main
-        recipes[file.stem] = recipe
+        try:
+            spec = importlib.util.spec_from_file_location(f"metanno.viewer_recipe_{file.stem}", file)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            main = getattr(module, "main", None)
+            if not callable(main):
+                raise ValueError(f"Recipe {file} must define a callable main")
+            if "store" not in inspect.signature(main).parameters:
+                raise ValueError(f"Recipe {file} must define main(store, ...)")
+            tables = recipe_tables(main, vars(module))
+            # pydantic would check the Store against the TypedDict of its tables, so the validated call leaves it
+            # unchecked
+            main.__annotations__.pop("store", None)
+            recipe = validate_arguments(main)
+            recipe.annotation_setup_code = getattr(module, "annotation_setup_code", None)
+            recipe.tables = tables
+            recipe.main = main
+            recipes[file.stem] = recipe
+        except Exception as error:
+            recipes.errors[file.stem] = f"{file.name}: {error}"
     return recipes
 
 
@@ -323,7 +339,12 @@ def render_recipe(store, name, parameters, recipes, read_only=False):
     token = VIEW_READ_ONLY.set(read_only)
     try:
         if ":" not in name and name not in recipes:
-            raise ValueError(f"No recipe {name!r} in the recipes folder, found {', '.join(sorted(recipes))}")
+            error = recipes.errors.get(name)
+            raise ValueError(
+                f"The {name} recipe failed to load, {error}"
+                if error
+                else f"No recipe {name!r} in the recipes folder, found {', '.join(sorted(recipes))}"
+            )
         application = pkgutil.resolve_name(name) if ":" in name else recipes[name]
         missing = [key for key in getattr(application, "tables", None) or {} if key not in store]
         if missing:
