@@ -43,6 +43,7 @@ class PdfWidgets:
         """
         store_key = str(store_key)
         self.ensure_selected_rows(store_key)
+        self.lead_row_keys[store_key] = True
         selected_rows = self.selected_rows[store_key]
         data = self.data[store_key]
         on_mount = self.register_widget_dataframe(store_key)

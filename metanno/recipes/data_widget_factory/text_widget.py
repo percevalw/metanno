@@ -199,6 +199,7 @@ class TextWidgets:
         handle = handle or use_ref()
         handles = self.handles
         handles.setdefault(store_text_key, []).append([handle, "text"])
+        self.lead_row_keys[store_text_key] = True
         if store_spans_key is not None:
             handles.setdefault(store_spans_key, []).append([handle, "spans"])
         self.register_pkey(store_text_key, text_primary_key)
