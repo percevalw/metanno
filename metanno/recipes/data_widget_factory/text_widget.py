@@ -1091,7 +1091,7 @@ class TextWidgets:
                     ),
                     handle=doc_text_ref,
                     style=(
-                        {"flex": 1, "minHeight": 0, "overflow": "scroll", **(style or {})}
+                        {"flex": 1, "minHeight": 0, "overflow": "auto", **(style or {})}
                         if docs_mode == "lead"
                         # Stacked documents grow with their text, the widget scrolls them together
                         else {"minHeight": "180px", "overflow": "visible", **(style or {})}
