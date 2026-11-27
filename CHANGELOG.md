@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v2.0.0-beta.10 (2026-11-27)
 
 ### Annotation widgets
 
