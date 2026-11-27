@@ -139,7 +139,7 @@ class FormWidgets:
             rows, view = use_selected_rows(
                 data, primary_key, selected_rows_snapshot["identities"], None, selected_rows_snapshot
             )
-            statuses = use_widget_statuses(status, view.error, view.loading)
+            statuses = use_widget_statuses(status, view.error, view.loading, view.queryError)
             current_row = rows[0] if len(rows) else None
 
             def get_table_handle():

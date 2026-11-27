@@ -608,7 +608,7 @@ class TableWidgets:
                     source_ast = None
             query_changed = is_dataframe and str(source_ast) != str(data.sourceFilter)
             displayed_source = source or view.previousRowSource
-            statuses = use_widget_statuses(status, view.error, view.loading, view.filterError)
+            statuses = use_widget_statuses(status, view.error, view.loading, view.filterError or view.queryError)
             toolbar = [
                 item
                 for item in [

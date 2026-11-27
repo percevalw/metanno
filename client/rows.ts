@@ -18,7 +18,10 @@ export type RowsView = {
   contentVersion: unknown;
   description: DataFrameDescription | null;
   loading: string | null;
+  // `error` is shared by the widgets of the DataFrame, `queryError` is the error of the query of this view only, eg
+  // a filter the source rejects, see useDataFrameView in PRET
   error: string | null;
+  queryError?: string | null;
   // The rows of useSelectedRows are the previous ones, shown read only until the new ones load
   stale?: boolean;
 };
