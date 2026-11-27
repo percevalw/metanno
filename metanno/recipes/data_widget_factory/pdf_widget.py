@@ -85,7 +85,9 @@ class PdfWidgets:
             use_effect(load_selected, [row_id])
             use_effect(revoke, [url])
             loading = row_id is not None and url is None and not error
-            statuses = use_widget_statuses(status, view.error, "Loading the PDF" if loading else view.loading, error)
+            statuses = use_widget_statuses(
+                status, view.error, "Loading the PDF" if loading else view.loading, error or view.queryError
+            )
             return div(
                 iframe(src=url, title="PDF", style={"width": "100%", "height": "100%", "border": 0})
                 if url

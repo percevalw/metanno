@@ -177,7 +177,8 @@ def use_widget_statuses(status, error=None, busy=None, local_error=None):
     """
     Report the query `error` of a widget to the status of its view, and return the statuses that the widget shows
     itself with StatusStack: its work in progress `busy`, its `local_error` (eg a header filter that does not
-    parse) and, outside render_recipe, its query error. A dismissed error shows again once its message changes
+    parse, or that the source rejects) and, outside render_recipe, its query error. A dismissed error shows again
+    once its message changes
     """
     use_status_report(status, error)
     dismissed, set_dismissed = use_state(None)

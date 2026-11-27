@@ -1061,6 +1061,7 @@ class TextWidgets:
                 status,
                 text_view.error or span_view.error,
                 (text_view.loading or span_view.loading) if len(text_data) == 0 or text_view.stale else None,
+                text_view.queryError or span_view.queryError,
             )
             if len(text_data) == 0 and len(statuses):
                 return StatusStack(statuses=statuses, corner="top-right")

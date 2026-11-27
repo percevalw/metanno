@@ -262,6 +262,14 @@ test("notebook and source view lifecycle", async ({ page }) => {
     view.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
   });
   await related.locator(".metanno-text-view .mouse_selected").waitFor();
+  // A filter the source rejects shows its error over the table that sent it, not in the toolbar of the tab
+  const todoFilter = related.locator(".metanno-table-filter").first();
+  await todoFilter.fill("contains 1");
+  const rejected = related.locator(".metanno-viewer__pret-host [role=alert]").filter({ hasText: "Text filters require" });
+  await rejected.waitFor();
+  assert.equal(await related.locator(".metanno-viewer__tray [role=alert]").count(), 0);
+  await todoFilter.fill("");
+  await expect(rejected).toHaveCount(0);
   // Hidden viewers stay open while visible viewers can receive outputs from another notebook
   const originalViewer = await related.getAttribute("id");
   await page.evaluate(async () => {
